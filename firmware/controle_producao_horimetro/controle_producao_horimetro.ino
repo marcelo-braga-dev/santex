@@ -118,10 +118,11 @@ const uint8_t MODO_SO_EMPRESA = 1;
 const uint8_t MODO_AMBAS = 2;
 const uint8_t MODO_WIFI_PADRAO = MODO_AMBAS;
 
-// Nomes de rede e senhas ficam em segredos.h (nesta mesma pasta, FORA do
-// git): EMPRESA_SSID_PADRAO, EMPRESA_SENHA_PADRAO, AP_SSID e AP_SENHA.
-// Primeira vez neste computador: copie segredos.exemplo.h para segredos.h
-// e preencha. Sem segredos.h o Arduino IDE para com "segredos.h: No such file".
+// Nomes de rede e senhas ficam no .env da raiz do projeto (FORA do git):
+// EMPRESA_SSID_PADRAO, EMPRESA_SENHA_PADRAO, AP_SSID e AP_SENHA. O comando
+//     python ferramentas/gerar_segredos.py
+// gera o segredos.h desta pasta a partir dele (rode antes de compilar).
+// Sem segredos.h o Arduino IDE para com "segredos.h: No such file".
 #include "segredos.h"
 const IPAddress AP_IP(192, 168, 4, 1);
 const uint8_t AP_CANAL = 6; // com a rede da empresa ligada, o ESP32 usa o canal do roteador

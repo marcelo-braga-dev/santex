@@ -1,4 +1,6 @@
-# ---- Senhas (firmware) - modelo versionado: segredos.exemplo.h ----
+# ---- Senhas - modelo versionado: .env.exemplo ----
+.env
+# gerado a partir do .env por ferramentas/gerar_segredos.py
 firmware/**/segredos.h
 
 # ---- Gerados pelo build do executavel (app/gerar_executavel.bat) ----

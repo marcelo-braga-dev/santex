@@ -324,14 +324,20 @@ para nunca serem confundidos com produção real.
 - Multi-máquina (4 entradas) foi adicionado depois da versão single-máquina
   original — por isso a coluna `maquina` é a primeira do CSV.
 
-## Senhas do firmware (`segredos.h`)
+## Senhas do firmware (`.env` → `segredos.h`)
 
 Nomes de rede e senhas (`EMPRESA_SSID_PADRAO`, `EMPRESA_SENHA_PADRAO`,
-`AP_SSID`, `AP_SENHA`) ficam em
-`firmware/controle_producao_horimetro/segredos.h`, que **não vai para o git**
-(`.gitignore`). Num computador novo (ou depois de clonar o repositório):
+`AP_SSID`, `AP_SENHA`) ficam no arquivo **`.env`** da raiz do projeto, que
+**não vai para o git** (`.gitignore`). O Arduino IDE não lê o `.env`; o
+script abaixo gera `firmware/controle_producao_horimetro/segredos.h` (também
+fora do git) a partir dele:
 
-1. Copie `segredos.exemplo.h` para `segredos.h` na mesma pasta.
-2. Preencha com os dados reais e grave o firmware normalmente pelo Arduino IDE.
+```
+python ferramentas/gerar_segredos.py
+```
 
-Sem o `segredos.h`, a compilação para com `segredos.h: No such file or directory`.
+- **Trocou uma senha?** Edite o `.env`, rode o script e grave o firmware de novo.
+- **Computador novo / repositório clonado?** Copie `.env.exemplo` para `.env`,
+  preencha, rode o script e grave o firmware.
+- Sem o `segredos.h`, a compilação para com `segredos.h: No such file or directory`.
+- `AP_SENHA` precisa ter pelo menos 8 caracteres (o script confere).
