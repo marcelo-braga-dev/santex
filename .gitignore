@@ -1,0 +1,34 @@
+# ---- Senhas (firmware) - modelo versionado: segredos.exemplo.h ----
+firmware/**/segredos.h
+
+# ---- Gerados pelo build do executavel (app/gerar_executavel.bat) ----
+app/build/
+app/dist/
+app/*.spec
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+
+# ---- Dados locais (banco, logs, estado) - nunca versionar ----
+dados/*.db
+dados/*.db-shm
+dados/*.db-wal
+dados/*.log
+dados/sincronizacao.json
+dados/conexao.json
+dados/esp32_ip_empresa.txt
+*.log
+*.migrado
+
+# ---- Perfil do navegador embutido (WebView2) ----
+perfil_webview/
+
+# ---- Copias manuais antigas (o historico agora fica no git) ----
+**/_backup/
+
+# ---- Sistema / editores ----
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
