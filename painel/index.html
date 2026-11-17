@@ -3095,7 +3095,12 @@
       chips.push(chipResumo("Período", todosRegistros.length ? "Todo o histórico carregado" : "Sem dados carregados", "is-muted"));
     } else {
       const atual = periodoEhAtual();
-      const rotulo = formatarRotuloPeriodo(periodoSelecionado, dataReferencia);
+      let rotulo = formatarRotuloPeriodo(periodoSelecionado, dataReferencia);
+      if (periodoSelecionado === "dia") {
+        // "Segunda-feira, 17/11/2026" - o dia da semana ajuda a achar o dia certo
+        const diaSemana = dataReferencia.toLocaleDateString("pt-BR", { weekday: "long" });
+        rotulo = `${diaSemana.charAt(0).toUpperCase()}${diaSemana.slice(1)}, ${rotulo}`;
+      }
       chips.push(chipResumo(NOME_PERIODO[periodoSelecionado] || "Período",
         atual ? `${rotulo} (${PERIODO_ATUAL[periodoSelecionado]})` : rotulo, atual ? "" : "is-custom"));
     }

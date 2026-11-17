@@ -39,6 +39,8 @@ Primeira versão para produção permanente.
 - Aviso "⚠ N sem data/hora" do rodapé pode ser dispensado (×); volta sozinho
   só se surgirem ciclos sem hora novos ("1 sem data/hora (novos)").
 - Versão no rodapé; aviso de backup e de chave no popover do controlador.
+- Linha "Exibindo" mostra o dia da semana no período Dia
+  ("Terça-feira, 17/11/2026 (hoje)").
 - Excel funciona **sem internet**: biblioteca SheetJS 0.18.5 incluída em
   `painel/assets/xlsx.full.min.js` (a internet fica só como reserva).
 
