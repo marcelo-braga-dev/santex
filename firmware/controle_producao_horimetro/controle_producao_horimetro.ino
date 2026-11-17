@@ -119,7 +119,7 @@ const uint8_t MODO_AMBAS = 2;
 const uint8_t MODO_WIFI_PADRAO = MODO_AMBAS;
 
 // Nomes de rede e senhas ficam no .env da raiz do projeto (FORA do git):
-// EMPRESA_SSID_PADRAO, EMPRESA_SENHA_PADRAO, AP_SSID e AP_SENHA. O comando
+// EMPRESA_SSID_PADRAO, EMPRESA_SENHA_PADRAO, AP_SSID, AP_SENHA e API_CHAVE. O comando
 //     python ferramentas/gerar_segredos.py
 // gera o segredos.h desta pasta a partir dele (rode antes de compilar).
 // Sem segredos.h o Arduino IDE para com "segredos.h: No such file".
@@ -157,6 +157,12 @@ const uint8_t FLAG_CURTO = 0x01;
 const uint8_t FLAG_SIMULADO = 0x02;
 const uint8_t FLAG_RECUPERADO = 0x04;
 const uint8_t FLAG_SEM_HORA = 0x08;
+// Ciclo sem hora gravado com o "relogio interno" no lugar da data: o campo
+// inicioEpoch guarda os segundos desde que o ESP32 ligou (no fim do ciclo) e
+// "reservado" o numero do boot. Quando a hora for acertada (PC, internet ou
+// RTC) ainda no mesmo boot, corrigirCiclosSemHora() calcula a data real e
+// tira as duas marcas. Nunca vai para o PC (so SEM_HORA aparece no obs).
+const uint8_t FLAG_HORA_RELATIVA = 0x10;
 
 Preferences prefs;
 WebServer servidor(80);
@@ -232,6 +238,7 @@ long ultimaCorrecaoS = 0;        // quanto o ultimo acerto mudou a hora (s, + = 
 uint32_t falhasLeituraRtc = 0;   // releituras periodicas do RTC que falharam desde o boot
 
 bool armazenamentoOk = false;
+uint32_t ciclosSemHoraNesteBoot = 0; // gravados com hora relativa, ainda nao corrigidos
 uint32_t ultimoIdCiclo = 0;
 uint32_t apagadoAte = 0; // ciclos com id <= apagadoAte ja foram extraidos e "apagados"
 String idDispositivo;
@@ -271,7 +278,7 @@ uint32_t contagemBoots = 0;
 //  - reinicio seguro se a memoria livre ficar perigosamente baixa
 //  - registro dos ultimos eventos na flash (sobrevive a reinicios)
 // ---------------------------------------------------------------------
-const char *FIRMWARE_VERSAO = "2.1";
+const char *FIRMWARE_VERSAO = "2.2";
 const unsigned long INTERVALO_REDETECTAR_RTC_MS = 30000UL;   // testa o RTC a cada 30 s
 const uint8_t FALHAS_PARA_RTC_AUSENTE = 3;                   // 3 falhas seguidas = RTC sumiu
 const unsigned long SEM_PC_PARA_RECONECTAR_MS = 15UL * 60UL * 1000UL; // 15 min sem o PC alcancar
@@ -465,6 +472,7 @@ void definirHora(uint32_t epoch, const char *origem) {
   formatarEpoch(epoch, texto);
   Serial.print(F("# Relogio acertado: "));
   Serial.println(texto);
+  corrigirCiclosSemHora();
 }
 
 // ---- Registro de eventos (RAM + flash) ----
@@ -585,6 +593,7 @@ bool redetectarRtc(bool manual) {
     origemAcerto = "RTC (redetectado)";
     correcaoConhecida = false;
     registrarEvento(F("RTC encontrado - hora lida do RTC"));
+    corrigirCiclosSemHora();
   } else {
     rtcSemHoraNoBoot = true;
     registrarEvento(F("RTC encontrado, mas sem hora valida (bateria?) - aguardando o PC ou a internet"));
@@ -784,6 +793,38 @@ bool lerRegistroDaFlash(File &f, uint32_t id, RegistroCiclo &r) {
   return r.id == id; // slot sobrescrito ou vazio
 }
 
+// Da data real aos ciclos gravados sem hora NESTE boot (ver
+// FLAG_HORA_RELATIVA): fim = agora - (tempo ligado agora - tempo ligado no
+// fim do ciclo). So olha os ciclos ainda nao extraidos pelo PC.
+void corrigirCiclosSemHora() {
+  if (ciclosSemHoraNesteBoot == 0 || !horaValida || !armazenamentoOk) return;
+  File f = LittleFS.open(ARQUIVO_CICLOS, "r+");
+  if (!f) return;
+  uint32_t agora = agoraEpoch();
+  uint32_t ligadoAgora = (uint32_t)segundosLigadoEsp();
+  uint16_t boot = (uint16_t)(contagemBoots & 0xFFFF);
+  uint32_t corrigidos = 0;
+  for (uint32_t id = primeiroIdDisponivel(); id <= ultimoIdCiclo && id != 0; id++) {
+    RegistroCiclo r;
+    if (!lerRegistroDaFlash(f, id, r)) continue;
+    if (!(r.flags & FLAG_HORA_RELATIVA) || r.reservado != boot || r.inicioEpoch > ligadoAgora) continue;
+    uint32_t fim = agora - (ligadoAgora - r.inicioEpoch);
+    r.fimEpoch = fim;
+    r.inicioEpoch = fim - r.duracaoDecimos / 10UL;
+    r.flags &= ~(FLAG_HORA_RELATIVA | FLAG_SEM_HORA);
+    r.reservado = 0;
+    if (f.seek(posicaoDoId(id)) && f.write((const uint8_t *)&r, sizeof(r)) == sizeof(r)) corrigidos++;
+  }
+  f.close();
+  ciclosSemHoraNesteBoot = 0;
+  if (corrigidos) {
+    Serial.print(F("# Hora real calculada para "));
+    Serial.print(corrigidos);
+    Serial.println(F(" ciclo(s) gravados sem hora"));
+    registrarEvento(String(corrigidos) + F(" ciclo(s) sem hora receberam a hora real"));
+  }
+}
+
 void iniciarArmazenamento() {
   armazenamentoOk = LittleFS.begin(true); // formata na primeira vez (particao vazia)
   if (!armazenamentoOk) {
@@ -890,10 +931,20 @@ void registrarCiclo(uint8_t idMaquina, unsigned long duracaoMs, uint32_t inicioE
   r.duracaoDecimos = duracaoMs / 100UL;
   r.maquina = idMaquina + 1;
   r.flags = flags;
+  // Sem hora agora, mas o ciclo acabou de terminar neste boot: guarda o
+  // tempo ligado para calcular a data quando a hora for acertada. (Ciclo
+  // recuperado apos queda terminou ANTES deste boot - nao da para calcular.)
+  bool horaRelativa = fimEpoch == 0 && !(flags & FLAG_RECUPERADO);
+  if (horaRelativa) {
+    r.flags |= FLAG_HORA_RELATIVA;
+    r.inicioEpoch = (uint32_t)segundosLigadoEsp();
+    r.reservado = (uint16_t)(contagemBoots & 0xFFFF);
+  }
 
   if (gravarRegistroNaFlash(r)) {
     ultimoIdCiclo = r.id;
     prefs.putUInt("seq", ultimoIdCiclo);
+    if (horaRelativa) ciclosSemHoraNesteBoot++;
   } else {
     Serial.print(F("# [M"));
     Serial.print(idMaquina + 1);
@@ -901,7 +952,7 @@ void registrarCiclo(uint8_t idMaquina, unsigned long duracaoMs, uint32_t inicioE
   }
 
   char inicio[20], fim[20], obs[64];
-  formatarEpoch(r.inicioEpoch, inicio);
+  formatarEpoch(horaRelativa ? 0 : r.inicioEpoch, inicio);
   formatarEpoch(r.fimEpoch, fim);
   montarObs(r.flags, obs, sizeof(obs));
   Serial.print(idMaquina + 1);
@@ -1176,8 +1227,9 @@ void responderCiclos() {
       RegistroCiclo r;
       if (!lerRegistroDaFlash(f, id, r)) continue;
       char inicio[20], fim[20], obs[64], linha[160];
-      formatarEpoch(r.inicioEpoch, inicio);
-      formatarEpoch(r.fimEpoch, fim);
+      bool relativa = r.flags & FLAG_HORA_RELATIVA; // ainda sem data (boot anterior ou hora nao acertada)
+      formatarEpoch(relativa ? 0 : r.inicioEpoch, inicio);
+      formatarEpoch(relativa ? 0 : r.fimEpoch, fim);
       montarObs(r.flags, obs, sizeof(obs));
       snprintf(linha, sizeof(linha), "%lu,%u,%lu,%s,%s,%lu.%lu,%s\n", (unsigned long)r.id, (unsigned)r.maquina,
                (unsigned long)r.ciclo, inicio, fim, (unsigned long)(r.duracaoDecimos / 10),
@@ -1224,6 +1276,7 @@ void responderEventos() {
 
 // Acoes pedidas pelo painel: redetectar_rtc, varrer_i2c, reconectar_wifi, reiniciar.
 void responderAcao() {
+  if (!exigirChave()) return;
   registrarContatoPc();
   String acao = servidor.hasArg("acao") ? servidor.arg("acao") : String();
   String msg;
@@ -1261,7 +1314,21 @@ void responderAcao() {
   servidor.send(200, "application/json", j);
 }
 
+// Rotas que ALTERAM o ESP32 (/hora, /limpar, /acao) exigem a API_CHAVE
+// (segredos.h, gerada do .env) no cabecalho X-Chave - sem ela, qualquer
+// aparelho na rede poderia apagar ciclos ainda nao baixados. API_CHAVE
+// vazia = sem verificacao (compatibilidade).
+bool exigirChave() {
+  if (API_CHAVE[0] == '\0') return true;
+  String chave = servidor.header("X-Chave");
+  if (chave.length() == 0) chave = servidor.arg("chave");
+  if (chave == API_CHAVE) return true;
+  servidor.send(403, "application/json", F("{\"ok\":false,\"mensagem\":\"chave invalida\"}"));
+  return false;
+}
+
 void responderHora() {
+  if (!exigirChave()) return;
   uint32_t epoch = servidor.hasArg("epoch") ? strtoul(servidor.arg("epoch").c_str(), nullptr, 10) : 0;
   DataHora minimo = {2024, 1, 1, 0, 0, 0};
   if (epoch < paraEpoch(minimo)) {
@@ -1273,6 +1340,7 @@ void responderHora() {
 }
 
 void responderLimpar() {
+  if (!exigirChave()) return;
   if (!servidor.hasArg("ate")) {
     servidor.send(400, "text/plain", "informe ate=<id>");
     return;
@@ -1411,6 +1479,8 @@ void iniciarWifi() {
   servidor.on("/eventos", HTTP_GET, responderEventos);
   servidor.on("/acao", HTTP_POST, responderAcao);
   servidor.onNotFound([]() { servidor.send(404, "text/plain", "nao encontrado"); });
+  static const char *cabecalhos[] = {"X-Chave"}; // o WebServer so guarda os cabecalhos pedidos
+  servidor.collectHeaders(cabecalhos, 1);
   servidor.begin();
 }
 

@@ -21,6 +21,23 @@ ESP32** — depois de gravar no banco, ele zera o armazenamento do ESP32. Não t
 - **Sem display/LCD/botões** — removidos do projeto; o controle manual é
   feito por comando de texto via Serial (ver abaixo).
 
+### Recomendações para a instalação definitiva
+
+- **Bateria do RTC**: troque a CR2032 na instalação e a cada ~2 anos. Com o
+  RTC sem hora e sem PC/internet por perto, os ciclos ficam "sem data/hora"
+  (aconteceu: 849 ciclos entre 05/11 e 13/11/2026). O firmware 2.2 recupera
+  a hora desses ciclos quando o relógio é acertado no mesmo boot, mas não
+  depois de um reinício.
+- **Entradas dos relés**: os contatos usam o pull-up **interno** do ESP32
+  (~45 kΩ), fraco para cabos longos perto de motores e inversores. Para a
+  instalação definitiva, use pull-up externo de 4,7 kΩ para 3,3 V em cada
+  entrada (GPIO 16–19) + capacitor de 100 nF para o GND junto ao ESP32 — ou,
+  melhor, optoacoplador (ex.: PC817) entre o contato e o ESP32. O debounce
+  de 1 s já filtra a maior parte dos ruídos, mas não pulsos longos.
+- **Alimentação**: fonte 5 V de boa qualidade (não carregador de celular),
+  dentro do painel elétrico, longe dos contatores; se possível num circuito
+  com nobreak, já que cada queda gera um "ciclo recuperado".
+
 ### Pinagem
 
 | Função | Pino | Observação |
@@ -238,6 +255,27 @@ não conhece, então o app antigo continua funcionando com o firmware novo.
 Gravação: Arduino IDE, placa **ESP32 Dev Module**, esquema de partição padrão (o firmware usa
 ~84% da área de programa). A versão anterior fica em `firmware/_backup/controle_producao_horimetro_v1.ino`.
 
+## Firmware 2.2: chave da API e hora recuperada
+
+- **Chave nas ações que alteram o ESP32**: `POST /limpar`, `POST /hora` e
+  `POST /acao` exigem o cabeçalho `X-Chave` igual à `API_CHAVE` do `.env`
+  (gerada sozinha por `gerar_segredos.py` se faltar). Sem a chave certa:
+  `403 {"ok":false,"mensagem":"chave invalida"}`. Antes, qualquer aparelho
+  na rede podia mandar `POST /limpar?ate=999999` e apagar ciclos ainda não
+  baixados. As leituras (`/info`, `/ciclos`, `/eventos`) continuam abertas.
+  - O app envia a chave sozinho (vem embutida no `.exe`, gerado com o mesmo
+    `.env`). Para trocar sem gerar o `.exe`: `"chave"` no `conexao.json`.
+  - Se o firmware e o app estiverem com chaves diferentes, o painel mostra
+    "O controlador recusou a chave do aplicativo". Nada se perde: os ciclos
+    continuam sendo baixados (a leitura é aberta) — só a limpeza da memória
+    e o acerto de hora ficam parados até alinhar as chaves.
+- **Ciclos sem hora recebem a hora real**: sem relógio válido, o ciclo é
+  gravado com o "tempo desde que ligou" (`FLAG_HORA_RELATIVA`). Quando a
+  hora é acertada (PC, internet ou RTC redetectado) **no mesmo boot**, o
+  firmware calcula a data real de cada um e tira a marca `SEM_HORA`. O PC
+  acerta a hora antes de baixar os ciclos, então eles já chegam com data.
+- Formato do registro na flash inalterado (24 bytes; usa o campo reservado).
+
 ## Watchdog: removido de propósito
 
 Diferente da versão original (Arduino UNO, que tinha um watchdog AVR
@@ -327,7 +365,7 @@ para nunca serem confundidos com produção real.
 ## Senhas do firmware (`.env` → `segredos.h`)
 
 Nomes de rede e senhas (`EMPRESA_SSID_PADRAO`, `EMPRESA_SENHA_PADRAO`,
-`AP_SSID`, `AP_SENHA`) ficam no arquivo **`.env`** da raiz do projeto, que
+`AP_SSID`, `AP_SENHA`, `API_CHAVE`) ficam no arquivo **`.env`** da raiz do projeto, que
 **não vai para o git** (`.gitignore`). O Arduino IDE não lê o `.env`; o
 script abaixo gera `firmware/controle_producao_horimetro/segredos.h` (também
 fora do git) a partir dele:
@@ -341,3 +379,6 @@ python ferramentas/gerar_segredos.py
   preencha, rode o script e grave o firmware.
 - Sem o `segredos.h`, a compilação para com `segredos.h: No such file or directory`.
 - `AP_SENHA` precisa ter pelo menos 8 caracteres (o script confere).
+- O script também gera `app/segredos_app.json` (fora do git) com a
+  `API_CHAVE` para o `.exe`. **Firmware e `.exe` precisam ser gerados com o
+  mesmo `.env`** — `app/gerar_executavel.bat` já roda o script antes do build.

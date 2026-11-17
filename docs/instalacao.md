@@ -104,4 +104,4 @@ biblioteca padrão do Python.
 - [ ] Serial Monitor mostra o boot e o cabeçalho CSV
 - [ ] `pip install pyserial` concluído
 - [ ] `python ferramentas/controle_leitura_server.py` sobe sem erro e
-      responde em `http://localhost:8787/status`
+      responde em `http://localhost/status`

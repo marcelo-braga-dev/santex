@@ -6,6 +6,7 @@ arquivos empacotados ficam numa pasta temporaria (sys._MEIPASS) e o disco
 onde o aplicativo foi instalado pode nao ser gravavel sem admin.
 """
 
+import json
 import os
 import sys
 
@@ -39,6 +40,34 @@ def dir_dados_usuario():
     do usuario, nunca apagada entre execucoes."""
     caminho = os.path.join(_dir_usuario_app(), "dados")
     os.makedirs(caminho, exist_ok=True)
+    return caminho
+
+
+def _raiz_projeto():
+    """Raiz do projeto controle_producao_horimetro: a do codigo-fonte ou, no
+    .exe, a gravada por build_exe.py em app/build_info.json no momento do
+    build. None se nao souber ou se a pasta nao existir neste PC."""
+    if not rodando_empacotado():
+        return dir_base_bundle()
+    try:
+        with open(os.path.join(dir_base_bundle(), "app", "build_info.json"), "r", encoding="utf-8") as arquivo:
+            raiz = json.load(arquivo).get("raiz_projeto") or ""
+    except (OSError, ValueError, AttributeError):
+        return None
+    return raiz if raiz and os.path.isdir(raiz) else None
+
+
+def dir_backup():
+    """Pasta dos backups automaticos do banco: backup/ na raiz do projeto
+    (fora do git - .gitignore - e fora do .exe). No .exe rodando num PC sem a
+    pasta do projeto, usa %APPDATA%/PainelProducaoSantex/dados/backups."""
+    raiz = _raiz_projeto()
+    caminho = os.path.join(raiz, "backup") if raiz else os.path.join(dir_dados_usuario(), "backups")
+    try:
+        os.makedirs(caminho, exist_ok=True)
+    except OSError:
+        caminho = os.path.join(dir_dados_usuario(), "backups")
+        os.makedirs(caminho, exist_ok=True)
     return caminho
 
 

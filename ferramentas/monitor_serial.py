@@ -110,21 +110,48 @@ def _log_seguro(log, msg):
         pass
 
 
+ESPERA_RECONEXAO_S = 5
+
+
 def monitorar(porta, banco=None, setor=SETOR_PADRAO, parar_evento=None, log=print):
     """Conecta na porta serial e grava cada ciclo real no banco de dados
     (nunca apaga nada do que ja foi gravado - so insere linhas novas) ate
     parar_evento ser sinalizado (ou para sempre - Ctrl+C/KeyboardInterrupt -
-    se parar_evento for None, que e o uso via linha de comando)."""
+    se parar_evento for None, que e o uso via linha de comando).
+
+    Cabo desconectado, placa reiniciando ou porta sumindo NAO encerram a
+    leitura: espera ESPERA_RECONEXAO_S e tenta de novo (na mesma porta ou,
+    se ela sumiu, na que for detectada) - antes, a thread morria em silencio
+    e o painel so voltava a receber dados reabrindo o app."""
     if parar_evento is None:
         parar_evento = threading.Event()
     if banco is None:
         banco = BancoDados(os.path.join(DIR_DADOS_PADRAO, NOME_ARQUIVO))
 
+    avisado = False
+    while not parar_evento.is_set():
+        try:
+            _ler_porta(porta, banco, setor, parar_evento, log)
+            avisado = False
+        except (serial.SerialException, OSError) as erro:
+            if not avisado:
+                _log_seguro(log, f"[aviso] porta {porta} indisponivel ({erro}) - tentando de novo a cada {ESPERA_RECONEXAO_S}s.")
+                avisado = True
+        except Exception as erro:  # noqa: BLE001 - banco travado etc.: nunca morre
+            _log_seguro(log, f"[erro] {type(erro).__name__}: {erro} - tentando de novo em {ESPERA_RECONEXAO_S}s.")
+        if parar_evento.wait(ESPERA_RECONEXAO_S):
+            break
+        portas = [p.device for p in serial.tools.list_ports.comports()]
+        if porta not in portas:
+            porta = encontrar_porta() or porta
+
+
+def _ler_porta(porta, banco, setor, parar_evento, log):
     _log_seguro(log, f"Conectando em {porta} @ {BAUDRATE} bps...")
     with abrir_porta(porta) as ser:
         time.sleep(0.5)
 
-        _log_seguro(log, f"Gravando ciclos reais em {banco.caminho} (setor: {setor}). Ctrl+C para parar.\n")
+        _log_seguro(log, f"Gravando ciclos reais em {banco.caminho} (setor: {setor}). Ctrl+C para parar.")
         while not parar_evento.is_set():
             bruta = ser.readline().decode("utf-8", errors="replace").strip()
             if not bruta:

@@ -44,6 +44,7 @@ import sys
 import tempfile
 import threading
 from datetime import datetime, timedelta
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from banco_dados import BancoDados, NOME_ARQUIVO
@@ -65,6 +66,39 @@ MAX_POR_PAGINA = 200       # mesmo limite do firmware (MAX_CICLOS_POR_RESPOSTA)
 LIMPAR_APOS_EXTRAIR = True # zera o armazenamento do ESP32 depois de gravar no banco
 
 _ERROS_DE_REDE = (OSError, http.client.HTTPException, ValueError, KeyError, TypeError)
+
+# Chave que o firmware exige nas acoes que alteram o ESP32 (/limpar, /hora,
+# /acao) - gerada por gerar_segredos.py em app/segredos_app.json (embutido
+# no .exe). Pode ser trocada em dados/conexao.json: {"chave": "..."}.
+ARQUIVO_CHAVE_APP = os.path.join(DIR_BASE, "..", "app", "segredos_app.json")
+_chave_api = {"valor": None}
+
+
+def definir_chave_api(dir_dados):
+    """Carrega a chave (conexao.json tem prioridade sobre a embutida)."""
+    chave = str(_ler_config_conexao(dir_dados).get("chave") or "").strip()
+    if not chave:
+        try:
+            with open(ARQUIVO_CHAVE_APP, "r", encoding="utf-8") as arquivo:
+                chave = str(json.load(arquivo).get("api_chave") or "").strip()
+        except (OSError, ValueError, AttributeError):
+            chave = ""
+    _chave_api["valor"] = chave
+    return chave
+
+
+def _cabecalhos():
+    chave = _chave_api["valor"]
+    return {"X-Chave": chave} if chave else {}
+
+
+class ChaveRecusada(Exception):
+    """O ESP32 respondeu 403: a chave do app nao confere com a do firmware."""
+
+
+MSG_CHAVE_RECUSADA = ("O controlador recusou a chave do aplicativo (API_CHAVE): os ciclos continuam sendo "
+                      "baixados, mas a limpeza da memória do controlador e o acerto do relógio ficam parados. "
+                      "Gere o firmware e o aplicativo com o mesmo .env (python ferramentas/gerar_segredos.py).")
 
 
 def _ler_config_conexao(dir_dados):
@@ -167,9 +201,15 @@ class ClienteEsp32:
         self.base = base.rstrip("/")
 
     def _requisitar(self, caminho, metodo="GET", timeout=TIMEOUT_S):
-        req = Request(self.base + caminho, data=b"" if metodo == "POST" else None, method=metodo)
-        with urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8"), resp.headers
+        req = Request(self.base + caminho, data=b"" if metodo == "POST" else None, method=metodo,
+                      headers=_cabecalhos() if metodo == "POST" else {})
+        try:
+            with urlopen(req, timeout=timeout) as resp:
+                return resp.read().decode("utf-8"), resp.headers
+        except HTTPError as erro:
+            if erro.code == 403:
+                raise ChaveRecusada(MSG_CHAVE_RECUSADA) from erro
+            raise
 
     def info(self, timeout=TIMEOUT_S):
         return json.loads(self._requisitar("/info", timeout=timeout)[0])
@@ -295,6 +335,7 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
         enderecos = [enderecos]
 
     dir_dados = os.path.dirname(banco.caminho)
+    definir_chave_api(dir_dados)
     candidatos = _Enderecos(enderecos, dir_dados)
     _log_seguro(log, f"Procurando o ESP32 em: {', '.join(candidatos.lista)} (setor: {setor}). Ctrl+C para parar.")
     caminho_status = os.path.join(dir_dados, ARQUIVO_STATUS)
@@ -332,9 +373,17 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
                 "ultimo_contato": _agora_iso(),
                 "erro": "",
             })
-            if _sincronizar_relogio(cliente, info, log):
-                status["relogio_acertado_em"] = _agora_iso()
-                status["relogio_estava"] = info.get("hora", "")
+            # Chave recusada (firmware e app com API_CHAVE diferentes) NUNCA
+            # impede o download: so o acerto de hora e a limpeza ficam parados
+            # (antes, a recusa no /hora abortava a rodada antes de baixar - e a
+            # memoria do ESP32 acabaria sobrescrevendo ciclos nao baixados).
+            chave_recusada = False
+            try:
+                if _sincronizar_relogio(cliente, info, log):
+                    status["relogio_acertado_em"] = _agora_iso()
+                    status["relogio_estava"] = info.get("hora", "")
+            except ChaveRecusada:
+                chave_recusada = True
             status["hora_esp_valida"] = True
             _gravar_estado_ao_vivo(banco, setor, info)
 
@@ -352,13 +401,25 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
                 # Tudo ate extraido_ate ja esta no banco (ou nem existia mais no
                 # ESP32) - so entao o armazenamento dele e zerado.
                 if LIMPAR_APOS_EXTRAIR and extraido_ate > int(info.get("apagado_ate", 0)):
-                    restante = cliente.limpar(extraido_ate)
-                    _log_seguro(log, f"Armazenamento do ESP32 limpo - pendentes nele: {restante.get('pendentes', '?')}.")
-                    status["pendentes_esp"] = int(restante.get("pendentes", 0))
+                    try:
+                        restante = cliente.limpar(extraido_ate)
+                        _log_seguro(log, f"Armazenamento do ESP32 limpo - pendentes nele: {restante.get('pendentes', '?')}.")
+                        status["pendentes_esp"] = int(restante.get("pendentes", 0))
+                    except ChaveRecusada:
+                        chave_recusada = True
                 status["estado"] = "conectado"
             else:
                 status["pendentes_esp"] = 0
             status["ultima_sincronizacao"] = _agora_iso()
+            if chave_recusada and not status.get("aviso_chave"):
+                _log_seguro(log, f"[aviso] {MSG_CHAVE_RECUSADA}")
+            status["aviso_chave"] = MSG_CHAVE_RECUSADA if chave_recusada else ""
+        except ChaveRecusada as erro:
+            # Nada foi apagado do ESP32 (o /limpar foi recusado) - os ciclos
+            # baixados ja estao no banco e o resto continua guardado nele.
+            _log_seguro(log, f"[erro] {erro}")
+            conectado = None
+            status.update({"estado": "erro", "erro": str(erro)})
         except _ERROS_DE_REDE as erro:
             if conectado is not False:
                 _log_seguro(log, f"Sem resposta do ESP32 ({erro}) - tentando de novo a cada {INTERVALO_S}s em: {', '.join(candidatos.lista)}.")
@@ -400,7 +461,8 @@ def _candidatos_esp(status):
 
 
 def _json_do_esp(endereco, caminho, metodo="GET"):
-    req = Request(f"http://{endereco}{caminho}", method=metodo, data=b"" if metodo == "POST" else None)
+    req = Request(f"http://{endereco}{caminho}", method=metodo, data=b"" if metodo == "POST" else None,
+                  headers=_cabecalhos() if metodo == "POST" else {})
     with urlopen(req, timeout=TIMEOUT_DIAGNOSTICO_S) as resp:
         return json.loads(resp.read().decode("utf-8", errors="replace"))
 
@@ -437,6 +499,8 @@ def acao_esp(status, acao):
             resposta = _json_do_esp(endereco, f"/acao?acao={acao}", metodo="POST")
             return {**resposta, "endereco": endereco}
         except Exception as erro:  # noqa: BLE001
+            if getattr(erro, "code", None) == 403:
+                return {"ok": False, "mensagem": MSG_CHAVE_RECUSADA}
             if getattr(erro, "code", None) == 404:
                 return {"ok": False, "mensagem": "O firmware deste controlador é antigo e não tem esta função — grave o firmware 2.0."}
             ultimo_erro = f"{endereco}: {erro}"

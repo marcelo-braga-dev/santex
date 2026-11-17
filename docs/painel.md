@@ -68,7 +68,7 @@ estiver correndo. Horas que ainda não passaram nunca entram.
 | **Parado** | Disponível − ligado |
 | **Rendimento** | Ligado ÷ disponível |
 | **Produção** | Ligado × taxa (m/min) |
-| **Meta (anel)** | Ligado ÷ (meta diária × dias); filtrando um turno, só a fatia desse turno |
+| **Meta (anel)** | Ligado ÷ (meta % × tempo disponível de cada turno considerado, inteiro e sem pausas). Ex.: meta 85%, Turno 1 de 9 h → 7 h 39 min ligada; quando o Turno 2 começa, a meta do dia cresce junto |
 
 - Ligado + parado = disponível, em qualquer filtro.
 - Entram os turnos em que o setor produziu (qualquer máquina) e o turno
@@ -79,8 +79,14 @@ estiver correndo. Horas que ainda não passaram nunca entram.
 - O selo **"Disponível: …"** no cabeçalho de "Rendimento por máquina" mostra
   a base atual (ex.: "Turno 1 · 07:00 → agora · 51m 35s"); passe o mouse
   para ver a lista de turnos considerados.
-- A meta do comparativo/ranking passou a ser meta ÷ horas de turno por dia
-  (antes era ÷ 24 h). A página Turnos usa a mesma base para a ocupação.
+- **Meta em %** (antes era "horas ligada por dia"): a meta é a porcentagem
+  do tempo disponível do turno em que cada máquina deve ficar ligada — o
+  mesmo número aparece no selo "Meta/dia", na linha tracejada do
+  comparativo, no ranking e (como % de cada hora) no gráfico por hora. Na
+  atualização, a meta em horas foi convertida uma vez sem mudar a meta
+  efetiva de um dia completo (8 h ÷ 14 h de turno = 57,1%); a antiga fica
+  guardada no banco (`meta_horas_dia`), sem uso. Com a meta em horas, o
+  mesmo valor aparecia como 89% de manhã e 57% à noite — por isso a troca.
 - Sem data/hora real nos ciclos (ou "todo o histórico"): base do primeiro
   ao último ciclo, como antes.
 
@@ -277,7 +283,7 @@ ao trocar de aba (`mostrarView()` → `renderGraficos()`).
 
 | Forma | O que funciona | O que não funciona |
 |---|---|---|
-| **Arquivo local** (duplo clique) | Tudo, inclusive a atualização automática (via `controle_leitura_server.py` em `localhost:8787`) | — |
+| **Arquivo local** (duplo clique) | Tudo, inclusive a atualização automática (via `controle_leitura_server.py` em `localhost`) | — |
 | **Link publicado (claude.ai)** | Gráficos, filtros, exportação Excel (usa a API de download da plataforma) | Atualização automática — a página hospedada roda numa sandbox sem acesso à rede local (o chip mostra "indisponível") |
 
 ## Estrutura da página
@@ -357,14 +363,14 @@ daltonismo, atribuída pela posição da máquina na lista do setor — nunca
 pelo número bruto do id), com: nome configurável, horímetro (tempo ligado,
 mostrado em gradiente de cor), tempo parado, rendimento (%), produção
 estimada (se a taxa m/min estiver configurada), e uma barra de progresso
-contra a **meta de horas/dia** (mostrada no cabeçalho da seção e
-configurada em **⚙ Configurações → Meta de produção**). Nome e produção por
+contra a **meta de rendimento em %** (selo "Meta/dia" no cabeçalho da
+seção — clique para editar). Nome e produção por
 minuto de cada máquina: **⚙ Configurações → Máquinas**. A grade se ajusta sozinha à quantidade de máquinas do
 setor (não é mais fixa em 4 colunas).
 
 ### Comparativo de rendimento
 Gráfico de barras com as máquinas do setor atual lado a lado, uma linha
-tracejada marcando a meta do dia (convertida em % de um dia de 24h), e cada
+tracejada marcando a meta de rendimento (%), e cada
 barra mostrando quantos pontos percentuais está acima/abaixo da meta.
 
 ### Linha do tempo por máquina
@@ -373,7 +379,7 @@ vs. parado (cinza) — pra comparar visualmente onde cada uma ficou parada.
 
 ### Tempo ligado por hora
 Barras agrupadas (uma coluna por máquina, por hora), com uma linha
-tracejada de meta (meta diária dividida por 24h). Sem data real, os
+tracejada de meta (a meta % de cada hora de turno: 85% = 51 min por hora). Sem data real, os
 rótulos de hora são uma **aproximação**: ancoram o bloco mais recente na
 hora atual do computador e contam pra trás — não é a hora real gravada
 nesse caso.
@@ -544,7 +550,7 @@ hora de exportar. Botão verde com ícone de planilha, no bloco
 banco de dados, sem nenhum processamento.
 
 1. Tenta buscar a versão mais atual direto de
-   `http://localhost:8787/dados` (reconstruída na hora a partir do banco de
+   `http://localhost/dados` (reconstruída na hora a partir do banco de
    dados persistente, `dados/painel.db`).
 2. Se a fonte local não responder (ex.: página hospedada, sem rede
    local), cai para o último arquivo carregado na própria página.

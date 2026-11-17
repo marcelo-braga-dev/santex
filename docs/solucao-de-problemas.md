@@ -10,10 +10,10 @@ A partir desta versão a abertura mostra sempre o que está acontecendo
 **falha**, ela diz o motivo:
 
 - **"O Painel já está aberto em outra janela"**: havia outra janela (ou um
-  processo que não fechou direito) usando a porta 8787. Feche a outra e
+  processo que não fechou direito) usando a porta 80. Feche a outra e
   clique em *Tentar novamente* — se não houver janela visível, finalize
   `PainelProducaoSantex.exe` no Gerenciador de Tarefas.
-- **"A porta 8787 está ocupada por outro programa"**: por exemplo o
+- **"A porta 80 está ocupada por outro programa"**: por exemplo o
   `controle_leitura_server.py` rodando junto. Feche-o.
 - **"O servidor interno não respondeu"**: antivírus/firewall bloqueando o
   acesso local (`localhost`). Libere o aplicativo.
@@ -97,7 +97,7 @@ em vez do de Debug.
 ## O dashboard não atualiza sozinho / chip fica "Atualização automática indisponível"
 
 O auto-refresh e o botão de atualização automática dependem do
-`controle_leitura_server.py` rodando em `localhost:8787` (internamente isso
+`controle_leitura_server.py` rodando em `localhost` (internamente isso
 ainda é a "leitura serial" — só o texto exibido ao usuário na página foi
 simplificado, ver `docs/painel.md`). Se ele não estiver rodando (ou tiver
 caído — processos em segundo plano iniciados por automação têm um limite de
@@ -206,3 +206,42 @@ tenta de novo com o texto reduzido a ASCII — nunca deixando um problema de
 *log* derrubar a gravação do ciclo. Reproduzido rodando
 `python monitor_serial.py` direto no terminal (sem o servidor engolindo o
 erro).
+
+## Em outro computador aparece "🔒 Somente leitura" e as alterações voltam sozinhas
+
+**Causa:** proteção de propósito (app 1.0). Só o computador onde o app está
+aberto altera turnos, metas, taxas, nomes e a leitura; os outros aparelhos
+da rede só visualizam — antes, qualquer pessoa na rede podia mudar tudo.
+
+**Correção:** altere pelo computador do painel, ou crie
+`%APPDATA%\PainelProducaoSantex\dados\seguranca.json` com
+`{"pin_remoto": "1234"}` e, no outro aparelho, clique em
+"🔒 Somente leitura" e digite o PIN. Ver `docs/aplicativo-desktop.md`.
+
+## "O controlador recusou a chave do aplicativo (API_CHAVE)"
+
+**Causa:** o firmware 2.2 exige a `API_CHAVE` para limpar a memória,
+acertar a hora e as ações do diagnóstico, e o `.exe` em uso foi gerado com
+outra chave (ou é anterior à 2.2 / sem `segredos_app.json`).
+
+**O que acontece enquanto isso:** nada se perde — os ciclos continuam
+sendo baixados (a leitura não exige chave); só a limpeza da memória do
+ESP32 e o acerto do relógio pelo PC ficam parados.
+
+**Correção:** gere o firmware e o `.exe` com o mesmo `.env`:
+`python ferramentas/gerar_segredos.py`, grave o firmware e rode
+`app/gerar_executavel.bat`. Para alinhar sem gerar o `.exe`, ponha a chave
+do firmware em `conexao.json`: `{"modo": "wifi", "chave": "..."}`.
+
+## Rodapé mostra "⚠ N sem data/hora"
+
+**Causa:** ciclos gravados enquanto o ESP32 estava sem relógio (bateria do
+RTC fraca, RTC desconectado) e sem PC/internet para acertar a hora. Antes
+eles apareciam empilhados na hora em que foram baixados (ex.: 834 ciclos
+"às 07h de 10/11/2026", com o aviso "sobrepostos"); agora ficam guardados
+no banco, mas fora dos períodos e turnos, porque não se sabe quando
+aconteceram.
+
+**Correção:** troque a bateria do RTC e confira o relógio na página de
+diagnóstico do controlador. Com o firmware 2.2, ciclos gravados sem hora
+recebem a hora real sozinhos quando o relógio é acertado no mesmo boot.

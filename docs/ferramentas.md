@@ -19,7 +19,7 @@ era iniciado). Guarda, isolado por setor:
 
 Usa `PRAGMA journal_mode=WAL` (mais resistente a fechamento abrupto do
 programa) e é seguro de acessar de múltiplos processos/threads ao mesmo
-tempo — é exatamente assim que `controle_leitura_server.py` (processo) e
+tempo — é exatamente assim que `controle_leitura_server.py` e
 `app/servidor.py` (thread, dentro do aplicativo desktop) o usam.
 
 Se encontrar um `banco_de_dados.csv` antigo (do formato pré-SQLite) na
@@ -96,35 +96,40 @@ arquivo (ou com `"modo": "serial"`), tudo continua pela USB como antes.
 
 ## `controle_leitura_server.py`
 
-Servidor HTTP local (porta **8787**) que liga/desliga o `monitor_serial.py`
-sob demanda e serve os dados do banco — é o que permite o painel controlar
-a leitura, se auto-atualizar e ler/gravar configuração de máquinas sem
-precisar de terminal.
+O **mesmo servidor do aplicativo desktop** (`app/servidor.py`), só que sem
+a janela — para desenvolvimento ou para um PC que só serve o painel. Não há
+mais uma cópia separada do código: API, leitura (thread), backup e regra de
+somente leitura são exatamente os do app. Dados em `dados/painel.db`.
 
 ```
 python controle_leitura_server.py
 ```
 
-Deixe essa janela aberta em segundo plano. Endpoints:
+Não rode junto com o app (os dois usam a porta 80). Endpoints principais:
 
 | Rota | Método | Retorno |
 |---|---|---|
-| `/status` | GET | `{"rodando": true/false}` |
-| `/iniciar` | POST | inicia o `monitor_serial.py` como subprocesso; retorna o status |
-| `/parar` | POST | encerra o subprocesso; retorna o status |
-| `/dados` | GET | ciclos do setor, reconstruídos do banco no mesmo formato CSV que o painel já lê |
-| `/config?setor=<id>` | GET | `{"maquinas": {...}, "metaHorasDia": N}` — config persistida no banco |
-| `/config` | POST | grava/atualiza nome, taxa e/ou meta de um setor (corpo JSON) |
+| `/status` | GET | `{"rodando", "modo", "versao", "podeEditar", "pinConfigurado"}` |
+| `/dados` | GET | ciclos do setor em CSV. Envia `ETag`; com `If-None-Match` igual responde **304** sem corpo. Comprimido com gzip quando aceito |
+| `/sincronizacao` | GET | situação da leitura Wi-Fi + `backup` (último backup / erro) |
+| `/ao-vivo?setor=<id>` | GET | estado atual (ligada/desligada) de cada máquina |
+| `/config?setor=<id>` | GET | máquinas, meta, turnos e configurações extras |
+| `/config`, `/iniciar`, `/parar`, `/conexao`, `/esp/acao` | POST | alterações — aceitas só **deste PC** ou com o cabeçalho `X-Pin` correto (`dados/seguranca.json`); senão `403 {"erro": "somente_leitura"}` |
 
-Todas as respostas incluem `Access-Control-Allow-Origin: *`, para o painel
-(aberto como arquivo local, origem `null`) conseguir chamar o servidor sem
-bloqueio de CORS.
+O servidor atende várias requisições ao mesmo tempo (`ThreadingHTTPServer`)
+e manda o painel com `Cache-Control: no-cache` (atualizou o app, todos os
+aparelhos pegam a versão nova).
 
-> O **servidor HTTP** não é persistente entre sessões — se a janela for
-> fechada, ou o processo atingir o limite de tempo (quando iniciado em
-> segundo plano por uma automação), ele para e precisa ser religado. Os
-> **dados**, porém, são (`dados/painel.db`) — religar o servidor não perde
-> nada do que já foi gravado.
+## `backup_banco.py`
+
+Backup diário do `painel.db` pela API de backup do SQLite (seguro com o app
+gravando). Usado pelo app — ver
+[aplicativo-desktop.md](aplicativo-desktop.md#backup-automático-do-banco).
+
+## `instalar_inicio_automatico.ps1`
+
+Cria (ou remove, com `-Remover`) o atalho do `.exe` na pasta "Inicializar"
+do Windows, para o painel abrir sozinho com o notebook.
 
 ## `controlar_porta_serial.ps1`
 
@@ -138,11 +143,10 @@ pode estar aberta por um programa de cada vez) e retomar depois.
 .\controlar_porta_serial.ps1 status      # mostra se esta rodando
 ```
 
-Internamente, procura processos `python.exe` cuja linha de comando contém
-`monitor_serial.py` (via `Get-CimInstance Win32_Process`). Ao iniciar, roda
-o `monitor_serial.py` oculto em segundo plano e redireciona a saída para
-`monitor_serial.log` (e `monitor_serial.log.err` para erros), na própria
-pasta `ferramentas/`.
+Primeiro pede ao app/servidor aberto neste PC para pausar/retomar a leitura
+(`POST http://localhost/parar` e `/iniciar`). Se nenhum estiver aberto, age
+sobre um `monitor_serial.py` avulso (encerra o processo / inicia oculto,
+com saída em `monitor_serial.log`).
 
 Se o PowerShell bloquear a execução por política de segurança:
 

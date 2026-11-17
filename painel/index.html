@@ -1305,6 +1305,9 @@
     #machine-selector { display: flex; flex-wrap: wrap; max-width: 100%; }
     #machine-selector .segmented-btn { flex: 1 1 calc(50% - 2px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
+  .foot-versao { color: var(--ink-400); font-variant-numeric: tabular-nums; }
+  .ro-note { border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .ro-note:hover { border-color: var(--border-strong); color: var(--ink-900); }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -1587,7 +1590,7 @@
           </div>
         </div>
         <div class="base-calc" id="base-calculo" hidden></div>
-        <button class="panel-tag meta-display editable" type="button" data-abrir-popup="meta" title="Clique para editar a meta diária">Meta/dia <strong class="mono" id="meta-display">8 h</strong><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="panel-tag meta-display editable" type="button" data-abrir-popup="meta" title="Clique para editar a meta diária">Meta/dia <strong class="mono" id="meta-display">85%</strong><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       </div>
       <div class="panel-body">
         <div class="machine-grid" id="machine-grid"></div>
@@ -1600,7 +1603,7 @@
           <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 6h7M13 6h8M3 12h4M10 12h11M3 18h10M16 18h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
           <div>
             <div class="panel-title">Linha do tempo por máquina</div>
-            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
+            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); faixa no topo e linhas tracejadas = turnos; risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
           </div>
         </div>
       </div>
@@ -2036,7 +2039,7 @@
   </section>
 
   <footer class="app-footer">
-    <span class="foot-brand" id="foot-brand">Painel de Produção — uso interno de gestão</span>
+    <span><span class="foot-brand" id="foot-brand">Painel de Produção — uso interno de gestão</span> <span class="foot-versao" id="foot-versao"></span></span>
     <span>Arraste um arquivo CSV para qualquer lugar da tela para carregá-lo</span>
   </footer>
 </main>
@@ -2053,6 +2056,7 @@
     <span class="period-note" id="period-note"></span>
     <span class="period-note" id="shift-note"></span>
     <span class="period-note" id="dados-note"></span>
+    <button class="ro-note" id="ro-note" type="button" hidden title="Este aparelho só visualiza. Alterações são feitas no computador do painel — ou clique para informar o PIN.">🔒 Somente leitura</button>
   </div>
   <div class="sb-right">
     <div class="sync-bar" id="sync-bar" hidden>
@@ -2115,13 +2119,13 @@
       <button class="modal-close" id="meta-close" type="button" aria-label="Fechar">×</button>
     </div>
     <div class="modal-body">
-      <label class="config-field">Meta diária de horas ligada (por máquina)
+      <label class="config-field">Meta de rendimento (por máquina)
         <span class="config-inline">
-          <input type="number" id="meta-input" min="0.5" max="24" step="0.5" value="8" class="input mono" />
-          horas por dia
+          <input type="number" id="meta-input" min="1" max="100" step="1" value="85" class="input mono" />
+          % do tempo disponível
         </span>
       </label>
-      <div class="settings-note">Usada no rendimento de cada máquina, no comparativo (linha tracejada) e no gráfico por hora. Vale para o setor selecionado.</div>
+      <div class="settings-note" id="meta-exemplo">Porcentagem do tempo de turno (já sem intervalos e paradas programadas) em que cada máquina deve ficar ligada. Usada no progresso da meta, no comparativo (linha tracejada) e no gráfico por hora. Vale para o setor selecionado.</div>
       <div class="settings-error" id="meta-error"></div>
     </div>
     <div class="modal-foot">
@@ -2453,7 +2457,7 @@
     return {
       pausas: [],
       calendario: { ativo: false, diasSemana: [1, 2, 3, 4, 5], diasTurnos: [], paradas: [] },
-      historico: { taxa: {}, meta: [], turnos: [] }
+      historico: { taxa: {}, meta: [], metaPct: [], turnos: [] }
     };
   }
   const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -2510,7 +2514,8 @@
       .sort((a, b) => (a.desde < b.desde ? -1 : a.desde > b.desde ? 1 : 0));
   }
   function normalizarHistorico(v) {
-    const h = { taxa: {}, meta: [], turnos: [] };
+    // meta = vigencias antigas em HORAS (so preservadas); metaPct = em % (usada)
+    const h = { taxa: {}, meta: [], metaPct: [], turnos: [] };
     if (!v || typeof v !== "object") return h;
     if (v.taxa && typeof v.taxa === "object") {
       Object.keys(v.taxa).forEach((id) => {
@@ -2519,6 +2524,7 @@
       });
     }
     h.meta = normalizarVigencias(v.meta, (x) => isFinite(x) && x > 0);
+    h.metaPct = normalizarVigencias(v.metaPct, (x) => isFinite(x) && x > 0 && x <= 100);
     h.turnos = normalizarVigencias(v.turnos, (x) => turnosValidos(x)).map((vg) => ({ desde: vg.desde, valor: copiaTurnos(vg.valor) }));
     return h;
   }
@@ -2572,7 +2578,7 @@
       const ult = lista[lista.length - 1];
       if (JSON.stringify(ult.valor) !== JSON.stringify(valor)) { ult.valor = valor; mudou = true; }
     };
-    alinhar(h.meta, getMeta());
+    alinhar(h.metaPct, getMeta());
     alinhar(h.turnos, copiaTurnos(turnos));
     MACHINE_IDS.forEach((id) => alinhar(h.taxa[id], machineRate(id)));
     if (mudou) extrasVersao++;
@@ -2597,7 +2603,14 @@
   function garantirHistoricoInicial() {
     const h = extras.historico;
     let mudou = false;
-    if (!h.meta.length) { h.meta.push({ desde: DESDE_SEMPRE, valor: getMeta() }); mudou = true; }
+    if (!h.metaPct.length) {
+      // primeira vez com a meta em %: converte as vigencias antigas em horas
+      // (horas ÷ horas de turno daquele periodo), mantendo a mesma meta efetiva
+      h.metaPct = h.meta.length
+        ? h.meta.map((vg) => ({ desde: vg.desde, valor: horasParaPct(vg.valor, vigenteEm(h.turnos, msDeChave(vg.desde), turnos)) }))
+        : [{ desde: DESDE_SEMPRE, valor: getMeta() }];
+      mudou = true;
+    }
     if (!h.turnos.length) { h.turnos.push({ desde: DESDE_SEMPRE, valor: copiaTurnos(turnos) }); mudou = true; }
     MACHINE_IDS.forEach((id) => {
       if (!h.taxa[id] || !h.taxa[id].length) { h.taxa[id] = [{ desde: DESDE_SEMPRE, valor: machineRate(id) }]; mudou = true; }
@@ -2608,7 +2621,11 @@
     if (ms === null || ms === undefined) return machineRate(id);
     return vigenteEm(extras.historico.taxa[id], ms, machineRate(id));
   }
-  function metaEm(ms) { return vigenteEm(extras.historico.meta, ms, getMeta()); }
+  function metaEm(ms) { return vigenteEm(extras.historico.metaPct, ms, getMeta()); }
+  function msDeChave(chave) {
+    const [a, m, d] = String(chave).split("-").map(Number);
+    return new Date(a, (m || 1) - 1, d || 1).getTime();
+  }
   // Turnos do dia "ms" ja com o horario daquele dia da semana (os turnos
   // vigentes na data, com o horario proprio do dia quando houver).
   function turnosEm(ms) {
@@ -3222,9 +3239,11 @@
       const pClipS = ps.reduce((a2, pz) => a2 + (pz.fim - pz.inicio) / 1000, 0);
       totalS += (fim - inicio) / 1000 - pClipS;
       const flex = almocosFlexiveisDaJanela(idx, t, inicio, fimTurno);
-      totalCompletoS += durS - psCompletas.reduce((a2, pz) => a2 + (pz.fim - pz.inicio) / 1000, 0) - flex.reduce((a2, f) => a2 + f.durS, 0);
+      // tempo disponivel do turno inteiro (sem pausas/almoco) - base da meta
+      const completoS = durS - psCompletas.reduce((a2, pz) => a2 + (pz.fim - pz.inicio) / 1000, 0) - flex.reduce((a2, f) => a2 + f.durS, 0);
+      totalCompletoS += completoS;
       pausaS += pClipS;
-      janelas.push({ idx, dia, inicio, fim, fimTurno, correndo: fim < fimTurno, pausas: ps, flex });
+      janelas.push({ idx, dia, inicio, fim, fimTurno, correndo: fim < fimTurno, pausas: ps, flex, completoS });
       ps.forEach((pz) => pausas.push(pz));
       if (fim < fimTurno) emAndamento = { idx, inicio };
     });
@@ -3267,27 +3286,25 @@
     const sTot = lista.reduce((a2, t, i) => a2 + duracaoLiquidaTurnoS(i, t), 0);
     return sTot > 0 ? sTot / 3600 : 24;
   }
-  // Meta em horas ligada para o filtro atual: soma, dia a dia, da meta
-  // vigente naquele dia; filtrando um turno, so a fatia desse turno.
+  // Meta em tempo ligado para o filtro atual: soma, dia a dia, da meta (%)
+  // vigente naquele dia × tempo de turno do dia (sem pausas); filtrando um
+  // turno, so o tempo desse turno.
   function metaPeriodoS() {
     const j = janelaDisponivel();
-    if (!j || !j.janelas.some((w) => !w.extra)) return j && j.janelas.length ? 0 : getMeta() * 3600;
-    const dias = [...new Set(j.janelas.filter((w) => !w.extra).map((w) => w.dia))]; // horas extras nao criam meta
-    return dias.reduce((a2, dia) => {
-      const lista = turnosEm(dia);
-      let frac = 1;
-      if (selectedShift !== "all") {
-        const t = lista[selectedShift];
-        frac = t ? Math.min(1, duracaoLiquidaTurnoS(selectedShift, t) / 3600 / horasTurnoPorDia(lista)) : 0;
-      }
-      return a2 + metaEm(dia) * 3600 * frac;
-    }, 0);
+    if (!j) return (getMeta() / 100) * horasTurnoPorDia() * 3600; // sem horario real: um dia de turnos
+    // turnos considerados no filtro (os mesmos do "Disponivel"), cada um
+    // inteiro: a meta do dia cresce conforme os turnos vao comecando.
+    // Horas extras nao criam meta.
+    return j.janelas.filter((w) => !w.extra)
+      .reduce((a2, w) => a2 + (metaEm(w.dia) / 100) * (w.completoS || 0), 0);
   }
-  // Meta de rendimento (%) = meta / tempo de turno (sem pausas) dos dias considerados.
+  // Meta de rendimento (%) do filtro: a meta configurada (media ponderada
+  // pelo tempo de turno quando o periodo tem dias com metas diferentes).
   function metaRendimentoPct() {
     const j = janelaDisponivel();
-    if (j && j.janelas.length && j.totalCompletoS > 0) return Math.min(100, (metaPeriodoS() / j.totalCompletoS) * 100);
-    return Math.min(100, (getMeta() / horasTurnoPorDia()) * 100);
+    const baseS = j ? j.janelas.filter((w) => !w.extra).reduce((a2, w) => a2 + (w.completoS || 0), 0) : 0;
+    if (baseS > 0) return Math.min(100, (metaPeriodoS() / baseS) * 100);
+    return Math.min(100, getMeta());
   }
 
   // Tempo ligado DENTRO das janelas de turno (inicio do turno -> agora):
@@ -3478,21 +3495,35 @@
     return duracaoTurnoS(turnos[idx]) * diasComProducao(subset);
   }
 
-  function metaKey() { return `painel_meta_horas_ligado_diaria__${setorAtual.id}`; }
+  // Meta de rendimento: % do tempo disponivel do turno (sem pausas) em que
+  // cada maquina deve ficar ligada. Substitui a antiga meta em horas
+  // ligada/dia - convertida uma vez (horas ÷ horas de turno), sem mudar a
+  // meta efetiva: 8 h num turno de 9 h viram 88,9%.
+  const META_PCT_PADRAO = 85;
+  function metaKey() { return `painel_meta_pct_rendimento__${setorAtual.id}`; }
+  function metaHorasKeyAntiga() { return `painel_meta_horas_ligado_diaria__${setorAtual.id}`; }
+  function horasParaPct(horas, lista) {
+    return Math.round(Math.min(100, (horas / horasTurnoPorDia(lista)) * 100) * 10) / 10;
+  }
+  function fmtPct(v) { return `${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`; }
 
+  let metaHorasServidor = null; // meta antiga (horas) vinda do servidor, so para converter
+  function metaPctValida(v) { return isFinite(v) && v > 0 && v <= 100; }
   function getMeta() {
     try {
       const v = parseFloat(localStorage.getItem(metaKey()));
-      return isFinite(v) && v > 0 ? v : 8;
-    } catch (e) {
-      return 8;
-    }
+      if (metaPctValida(v)) return v;
+      const horas = parseFloat(localStorage.getItem(metaHorasKeyAntiga())); // versao anterior (horas)
+      if (isFinite(horas) && horas > 0) return horasParaPct(horas);
+    } catch (e) { /* localStorage indisponivel */ }
+    if (metaHorasServidor > 0) return horasParaPct(metaHorasServidor);
+    return META_PCT_PADRAO;
   }
 
   function setMeta(v) {
     try { localStorage.setItem(metaKey(), String(v)); } catch (e) { /* localStorage indisponível */ }
-    enviarConfigParaServidor({ metaHorasDia: v });
-    if (registrarVigencia(extras.historico.meta, v)) saveExtras(["historico"]);
+    enviarConfigParaServidor({ metaPctDia: v });
+    if (registrarVigencia(extras.historico.metaPct, v)) saveExtras(["historico"]);
   }
 
   // Inicio (ms) do turno idx que contem o instante ts.
@@ -3705,8 +3736,7 @@
 
   function renderMachineGrid() {
     const grid = $("#machine-grid");
-    const metaHoras = getMeta();
-    $("#meta-display").textContent = `${metaHoras.toLocaleString("pt-BR")} h`;
+    $("#meta-display").textContent = fmtPct(getMeta());
     const metaS = metaPeriodoS();
     renderBaseCalculo();
 
@@ -3727,7 +3757,7 @@
       card.querySelector('[data-campo="producao-box"]').hidden = metros === null;
       // Sem linha "Meta do dia" no cartao: a meta fica no selo "Meta/dia" do
       // cabecalho do painel; o detalhe (ligado / meta) aparece ao passar o mouse no anel.
-      card.querySelector(".ring").title = `Meta: ${fmtDuration(tempoLigadoS)} de ${fmtDuration(metaS)} ligada`;
+      card.querySelector(".ring").title = `Meta: ${fmtDuration(tempoLigadoS)} de ${fmtDuration(metaS)} ligada (${fmtPct(getMeta())} do tempo disponível)`;
       definirTexto(card, "meta-pct", `${metaPct}%`);
       const anel = card.querySelector('[data-campo="anel"]');
       const offset = String(CIRC_ANEL * (1 - metaPct / 100));
@@ -3992,7 +4022,7 @@
           rect.setAttribute("opacity", "1");
           const metros = t.porMaquina[id].producaoM;
           const ocup = t.porMaquina[id].ocupacaoPct;
-          tooltip.innerHTML = `<div class="tt-title">${t.nome} · ${machineName(id)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${t.horario}</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(val)}</strong></div>${ocup !== null ? `<div class="tt-row"><span>Ocupação</span><strong class="mono">&nbsp;${Math.round(ocup)}%</strong></div>` : ""}${metros !== null ? `<div class="tt-row"><span>Produção</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${t.idx !== FORA_DE_TURNO ? `<div class="tt-row"><span>Disponível</span><strong class="mono">&nbsp;${fmtDuration(t.tempoDisponivelS)}</strong></div>` : ""}<div class="tt-row"><span>Dias considerados</span><strong class="mono">&nbsp;${t.dias}</strong></div>`;
+          tooltip.innerHTML = `<div class="tt-title">${escaparHtml(t.nome)} · ${escaparHtml(machineName(id))}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${t.horario}</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(val)}</strong></div>${ocup !== null ? `<div class="tt-row"><span>Ocupação</span><strong class="mono">&nbsp;${Math.round(ocup)}%</strong></div>` : ""}${metros !== null ? `<div class="tt-row"><span>Produção</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${t.idx !== FORA_DE_TURNO ? `<div class="tt-row"><span>Disponível</span><strong class="mono">&nbsp;${fmtDuration(t.tempoDisponivelS)}</strong></div>` : ""}<div class="tt-row"><span>Dias considerados</span><strong class="mono">&nbsp;${t.dias}</strong></div>`;
           tooltip.style.left = (bx + barW / 2) + "px";
           tooltip.style.top = (by - 8) + "px";
           tooltip.classList.add("visible");
@@ -4020,7 +4050,7 @@
     MACHINE_IDS.forEach((id) => {
       const item = document.createElement("div");
       item.className = "legend-item";
-      item.innerHTML = `<span class="legend-swatch" style="background:var(${MACHINE_META[id].colorVar})"></span>${machineName(id)}`;
+      item.innerHTML = `<span class="legend-swatch" style="background:var(${MACHINE_META[id].colorVar})"></span>${escaparHtml(machineName(id))}`;
       legend.appendChild(item);
     });
     wrap.appendChild(legend);
@@ -4032,7 +4062,7 @@
     const totalProducao = resumo.reduce((a, t) => a + (t.producaoM || 0), 0);
     const linhas = resumo.map((t) => `
       <tr class="${selectedShift === t.idx ? "is-selected" : ""}">
-        <td><strong>${t.nome}</strong></td>
+        <td><strong>${escaparHtml(t.nome)}</strong></td>
         <td class="mono">${t.horario}</td>
         <td class="num mono">${t.ciclos}</td>
         ${MACHINE_IDS.map((id) => `<td class="num mono">${fmtDuration(t.porMaquina[id].tempoLigadoS)}</td>`).join("")}
@@ -4045,7 +4075,7 @@
         <table>
           <thead><tr>
             <th>Turno</th><th>Horário</th><th class="num">Ciclos</th>
-            ${MACHINE_IDS.map((id) => `<th class="num">${machineName(id)}</th>`).join("")}
+            ${MACHINE_IDS.map((id) => `<th class="num">${escaparHtml(machineName(id))}</th>`).join("")}
             <th class="num">Total ligado</th><th class="num">Ocupação</th>
             ${temProducao ? '<th class="num">Produção</th>' : ""}
           </tr></thead>
@@ -4116,7 +4146,7 @@
       const rect = el("rect", { x: bx, y: by, width: bwReal, height: Math.max(0, barH), rx: 5, fill: cor, opacity: "0.92" });
       rect.addEventListener("mouseenter", () => {
         rect.setAttribute("opacity", "1");
-        tooltip.innerHTML = `<div class="tt-title">${machineName(d.id)}</div><div class="tt-row"><span>Rendimento</span><strong class="mono">&nbsp;${Math.round(d.pct)}%</strong></div><div class="tt-row"><span>Meta do dia</span><strong class="mono">&nbsp;${Math.round(metaPct)}%</strong></div><div class="tt-row"><span style="color:${corDelta}">${bateuMeta ? "Acima da meta" : "Abaixo da meta"}</span><strong class="mono" style="color:${corDelta}">&nbsp;${d.deltaPct >= 0 ? "+" : ""}${Math.round(d.deltaPct)} pts</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(d.tempoLigadoS)}</strong></div>`;
+        tooltip.innerHTML = `<div class="tt-title">${escaparHtml(machineName(d.id))}</div><div class="tt-row"><span>Rendimento</span><strong class="mono">&nbsp;${Math.round(d.pct)}%</strong></div><div class="tt-row"><span>Meta do dia</span><strong class="mono">&nbsp;${Math.round(metaPct)}%</strong></div><div class="tt-row"><span style="color:${corDelta}">${bateuMeta ? "Acima da meta" : "Abaixo da meta"}</span><strong class="mono" style="color:${corDelta}">&nbsp;${d.deltaPct >= 0 ? "+" : ""}${Math.round(d.deltaPct)} pts</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(d.tempoLigadoS)}</strong></div>`;
         tooltip.style.left = (bx + bwReal / 2) + "px";
         tooltip.style.top = (by - 8) + "px";
         tooltip.classList.add("visible");
@@ -4225,6 +4255,10 @@
     const pad = compacto
       ? { t: 2, r: 16, b: 24, l: 16 }
       : { t: 4, r: 10, b: 24, l: Math.min(140, Math.max(30, 14 + maiorNome * 5.4)) };
+    // Faixa dos turnos acima das barras (nome + cor de cada turno)
+    const faixaTurnoH = j && j.janelas.length ? (compacto ? 14 : 16) : 0;
+    const faixaTurnoY = pad.t;
+    if (faixaTurnoH) pad.t += faixaTurnoH + 6;
     const iw = W - pad.l - pad.r;
     const lanesH = MACHINE_IDS.length * (nomeH + laneH) + (MACHINE_IDS.length - 1) * laneGap;
     const H = pad.t + lanesH + pad.b;
@@ -4260,6 +4294,26 @@
         ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
         : `${String(d.getHours()).padStart(2, "0")}:00`;
       svg.appendChild(lbl);
+    }
+
+    const nomeJanelaTurno = (w) => w.extra ? "Hora extra" : ((turnosEm(w.dia)[w.idx] || {}).nome || `Turno ${w.idx + 1}`);
+    if (faixaTurnoH) {
+      j.janelas.forEach((w) => {
+        const fimVis = Math.max(w.fim, Math.min(w.fimTurno || w.fim, fim));
+        const bx = x(w.inicio), bw = Math.max(2, x(fimVis) - bx);
+        const cor = corTurno(w.extra ? HORA_EXTRA : w.idx);
+        const g = el("g");
+        g.appendChild(el("rect", { x: bx, y: faixaTurnoY, width: bw, height: faixaTurnoH, rx: 4, fill: cor, "fill-opacity": 0.18, stroke: cor, "stroke-width": 1 }));
+        const nome = nomeJanelaTurno(w);
+        if (nome.length * 6 + 8 <= bw) {
+          const t = el("text", { x: bx + bw / 2, y: faixaTurnoY + faixaTurnoH / 2 + 3.5, "text-anchor": "middle", class: "axis-label" });
+          t.setAttribute("style", `fill: ${cor}; font-weight: 700;`);
+          t.textContent = nome;
+          g.appendChild(t);
+        }
+        ligarTooltip(g, tooltip, `<div class="tt-title">${escaparHtml(nome)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(w.inicio)} → ${hhmmDe(w.fimTurno || w.fim)}</strong></div>`, bx + bw / 2, faixaTurnoY);
+        svg.appendChild(g);
+      });
     }
 
     MACHINE_IDS.forEach((id, li) => {
@@ -4310,6 +4364,33 @@
         svg.appendChild(rect);
       });
     });
+
+    // Divisas de turno: linha tracejada no inicio e no fim de cada turno,
+    // atravessando todas as maquinas (divisa repetida entre turnos colados
+    // e desenhada uma vez so).
+    if (faixaTurnoH) {
+      const divisas = new Map();
+      j.janelas.forEach((w) => {
+        const cor = corTurno(w.extra ? HORA_EXTRA : w.idx);
+        [w.inicio, w.fimTurno || w.fim].forEach((ts) => {
+          if (ts < inicio || ts > fim) return;
+          const k = Math.round(x(ts));
+          if (!divisas.has(k)) divisas.set(k, cor);
+        });
+      });
+      const linhaDivisa = (dx, y1, y2, cor) => svg.appendChild(el("line", { x1: dx, x2: dx, y1, y2, stroke: cor, "stroke-width": 1.5, "stroke-dasharray": "4 3", opacity: 0.85, "pointer-events": "none" }));
+      divisas.forEach((cor, dx) => {
+        if (compacto) { // so na altura das barras, sem riscar os nomes das maquinas
+          linhaDivisa(dx, faixaTurnoY, faixaTurnoY + faixaTurnoH, cor);
+          MACHINE_IDS.forEach((_, li) => {
+            const ly = pad.t + li * (nomeH + laneH + laneGap) + nomeH;
+            linhaDivisa(dx, ly, ly + laneH, cor);
+          });
+        } else {
+          linhaDivisa(dx, faixaTurnoY, pad.t + lanesH, cor);
+        }
+      });
+    }
 
     if (j && j.emAndamento) {
       const ax = x(j.agora);
@@ -4419,7 +4500,7 @@
       return;
     }
 
-    const metaPorHoraS = Math.min(3600, (getMeta() * 3600) / horasTurnoPorDia()); // meta por hora de turno
+    const metaPorHoraS = Math.min(3600, (getMeta() / 100) * 3600); // meta (%) de cada hora de turno
     const maiorBarra = Math.max(...buckets.flatMap((b) => MACHINE_IDS.map((id) => b.valores[id])));
     const maxSeg = Math.max(metaPorHoraS, maiorBarra) * 1.15 || 1;
 
@@ -4458,7 +4539,7 @@
         rect.addEventListener("mouseenter", () => {
           rect.setAttribute("opacity", "1");
           const metros = b.producao ? b.producao[id] : metrosProduzidos(val, id);
-          tooltip.innerHTML = `<div class="tt-title">${b.label} · ${machineName(id)}</div><div class="tt-row"><span>${b.mediaPorDia ? "Ligado (média/dia)" : "Tempo ligado"}</span><strong class="mono">&nbsp;${fmtDuration(val)}</strong></div>${metros !== null ? `<div class="tt-row"><span>${b.mediaPorDia ? "Produção (média/dia)" : "Produção"}</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${b.mediaPorDia ? `<div class="tt-row"><span>Dias nesta hora</span><strong class="mono">&nbsp;${b.dias}</strong></div>` : ""}`;
+          tooltip.innerHTML = `<div class="tt-title">${b.label} · ${escaparHtml(machineName(id))}</div><div class="tt-row"><span>${b.mediaPorDia ? "Ligado (média/dia)" : "Tempo ligado"}</span><strong class="mono">&nbsp;${fmtDuration(val)}</strong></div>${metros !== null ? `<div class="tt-row"><span>${b.mediaPorDia ? "Produção (média/dia)" : "Produção"}</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${b.mediaPorDia ? `<div class="tt-row"><span>Dias nesta hora</span><strong class="mono">&nbsp;${b.dias}</strong></div>` : ""}`;
           tooltip.style.left = (bx + barW / 2) + "px";
           tooltip.style.top = (by - 8) + "px";
           tooltip.classList.add("visible");
@@ -4487,7 +4568,7 @@
     MACHINE_IDS.forEach((id) => {
       const item = document.createElement("div");
       item.className = "legend-item";
-      item.innerHTML = `<span class="legend-swatch" style="background:var(${MACHINE_META[id].colorVar})"></span>${machineName(id)}`;
+      item.innerHTML = `<span class="legend-swatch" style="background:var(${MACHINE_META[id].colorVar})"></span>${escaparHtml(machineName(id))}`;
       legend.appendChild(item);
     });
     if (buckets[0].mediaPorDia) {
@@ -4500,7 +4581,7 @@
     metaItem.className = "legend-item editable";
     metaItem.dataset.abrirPopup = "meta";
     metaItem.title = "Clique para editar a meta diária";
-    metaItem.innerHTML = `<span class="legend-swatch" style="background:var(--ink-600)"></span>Meta diária ÷ horas de turno<svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`;
+    metaItem.innerHTML = `<span class="legend-swatch" style="background:var(--ink-600)"></span>Meta: ${fmtPct(getMeta())} de cada hora<svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`;
     legend.appendChild(metaItem);
     wrap.appendChild(legend);
   }
@@ -4525,7 +4606,7 @@
       const cor = `var(${MACHINE_META[r.maquina].colorVar})`;
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><span class="machine-tag"><span class="dot" style="background:${cor}"></span>${machineName(r.maquina)}</span></td>
+        <td><span class="machine-tag"><span class="dot" style="background:${cor}"></span>${escaparHtml(machineName(r.maquina))}</span></td>
         <td class="num mono">#${r.ciclo}</td>
         <td>${r.turnoIdx !== null ? turnoNome(r.turnoIdx) : "—"}</td>
         <td class="mono">${r.iniLabel}</td>
@@ -5119,18 +5200,18 @@
       }).join("");
       return `<div class="hist-bloco"><h4>${titulo}</h4>${linhas}</div>`;
     };
-    let html = bloco("Meta diária", "meta", h.meta, (v, atual) => `${(atual ? getMeta() : v).toLocaleString("pt-BR")} h ligada/dia`);
+    let html = bloco("Meta de rendimento", "meta", h.metaPct, (v, atual) => `${fmtPct(atual ? getMeta() : v)} do tempo disponível`);
     MACHINE_IDS.forEach((id) => {
       html += bloco(`Taxa — ${escaparHtml(machineName(id))}`, `taxa:${id}`, h.taxa[id], (v, atual) => { const x = atual ? machineRate(id) : v; return x > 0 ? `${x.toLocaleString("pt-BR")} m/min` : "sem taxa"; });
     });
     html += bloco("Turnos", "turnos", h.turnos, (v, atual) => (atual ? turnos : v).map((t) => {
       const dias = resumoDiasTurno(t);
-      return `${t.nome} ${t.inicio}–${t.fim}${dias ? ` (${dias})` : ""}`;
+      return `${escaparHtml(t.nome)} ${t.inicio}–${t.fim}${dias ? ` (${dias})` : ""}`;
     }).join(" · "));
     box.innerHTML = html || '<div class="empty-state">Sem histórico ainda.</div>';
   }
   function listaHistorico(chave) {
-    if (chave === "meta") return extras.historico.meta;
+    if (chave === "meta") return extras.historico.metaPct;
     if (chave === "turnos") return extras.historico.turnos;
     return extras.historico.taxa[chave.split(":")[1]];
   }
@@ -5160,7 +5241,7 @@
     $("#hist-unificar").addEventListener("click", () => {
       if (!confirm("Aplicar a configuração atual (taxas, meta e turnos) a TODO o histórico? Os dias anteriores passam a ser calculados com os valores de hoje.")) return;
       const h = extras.historico;
-      h.meta = [{ desde: DESDE_SEMPRE, valor: getMeta() }];
+      h.metaPct = [{ desde: DESDE_SEMPRE, valor: getMeta() }];
       h.turnos = [{ desde: DESDE_SEMPRE, valor: copiaTurnos(turnos) }];
       MACHINE_IDS.forEach((id) => { h.taxa[id] = [{ desde: DESDE_SEMPRE, valor: machineRate(id) }]; });
       aposMudarExtras(["historico"], true);
@@ -5188,7 +5269,7 @@
     }
     if (semHora) {
       partes.push(`${semHora} sem data/hora`);
-      detalhes.push("Ciclos gravados sem relógio (bateria do RTC?) não entram em nenhum período — confira o relógio do controlador.");
+      detalhes.push("Ciclos gravados enquanto o controlador estava sem relógio (bateria do RTC?). Continuam guardados no banco, mas como não se sabe quando aconteceram, não entram em nenhum período nem turno. Com o firmware 2.2, ciclos assim recebem a hora real sozinhos quando o relógio é acertado.");
     }
     if (qualidadeDados.sobrepostos) {
       partes.push(`${qualidadeDados.sobrepostos} sobreposto${qualidadeDados.sobrepostos > 1 ? "s" : ""}`);
@@ -5267,19 +5348,87 @@
   // servidor local (pagina hospedada, ou servidor nao esta rodando) - o
   // servidor e so uma fonte mais robusta por cima, nunca obrigatoria.
   // ---------------------------------------------------------------------
-  function enviarConfigParaServidor(extra) {
-    fetch(CONTROLE_URL + "/config", {
+  // Alteracoes (POST) so sao aceitas deste computador do painel ou de outro
+  // aparelho com o PIN (dados/seguranca.json no servidor). O PIN digitado
+  // fica so nesta aba (sessionStorage).
+  const PIN_KEY = "painel_pin";
+  let podeEditar = true;
+  let pinConfigurado = false;
+  let versaoApp = "";
+  function pinSalvo() {
+    try { return sessionStorage.getItem(PIN_KEY) || ""; } catch (e) { return ""; }
+  }
+  function cabecalhosControle(extra) {
+    const h = { ...(extra || {}) };
+    const pin = pinSalvo();
+    if (pin) h["X-Pin"] = pin;
+    return h;
+  }
+  function renderSomenteLeitura() {
+    const nota = $("#ro-note");
+    if (nota) nota.hidden = podeEditar || !servidorOnline;
+    const v = $("#foot-versao");
+    if (v) v.textContent = versaoApp ? `· v${versaoApp}` : "";
+  }
+  let restaurandoConfig = null;
+  let ultimaRestauracao = 0;
+  let sincronizandoConfig = false;
+  // Alteracao recusada (somente leitura): volta a tela para o que esta no
+  // servidor - no maximo uma vez a cada 5 s e nunca por causa dos envios
+  // automaticos da propria sincronizacao (senao viraria um ciclo).
+  function restaurarConfigDoServidor() {
+    if (sincronizandoConfig || Date.now() - ultimaRestauracao < 5000) return;
+    ultimaRestauracao = Date.now();
+    clearTimeout(restaurandoConfig);
+    restaurandoConfig = setTimeout(sincronizarConfigComServidor, 400);
+  }
+  async function postControle(rota, corpo) {
+    const res = await fetch(CONTROLE_URL + rota, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ setor: setorAtual.id, ...extra }),
-    }).catch(() => { /* sem servidor local - fica só no localStorage mesmo */ });
+      headers: cabecalhosControle(corpo !== undefined ? { "Content-Type": "application/json" } : {}),
+      body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+    });
+    if (res.status === 403) {
+      podeEditar = false;
+      renderSomenteLeitura();
+      restaurarConfigDoServidor(); // a alteracao nao foi salva
+
+      const erro = new Error("somente_leitura");
+      erro.somenteLeitura = true;
+      throw erro;
+    }
+    return res;
+  }
+  $("#ro-note").addEventListener("click", async () => {
+    if (!pinConfigurado) {
+      alert("Este aparelho só visualiza o painel.\n\nAs alterações são feitas no computador onde o aplicativo está aberto. Para liberar outros aparelhos, crie o arquivo seguranca.json com um PIN na pasta de dados do aplicativo (ver docs/aplicativo-desktop.md).");
+      return;
+    }
+    const pin = prompt("PIN para alterar o painel neste aparelho:");
+    if (pin === null) return;
+    try { sessionStorage.setItem(PIN_KEY, pin.trim()); } catch (e) { /* sem sessionStorage */ }
+    await consultarStatusLeitura();
+    if (!podeEditar) alert("PIN incorreto.");
+  });
+
+  function enviarConfigParaServidor(extra) {
+    if (!podeEditar) { restaurarConfigDoServidor(); return; } // aparelho somente leitura
+    postControle("/config", { setor: setorAtual.id, ...extra })
+      .catch(() => { /* sem servidor local (fica no localStorage) ou somente leitura (ja avisado) */ });
   }
 
   async function sincronizarConfigComServidor() {
+    sincronizandoConfig = true;
     try {
       const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
       if (!res.ok) return;
       const dados = await res.json();
+
+      // Meta (%) primeiro: o historico (mais abaixo) se alinha a ela.
+      metaHorasServidor = isFinite(dados.metaHorasDia) && dados.metaHorasDia > 0 ? dados.metaHorasDia : null;
+      if (metaPctValida(dados.metaPctDia)) {
+        try { localStorage.setItem(metaKey(), String(dados.metaPctDia)); } catch (e) { /* ok sem localStorage */ }
+      }
 
       let mudouMaquina = false;
       MACHINE_IDS.forEach((id) => {
@@ -5327,15 +5476,22 @@
         renderAll();
       }
 
-      if (isFinite(dados.metaHorasDia) && dados.metaHorasDia > 0 && dados.metaHorasDia !== getMeta()) {
-        try { localStorage.setItem(metaKey(), String(dados.metaHorasDia)); } catch (e) { /* ok sem localStorage */ }
-        if (alinharUltimaVigencia()) saveExtras(["historico"]);
-        renderMachineGrid();
-        renderCompareChart();
-        renderHourlyProduction();
+      if (!metaPctValida(dados.metaPctDia)) {
+        // Servidor ainda sem a meta em % (versao anterior): converte a meta
+        // em horas (horas ÷ horas de turno do dia, com os turnos e pausas
+        // ja carregados acima) e grava - uma vez so.
+        const pct = getMeta();
+        try { localStorage.setItem(metaKey(), String(pct)); } catch (e) { /* ok sem localStorage */ }
+        enviarConfigParaServidor({ metaPctDia: pct });
       }
+      if (alinharUltimaVigencia()) saveExtras(["historico"]);
+      renderMachineGrid();
+      renderCompareChart();
+      renderHourlyProduction();
     } catch (e) {
       // sem servidor local (pagina hospedada, ou servidor nao esta rodando) - segue so com o localStorage
+    } finally {
+      sincronizandoConfig = false;
     }
   }
 
@@ -5371,15 +5527,19 @@
 
   async function consultarStatusLeitura() {
     try {
-      const res = await fetch(CONTROLE_URL + "/status", { cache: "no-store" });
+      const res = await fetch(CONTROLE_URL + "/status", { cache: "no-store", headers: cabecalhosControle() });
       const dados = await res.json();
       leituraAtiva = !!dados.rodando;
       servidorOnline = true;
+      podeEditar = dados.podeEditar !== false; // servidor antigo nao informa: pode
+      pinConfigurado = !!dados.pinConfigurado;
+      versaoApp = dados.versao || "";
     } catch (e) {
       servidorOnline = false;
     }
     TELA_CARREGANDO.servidor(servidorOnline);
     renderLeituraUI();
+    renderSomenteLeitura();
     consultarSincronizacao();
   }
 
@@ -5388,11 +5548,11 @@
     const rota = leituraAtiva ? "/parar" : "/iniciar";
     $("#leitura-btn").disabled = true;
     try {
-      const res = await fetch(CONTROLE_URL + rota, { method: "POST" });
+      const res = await postControle(rota);
       const dados = await res.json();
       leituraAtiva = !!dados.rodando;
     } catch (e) {
-      servidorOnline = false;
+      if (!e.somenteLeitura) servidorOnline = false;
     }
     renderLeituraUI();
     consultarSincronizacao();
@@ -5507,6 +5667,15 @@
       }
     }
 
+    if (s.modo === "wifi" && s.aviso_chave) avisos.push(["sync-warn", `⚠ ${escaparHtml(s.aviso_chave)}`]);
+    const bk = s.backup || {};
+    if (bk.erro) {
+      avisos.push(["sync-warn", `⚠ Backup automático do banco falhou: ${escaparHtml(bk.erro)}`]);
+    } else if (bk.ultimo_backup) {
+      avisos.push(["sync-info", `Backup automático do banco: ${fmtQuando(bk.ultimo_backup)}${bk.pasta_extra && !bk.erro_extra ? " (com cópia extra)" : ""}.`]);
+    }
+    if (bk.erro_extra) avisos.push(["sync-warn", `⚠ Cópia extra do backup falhou (${escaparHtml(bk.pasta_extra || "")}): ${escaparHtml(bk.erro_extra)}`]);
+
     $("#esp-config-indisponivel").hidden = !link.hidden;
     $("#sync-details").innerHTML = partes.join(" · ") + avisos.map(([classe, texto]) => `<span class="${classe}">${texto}</span>`).join("");
     $("#sync-toggle").classList.toggle("has-warn", avisos.some(([classe]) => classe === "sync-warn"));
@@ -5527,18 +5696,14 @@
     const select = $("#origem-select");
     select.disabled = true;
     try {
-      const res = await fetch(CONTROLE_URL + "/conexao", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo }),
-      });
+      const res = await postControle("/conexao", { modo });
       const dados = await res.json();
       if (dados.ok) {
         sincronizacao = dados;
         leituraAtiva = !!dados.rodando;
       }
     } catch (e) {
-      servidorOnline = false;
+      if (!e.somenteLeitura) servidorOnline = false;
     }
     select.disabled = false;
     renderSincronizacao();
@@ -5548,7 +5713,7 @@
   $("#origem-select").addEventListener("change", (ev) => trocarOrigemDados(ev.target.value));
   $("#leitura-btn").addEventListener("click", alternarLeitura);
   consultarStatusLeitura();
-  setInterval(consultarStatusLeitura, 3000);
+  setInterval(() => { if (!document.hidden) consultarStatusLeitura(); }, 3000);
 
   // ---------------------------------------------------------------------
   // Atualizacao automatica dos dados a cada 5s, lendo banco_de_dados.csv
@@ -5557,6 +5722,11 @@
   // ---------------------------------------------------------------------
   const INTERVALO_AUTO_REFRESH_MS = 5000;
   let ultimoTextoAutoRefresh = null;
+  // ETag do ultimo /dados recebido: o servidor responde 304 (sem corpo)
+  // enquanto nenhum ciclo novo chegar - o historico inteiro so e baixado e
+  // redesenhado quando muda.
+  let etagDados = null;
+  let buscandoDados = false;
 
   function horaAgora() {
     const d = new Date();
@@ -5564,23 +5734,39 @@
   }
 
   async function autoAtualizarDados() {
+    if (buscandoDados) return; // consulta anterior ainda em andamento
+    buscandoDados = true;
     try {
-      const res = await fetch(CONTROLE_URL + "/dados", { cache: "no-store" });
+      const res = await fetch(CONTROLE_URL + "/dados", {
+        cache: "no-store",
+        headers: etagDados && ultimoTextoAutoRefresh !== null ? { "If-None-Match": etagDados } : {},
+      });
+      if (res.status === 304) { TELA_CARREGANDO.dados(true); return; }
       if (!res.ok) { TELA_CARREGANDO.dados(false); return; }
       const texto = await res.text();
+      etagDados = res.headers.get("ETag");
       if (texto === ultimoTextoAutoRefresh) return; // sem mudanca, evita redesenho a toa
       ultimoTextoAutoRefresh = texto;
       loadFromText(texto, "Monitoramento em tempo real", true);
       TELA_CARREGANDO.dados(true);
     } catch (e) {
       // servidor local fora do ar - consultarStatusLeitura() ja sinaliza isso no chip
+    } finally {
+      buscandoDados = false;
     }
   }
 
   autoAtualizarDados();
-  setInterval(autoAtualizarDados, INTERVALO_AUTO_REFRESH_MS);
+  setInterval(() => { if (!document.hidden) autoAtualizarDados(); }, INTERVALO_AUTO_REFRESH_MS);
   consultarAoVivo();
-  setInterval(consultarAoVivo, INTERVALO_AUTO_REFRESH_MS);
+  setInterval(() => { if (!document.hidden) consultarAoVivo(); }, INTERVALO_AUTO_REFRESH_MS);
+  // Janela minimizada/aba oculta nao consulta nada; ao voltar, atualiza na hora.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    consultarStatusLeitura();
+    autoAtualizarDados();
+    consultarAoVivo();
+  });
 
   // ---------------------------------------------------------------------
   // Exportação para Excel — exporta exatamente o que a tabela está
@@ -5603,7 +5789,6 @@
     const registrosEscopo = recordsForSelection(); // periodo + maquina do seletor - base da auditoria de alertas
     const registrosExibidos = currentFiltered(); // periodo + maquina + busca + alertas - replica exata da tabela na tela
 
-    const metaHoras = getMeta();
     const metaS = metaPeriodoS();
     const metaPct = metaRendimentoPct();
 
@@ -5684,6 +5869,7 @@
       { label: "Ciclo mais curto (min)", valores: dadosPorMaquina.map((d) => (d.menorMin > 0 ? round1(d.menorMin) : "—")), total: menoresMin.length ? round1(Math.min(...menoresMin)) : "—" },
       { label: "Produção/min configurada", valores: dadosPorMaquina.map((d) => (d.taxa > 0 ? d.taxa : "—")), total: "—" },
       { label: "Produção estimada (m)", valores: dadosPorMaquina.map((d) => (d.producaoM !== null ? round1(d.producaoM) : "—")), total: round1(totalProducaoPM) },
+      { label: "Meta de rendimento (% do disponível)", valores: dadosPorMaquina.map(() => round1(metaPct)), total: round1(metaPct) },
       { label: "Meta no filtro (h ligada)", valores: dadosPorMaquina.map(() => round1(metaS / 3600)), total: round1(metaS / 3600) },
       { label: "Progresso da meta (%)", valores: dadosPorMaquina.map((d) => (metaS > 0 ? Math.round(((d.tempoLigadoMin * 60) / metaS) * 100) : 0)), total: Math.round(progressoMedioMeta) }
     ];
@@ -5929,20 +6115,29 @@
   // SheetJS (planilha Excel) carregada sob demanda: antes ela vinha num
   // <script> comum antes do codigo do painel - sem internet (ou com a rede
   // lenta), a abertura inteira ficava esperando, com a tela parada.
-  const URL_XLSX = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  // Primeiro a copia local (painel/assets - funciona sem internet, ex. na
+  // fabrica); se o arquivo nao estiver la, a mesma versao pela internet.
+  const URLS_XLSX = [
+    "assets/xlsx.full.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  ];
   let promessaXlsx = null;
+  function carregarScriptXlsx(url) {
+    return new Promise((resolver, rejeitar) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = true;
+      const limite = setTimeout(() => { script.remove(); rejeitar(new Error("tempo esgotado")); }, 20000);
+      script.onload = () => { clearTimeout(limite); typeof XLSX !== "undefined" ? resolver() : rejeitar(new Error("biblioteca inválida")); };
+      script.onerror = () => { clearTimeout(limite); script.remove(); rejeitar(new Error("sem conexão")); };
+      document.head.appendChild(script);
+    });
+  }
   function carregarXlsx() {
     if (typeof XLSX !== "undefined") return Promise.resolve();
     if (!promessaXlsx) {
-      promessaXlsx = new Promise((resolver, rejeitar) => {
-        const script = document.createElement("script");
-        script.src = URL_XLSX;
-        script.async = true;
-        const limite = setTimeout(() => rejeitar(new Error("tempo esgotado")), 20000);
-        script.onload = () => { clearTimeout(limite); typeof XLSX !== "undefined" ? resolver() : rejeitar(new Error("biblioteca inválida")); };
-        script.onerror = () => { clearTimeout(limite); script.remove(); rejeitar(new Error("sem conexão")); };
-        document.head.appendChild(script);
-      }).catch((erro) => { promessaXlsx = null; throw erro; });
+      promessaXlsx = URLS_XLSX.reduce((anterior, url) => anterior.catch(() => carregarScriptXlsx(url)), Promise.reject(new Error("inicio")))
+        .catch((erro) => { promessaXlsx = null; throw erro; });
     }
     return promessaXlsx;
   }
@@ -6061,10 +6256,19 @@
     renderTable();
   });
   // ---------------------------------------------------------------------
-  // Popup: meta diaria de horas ligada.
+  // Popup: meta de rendimento (% do tempo disponivel).
   // ---------------------------------------------------------------------
+  function atualizarExemploMeta() {
+    const v = parseFloat($("#meta-input").value);
+    const turnoS = horasTurnoPorDia() * 3600;
+    const base = "Porcentagem do tempo de turno (já sem intervalos e paradas programadas) em que cada máquina deve ficar ligada. Usada no progresso da meta, no comparativo (linha tracejada) e no gráfico por hora. Vale para o setor selecionado.";
+    $("#meta-exemplo").textContent = isFinite(v) && v > 0 && v <= 100
+      ? `${base} Hoje: ${fmtPct(v)} de ${fmtDuration(turnoS)} de turno = ${fmtDuration(turnoS * v / 100)} ligada por máquina.`
+      : base;
+  }
   function abrirMeta() {
     $("#meta-input").value = getMeta();
+    atualizarExemploMeta();
     $("#meta-error").textContent = "";
     $("#meta-overlay").classList.add("visible");
     $("#meta-input").focus();
@@ -6076,8 +6280,8 @@
 
   function salvarMeta() {
     const v = parseFloat($("#meta-input").value);
-    if (!isFinite(v) || v <= 0 || v > 24) {
-      $("#meta-error").textContent = "Informe um valor entre 0,5 e 24 horas.";
+    if (!isFinite(v) || v < 1 || v > 100) {
+      $("#meta-error").textContent = "Informe uma porcentagem entre 1 e 100.";
       return;
     }
     setMeta(v);
@@ -6091,6 +6295,7 @@
   ligarPopup("meta", fecharMeta);
   $("#meta-save").addEventListener("click", salvarMeta);
   $("#meta-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarMeta(); });
+  $("#meta-input").addEventListener("input", atualizarExemploMeta);
 
   // ---------------------------------------------------------------------
   // Origem dos dados (Wi-Fi/USB) e acesso ao Wi-Fi do ESP32: painel
@@ -6172,7 +6377,7 @@
     const sel = $("#shift-select");
     if (selectedShift !== "all" && !turnos[selectedShift]) selectedShift = "all";
     sel.innerHTML = `<option value="all">Todos os turnos</option>` +
-      turnos.map((t, i) => `<option value="${i}">${t.nome} (${t.inicio} – ${t.fim})</option>`).join("");
+      turnos.map((t, i) => `<option value="${i}">${escaparHtml(t.nome)} (${t.inicio} – ${t.fim})</option>`).join("");
     sel.value = String(selectedShift);
     sel.disabled = !usingRealTime;
     atualizarResumoFiltros();
@@ -7015,10 +7220,10 @@
     document.querySelectorAll("[data-esp-acao]").forEach((b) => { b.disabled = true; });
     let r;
     try {
-      const res = await fetch(CONTROLE_URL + "/esp/acao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao }) });
+      const res = await postControle("/esp/acao", { acao });
       r = await res.json();
     } catch (e) {
-      r = { ok: false, mensagem: "Servidor local indisponível." };
+      r = { ok: false, mensagem: e.somenteLeitura ? "Este aparelho está em modo somente leitura." : "Servidor local indisponível." };
     }
     msg.className = "esp-msg " + (r.ok ? "ok" : "erro");
     msg.textContent = r.mensagem || (r.ok ? "Feito." : "Falhou.");
@@ -7060,7 +7265,7 @@
   function renderMachineSelectorButtons() {
     const wrap = $("#machine-selector");
     wrap.innerHTML = `<button class="segmented-btn active" data-m="all" type="button">Todas</button>` +
-      MACHINE_IDS.map((id) => `<button class="segmented-btn" data-m="${id}" type="button">${machineName(id)}</button>`).join("");
+      MACHINE_IDS.map((id) => `<button class="segmented-btn" data-m="${id}" type="button">${escaparHtml(machineName(id))}</button>`).join("");
     selectedMachine = "all";
     wrap.querySelectorAll(".segmented-btn").forEach((btn) => {
       btn.addEventListener("click", () => {

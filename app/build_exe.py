@@ -18,6 +18,7 @@ atualizados. Se faltar, o Windows oferece a instalacao automaticamente na
 primeira vez que um app baseado nele e aberto.
 """
 
+import json
 import os
 
 import PyInstaller.__main__
@@ -29,6 +30,17 @@ PAINEL_SRC = os.path.join(RAIZ_PROJETO, "painel")
 MONITOR_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_serial.py")
 MONITOR_WIFI_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_wifi.py")
 BANCO_DADOS_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "banco_dados.py")
+BACKUP_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "backup_banco.py")
+# Chave das acoes no ESP32 (gerada por ferramentas/gerar_segredos.py a partir
+# do .env) - o firmware gravado precisa ter a mesma.
+SEGREDOS_APP = os.path.join(DIR_BASE, "segredos_app.json")
+# Raiz do projeto gravada no .exe: os backups automaticos vao para
+# <raiz>/backup (caminhos.dir_backup) - a pasta em si nunca entra no .exe.
+BUILD_INFO = os.path.join(DIR_BASE, "build_info.json")
+with open(BUILD_INFO, "w", encoding="utf-8") as _arq:
+    json.dump({"raiz_projeto": RAIZ_PROJETO}, _arq, ensure_ascii=False)
+if not os.path.isfile(SEGREDOS_APP):
+    raise SystemExit("ERRO: falta app/segredos_app.json - rode antes: python ferramentas/gerar_segredos.py")
 ICONE = os.path.join(DIR_BASE, "assets", "icone.ico")
 # Imagem mostrada no instante do duplo clique, enquanto o .exe (arquivo
 # unico) se descompacta - main.py fecha quando a janela aparece.
@@ -49,10 +61,16 @@ ARGS = [
     "--onefile",
     "--windowed",
     f"--icon={ICONE}",
-    f"--add-data={PAINEL_SRC}{SEP}painel",
+    # so o painel em uso (index.html + assets) - copias antigas em
+    # painel/_backup/ nao entram no .exe nem ficam acessiveis pela rede
+    f"--add-data={os.path.join(PAINEL_SRC, 'index.html')}{SEP}painel",
+    f"--add-data={os.path.join(PAINEL_SRC, 'assets')}{SEP}painel/assets",
     f"--add-data={MONITOR_SRC}{SEP}ferramentas",
     f"--add-data={MONITOR_WIFI_SRC}{SEP}ferramentas",
     f"--add-data={BANCO_DADOS_SRC}{SEP}ferramentas",
+    f"--add-data={BACKUP_SRC}{SEP}ferramentas",
+    f"--add-data={SEGREDOS_APP}{SEP}app",
+    f"--add-data={BUILD_INFO}{SEP}app",
     "--hidden-import=serial.tools.list_ports",
     # monitor_serial.py e banco_dados.py entram como --add-data (arquivos de
     # dados, carregados via sys.path em tempo de execucao) - o PyInstaller
@@ -61,6 +79,10 @@ ARGS = [
     "--hidden-import=sqlite3",
     # idem para o monitor_wifi.py (urllib/http.client)
     "--hidden-import=urllib.request",
+    "--hidden-import=urllib.error",
+    "--hidden-import=gzip",
+    "--hidden-import=hmac",
+    "--hidden-import=secrets",
     # anuncio http://painel.local (anuncio_rede.py): o zeroconf tem modulos
     # compilados carregados dinamicamente - inclui todos para nao faltar nada
     "--collect-submodules=zeroconf",

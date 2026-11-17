@@ -4,7 +4,7 @@ O mesmo painel web, empacotado como um aplicativo Windows normal — abre numa
 janela própria (sem barra de endereço, sem navegador), com a leitura
 serial e a API já embutidas no mesmo processo. Pensado para quem só quer
 dar duplo clique num ícone e ver o painel funcionando, sem saber o que é
-Python, terminal ou `localhost:8787`.
+Python, terminal ou `localhost`.
 
 ## Como funciona
 
@@ -48,13 +48,13 @@ Se algo falhar, a mesma tela mostra o motivo, com **Tentar novamente**,
 
 | Situação | O que aparece |
 |---|---|
-| Outra janela do Painel já aberta (porta 8787 em uso **pelo próprio Painel**) | "O Painel já está aberto em outra janela" + "Usar esta janela mesmo assim" |
-| Porta 8787 ocupada por outro programa | "A porta 8787 está ocupada por outro programa" |
+| Outra janela do Painel já aberta (porta 80 em uso **pelo próprio Painel**) | "O Painel já está aberto em outra janela" + "Usar esta janela mesmo assim" |
+| Porta 80 ocupada por outro programa | "A porta 80 está ocupada por outro programa" |
 | Servidor não respondeu em 20 s | "O servidor interno não respondeu" (antivírus/firewall bloqueando localhost?) |
 | Arquivo faltando no `.exe` / erro inesperado | Mensagem + detalhes técnicos |
 | Erro de script no painel durante a abertura | "Falha ao carregar o painel" + Recarregar |
 
-**Porta exclusiva:** o servidor interno abre a porta 8787 com
+**Porta exclusiva:** o servidor interno abre a porta 80 com
 `SO_EXCLUSIVEADDRUSE` (`_ServidorExclusivo` em `servidor.py`). Antes, o
 `HTTPServer` padrão (com `SO_REUSEADDR`) deixava **duas** instâncias do app
 escutarem a mesma porta no Windows — as requisições caíam ora numa, ora
@@ -72,7 +72,7 @@ isso travava a abertura inteira. Agora ela é baixada em segundo plano
 depois que o painel abre, ou na hora de exportar.
 
 - **`main.py`** abre uma janela com [pywebview](https://pywebview.flowrl.com/)
-  apontando para `http://localhost:8787/` — o mesmo endereço que o painel já
+  apontando para `http://localhost/` — o mesmo endereço que o painel já
   usa quando aberto localmente, só que agora é o próprio aplicativo que serve
   essa página, em vez de o usuário abrir o arquivo `.html` direto.
 - **`servidor.py`** é uma versão do `ferramentas/controle_leitura_server.py`
@@ -237,10 +237,94 @@ http://painel.local
 - `painel.local` funciona no Windows 10/11, iPhone/Mac e na maioria dos
   Android recentes; num aparelho que não resolva `.local`, use o IP.
 - O PC do painel precisa estar ligado, sem suspensão e com o app aberto.
-- **Firewall do Windows** (PowerShell como administrador, uma vez):
+- **Firewall do Windows** (PowerShell como administrador, uma vez). Só nas
+  redes **Privada/Domínio** — nunca em rede Pública (Wi-Fi de hotel,
+  aeroporto...), onde estranhos veriam o painel:
   ```powershell
-  New-NetFirewallRule -DisplayName "Painel Producao HTTP 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private,Domain,Public
-  New-NetFirewallRule -DisplayName "Painel Producao mDNS 5353" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow -Profile Private,Domain,Public
+  New-NetFirewallRule -DisplayName "Painel Producao HTTP 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private,Domain
+  New-NetFirewallRule -DisplayName "Painel Producao mDNS 5353" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow -Profile Private,Domain
   ```
-- **Sem senha**: qualquer pessoa na rede pode ver o painel e também alterar
-  turnos, metas, taxas, iniciar/parar a leitura e trocar a conexão.
+  Se as regras já foram criadas antes com `Public`, corrija com:
+  ```powershell
+  Set-NetFirewallRule -DisplayName "Painel Producao HTTP 80" -Profile Private,Domain
+  Set-NetFirewallRule -DisplayName "Painel Producao mDNS 5353" -Profile Private,Domain
+  ```
+  E marque a rede da empresa como **Privada** no Windows (Configurações →
+  Rede → propriedades da rede → Perfil de rede: Privado).
+
+### Quem pode alterar (somente leitura + PIN)
+
+- **O computador do painel** (onde o app está aberto) altera tudo, sem senha.
+- **Outros computadores e celulares** abrem o painel em **somente leitura**:
+  veem tudo, mas turnos, metas, taxas, nomes, iniciar/pausar a leitura,
+  origem dos dados e ações do controlador são recusados. Na barra inferior
+  aparece **🔒 Somente leitura**; uma alteração feita ali é desfeita na hora
+  (a tela volta ao que está salvo).
+- **Liberar outros aparelhos com PIN** (opcional): crie
+  `%APPDATA%\PainelProducaoSantex\dados\seguranca.json`:
+  ```json
+  {"pin_remoto": "4821"}
+  ```
+  No outro aparelho, clique em **🔒 Somente leitura** e digite o PIN — vale
+  até fechar a aba. Para trocar o PIN, edite o arquivo (não precisa
+  reiniciar o app).
+
+## Backup automático do banco
+
+O app faz **uma cópia por dia** do `painel.db`, sozinho, ao abrir e depois
+conferindo de hora em hora (`ferramentas/backup_banco.py`):
+
+- Pasta: **`backup\` na raiz do projeto**
+  (`controle_producao_horimetro\backup\painel-AAAA-MM-DD.db`) — cada arquivo
+  é um banco completo, abre com qualquer visualizador SQLite. A pasta está
+  no `.gitignore` (nunca vai para o git) e não entra no `.exe`.
+  - O `.exe` grava, no momento do build, o caminho da raiz do projeto
+    (`app/build_info.json`). Se rodar num PC onde essa pasta não existe, os
+    backups vão para `%APPDATA%\PainelProducaoSantex\dados\backups\`.
+  - Como o projeto fica dentro do OneDrive, os backups também vão para a
+    nuvem sozinhos (cópia fora do notebook).
+  - Outra pasta: `"pasta"` no `backup.json` (abaixo).
+- Ficam os **14 últimos dias** + o **primeiro backup de cada mês** dos
+  últimos 12 meses. Os mais antigos são apagados — só arquivos de backup;
+  o banco principal **nunca** é apagado nem reescrito.
+- **Configuração opcional** em `%APPDATA%\PainelProducaoSantex\dados\backup.json`
+  (a mesma rotação vale nas duas pastas):
+  ```json
+  {"pasta": "D:\\Backups\\Painel", "pasta_extra": "\\\\servidor\\compartilhado\\Painel"}
+  ```
+  `pasta` troca o local principal; `pasta_extra` grava uma segunda cópia.
+- A situação aparece no painel, em **Controlador** (barra inferior):
+  "Backup automático do banco: hoje às 08:00" — ou um aviso ⚠ se falhar.
+- **Restaurar**: feche o app, copie o backup desejado por cima de
+  `dados\painel.db` (apague `painel.db-wal` e `painel.db-shm` antes) e
+  abra o app.
+
+## Deixar em produção permanente
+
+1. **Abrir com o Windows** (no notebook que serve o painel):
+   ```powershell
+   cd ferramentas
+   .\instalar_inicio_automatico.ps1 "C:\Programas\PainelProducaoSantex.exe"
+   ```
+   (`-Remover` desfaz.)
+2. **Energia**: na tomada, "Suspender" = Nunca — com o notebook suspenso o
+   painel some da rede e a sincronização para (o ESP32 continua guardando
+   os ciclos, até ~20.000 = cerca de 40 dias no ritmo atual).
+3. **Hora do Windows** com "Acertar a hora automaticamente" ligado — é o PC
+   que acerta o relógio do controlador.
+4. Firewall e perfil de rede como na seção acima.
+
+## Atualizar para uma versão nova
+
+O `.exe` carrega uma cópia própria do painel: mudar `painel/index.html` não
+altera o app instalado até gerar o `.exe` de novo. A versão em uso aparece
+no rodapé do painel ("· v1.0.0" — `APP_VERSAO` em `app/servidor.py`).
+
+1. Suba o número em `APP_VERSAO` (`app/servidor.py`).
+2. Rode os testes: `python -m unittest discover -s testes -v`.
+3. Duplo clique em `app/gerar_executavel.bat` (ele também roda
+   `gerar_segredos.py`, que leva a `API_CHAVE` do `.env` para o app).
+4. Feche o app, troque o `.exe` e abra de novo. Os dados ficam onde estão.
+5. Se mudou o firmware: grave pela Arduino IDE **com o mesmo `.env`** (o
+   firmware e o app precisam da mesma `API_CHAVE` — ver
+   [firmware.md](firmware.md)).

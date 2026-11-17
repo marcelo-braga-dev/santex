@@ -11,8 +11,9 @@ Guarda cinco coisas, isoladas por setor:
                   ESP32), que impede gravar o mesmo ciclo duas vezes.
   - maquinas:     nome e producao por minuto configurados para cada
                   maquina (antes só no localStorage do navegador).
-  - config_setor: outras configuracoes por setor (hoje so a meta diaria de
-                  horas ligado; novos campos entram aqui no futuro).
+  - config_setor: outras configuracoes por setor: meta de rendimento em %
+                  do tempo disponivel (meta_pct_dia) e a meta antiga em
+                  horas ligado (meta_horas_dia, so mantida - nao e mais usada).
   - estado_ao_vivo: ultimo estado (ligada/desligada) de cada maquina e
                   desde quando, informado pelo firmware a cada 10s - nao e
                   historico, so a "foto" atual para o painel.
@@ -170,6 +171,14 @@ CREATE TABLE IF NOT EXISTS turnos (
 """
 
 
+def _padrao_serie(dispositivo):
+    """"403F07000000-01FCB9D1" -> "%-01FCB9D1" (LIKE): a serie aleatoria que
+    o ESP32 guarda na NVS identifica o controlador; a parte do MAC antes do
+    "-" se mostrou instavel entre versoes do firmware."""
+    serie = str(dispositivo).rsplit("-", 1)[-1]
+    return "%-" + serie.replace("%", "").replace("_", "")
+
+
 class BancoDados:
     def __init__(self, caminho_db):
         self.caminho = caminho_db
@@ -196,24 +205,61 @@ class BancoDados:
     def gravar_ciclo_remoto(self, setor, dispositivo, origem_id, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em=None):
         """Grava um ciclo buscado do ESP32 pelo Wi-Fi. gravado_em e o fim do
         ciclo pelo RTC ("AAAA-MM-DD HH:MM:SS"); None = ESP32 sem hora valida,
-        usa a hora do PC. Devolve False se o ciclo ja estava no banco (mesmo
-        dispositivo + origem_id) - buscar de novo nunca duplica nada."""
+        usa a hora do PC. Devolve False se o ciclo ja estava no banco (mesma
+        serie do ESP32 + origem_id) - buscar de novo nunca duplica nada,
+        mesmo que a parte do MAC no id do dispositivo mude (ja aconteceu:
+        3 ids diferentes para o mesmo controlador, todos com a mesma serie)."""
         with self._lock, self._conn:
             cursor = self._conn.execute(
                 "INSERT OR IGNORE INTO ciclos "
                 "(setor, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo, origem_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?)",
-                (setor, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em, dispositivo, origem_id),
+                "SELECT ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ? "
+                "WHERE NOT EXISTS (SELECT 1 FROM ciclos WHERE origem_id = ? AND (dispositivo = ? OR dispositivo LIKE ?))",
+                (setor, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em, dispositivo, origem_id,
+                 origem_id, dispositivo, _padrao_serie(dispositivo)),
             )
         return cursor.rowcount == 1
 
     def ultimo_id_origem(self, dispositivo):
-        """Maior id de ciclo do ESP32 ja gravado aqui (0 = nenhum)."""
+        """Maior id de ciclo deste ESP32 ja gravado aqui (0 = nenhum) -
+        reconhecido pela serie (parte depois do "-"), que so muda se a
+        memoria NVS do ESP32 for apagada (ai os ids recomecam do 1)."""
         with self._lock:
             linha = self._conn.execute(
-                "SELECT MAX(origem_id) AS ultimo FROM ciclos WHERE dispositivo = ?", (dispositivo,)
+                "SELECT MAX(origem_id) AS ultimo FROM ciclos WHERE dispositivo = ? OR dispositivo LIKE ?",
+                (dispositivo, _padrao_serie(dispositivo)),
             ).fetchone()
         return linha["ultimo"] or 0
+
+    def versao_ciclos(self, setor):
+        """Identifica o conteudo atual dos ciclos do setor (muda a cada ciclo
+        gravado) - usado pelo servidor para responder "nada mudou" (304) sem
+        montar o CSV inteiro."""
+        with self._lock:
+            linha = self._conn.execute(
+                "SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS ultimo FROM ciclos WHERE setor = ?", (setor,)
+            ).fetchone()
+        return f"{linha['n']}-{linha['ultimo']}"
+
+    def fazer_backup(self, destino):
+        """Copia consistente do banco inteiro para o arquivo destino (API de
+        backup do SQLite: segura com o banco em uso, inclusive no modo WAL).
+        Grava num temporario e renomeia - nunca deixa um backup pela metade."""
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        temporario = destino + ".tmp"
+        copia = sqlite3.connect(temporario)
+        try:
+            with self._lock:
+                self._conn.backup(copia)
+            copia.close()
+            os.replace(temporario, destino)
+        finally:
+            try:
+                copia.close()
+            except sqlite3.Error:
+                pass
+            if os.path.exists(temporario):
+                os.remove(temporario)
 
     def csv_do_setor(self, setor):
         """Reconstroi o CSV no mesmo formato que o painel web ja sabe ler
@@ -224,16 +270,24 @@ class BancoDados:
         do RTC do ESP32 nos ciclos buscados pelo Wi-Fi, ou a hora do PC no
         momento em que o ciclo chegou pela Serial. E ela que da ao painel o
         horario de cada ciclo - necessario para os filtros de periodo e o
-        agrupamento por turno."""
+        agrupamento por turno.
+
+        Excecao: ciclo baixado pelo Wi-Fi com SEM_HORA (o ESP32 estava sem
+        relogio) sai com registrado_em VAZIO - o gravado_em dele e so a hora
+        do download, e usa-la empilhava dias de producao no momento da
+        sincronizacao (ja aconteceu: 834 ciclos "as 07h de 10/11"). O painel
+        conta esses ciclos a parte ("sem data/hora"). O banco nao muda.
+        Pela Serial o gravado_em e a hora real de chegada, entao vale."""
         with self._lock:
             linhas = self._conn.execute(
-                "SELECT maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em "
+                "SELECT maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo "
                 "FROM ciclos WHERE setor = ? ORDER BY id",
                 (setor,),
             ).fetchall()
         saida = ["maquina,ciclo,inicio_ms,fim_ms,duracao_s,obs,registrado_em"]
         for l in linhas:
-            registrado_em = (l["gravado_em"] or "").replace(" ", "T")
+            sem_hora_real = l["dispositivo"] is not None and "SEM_HORA" in (l["obs"] or "")
+            registrado_em = "" if sem_hora_real else (l["gravado_em"] or "").replace(" ", "T")
             saida.append(
                 f"{l['maquina']},{l['ciclo']},{l['inicio_ms']},{l['fim_ms']},{l['duracao_s']},{l['obs']},{registrado_em}"
             )
@@ -276,6 +330,24 @@ class BancoDados:
                 "INSERT INTO config_setor (setor, meta_horas_dia) VALUES (?, ?) "
                 "ON CONFLICT(setor) DO UPDATE SET meta_horas_dia = excluded.meta_horas_dia",
                 (setor, meta_horas_dia),
+            )
+
+    def obter_meta_pct_dia(self, setor):
+        """Meta de rendimento em % do tempo disponivel do turno (substitui a
+        meta em horas). None = ainda nao definida neste banco (o painel
+        converte a meta antiga em horas e grava)."""
+        with self._lock:
+            linha = self._conn.execute(
+                "SELECT meta_pct_dia FROM config_setor WHERE setor = ?", (setor,)
+            ).fetchone()
+        return linha["meta_pct_dia"] if linha else None
+
+    def salvar_meta_pct_dia(self, setor, meta_pct):
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO config_setor (setor, meta_pct_dia) VALUES (?, ?) "
+                "ON CONFLICT(setor) DO UPDATE SET meta_pct_dia = excluded.meta_pct_dia",
+                (setor, meta_pct),
             )
 
     # -- estado ao vivo ----------------------------------------------------
@@ -387,12 +459,19 @@ class BancoDados:
             if "origem_id" not in colunas:
                 self._conn.execute("ALTER TABLE ciclos ADD COLUMN origem_id INTEGER")
             # horarios por dia da semana dos turnos (bancos antigos nao tem)
+            # meta de rendimento em % (bancos antigos so tem a meta em horas,
+            # que fica preservada como estava)
+            colunas_setor = {l["name"] for l in self._conn.execute("PRAGMA table_info(config_setor)")}
+            if "meta_pct_dia" not in colunas_setor:
+                self._conn.execute("ALTER TABLE config_setor ADD COLUMN meta_pct_dia REAL")
             colunas_turnos = {l["name"] for l in self._conn.execute("PRAGMA table_info(turnos)")}
             if "dias" not in colunas_turnos:
                 self._conn.execute("ALTER TABLE turnos ADD COLUMN dias TEXT")
             self._conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_ciclos_origem ON ciclos(dispositivo, origem_id)"
             )
+            # busca por origem_id sozinho (deduplicacao pela serie do ESP32)
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ciclos_origem_id ON ciclos(origem_id)")
 
     def _migrar_csv_antigo_se_existir(self):
         """Antes do banco.db existir, os dados viviam em banco_de_dados.csv

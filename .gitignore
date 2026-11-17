@@ -2,6 +2,10 @@
 .env
 # gerado a partir do .env por ferramentas/gerar_segredos.py
 firmware/**/segredos.h
+app/segredos_app.json
+app/build_info.json
+# backups automaticos do banco (app/caminhos.py dir_backup) - nunca versionar
+/backup/
 
 # ---- Gerados pelo build do executavel (app/gerar_executavel.bat) ----
 app/build/
@@ -17,6 +21,9 @@ dados/*.db
 dados/*.db-shm
 dados/*.db-wal
 dados/*.log
+dados/backups/
+dados/backup.json
+dados/seguranca.json
 dados/sincronizacao.json
 dados/conexao.json
 dados/esp32_ip_empresa.txt
