@@ -437,7 +437,7 @@ class Handler(BaseHTTPRequestHandler):
         """VPS: recebe do ESP32 (/api/nuvem/enviar) e do notebook
         (/api/nuvem/config). Chave errada -> 403 (o ESP32 e o notebook
         mostram "chave recusada")."""
-        if rota not in ("/api/nuvem/enviar", "/api/nuvem/config"):
+        if rota not in ("/api/nuvem/enviar", "/api/nuvem/config", "/api/nuvem/ping"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -450,6 +450,9 @@ class Handler(BaseHTTPRequestHandler):
             with autenticador._trava:
                 autenticador._falhas.setdefault(ip, []).append(time.monotonic())
             self._responder_json({"ok": False, "erro": "chave invalida"}, status=403)
+            return
+        if rota == "/api/nuvem/ping":  # so confere a chave (teste da instalacao), nao grava nada
+            self._responder_json({"ok": True, "versao": APP_VERSAO})
             return
         try:
             corpo = self._corpo_json()

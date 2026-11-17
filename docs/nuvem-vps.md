@@ -48,18 +48,27 @@ a mesma `NUVEM_CHAVE`.**
 Requisitos: Ubuntu 22.04/24.04 ou Debian 12, acesso SSH com `sudo`, portas
 80 e 443 livres (ou um servidor web já existente — ver "Se a VPS já tem nginx").
 
-1. **DNS**: registro **A** de `santex.rexar.com.br` → IP da VPS. Se o domínio
-   estiver na Cloudflare, deixe esse registro **sem proxy** (nuvem cinza): o
-   ESP32 confia no certificado da Let's Encrypt
-   (`firmware/controle_producao_horimetro/certificados.h`).
-2. **Copiar o projeto** do notebook para a VPS (PowerShell, na raiz do projeto;
+1. **DNS — obrigatório: "Somente DNS" (nuvem cinza) na Cloudflare.** Em
+   17/11/2026, `santex.rexar.com.br` estava com o **proxy da Cloudflare ligado**
+   (resolve para 104.21.7.220 / 172.67.156.123). Assim o ESP32 **nunca**
+   conseguiria enviar: a Cloudflare entrega certificado do Google Trust
+   Services (WE1 ← GTS Root R4), mas o ESP32 só confia na Let's Encrypt
+   (`firmware/controle_producao_horimetro/certificados.h`), e a proteção
+   anti-robô dela responde `error code: 1010` a quem não é navegador. No
+   painel da Cloudflare: registro **A** `santex` → **IP da VPS**, proxy
+   **desligado** (nuvem cinza).
+2. **Montar e copiar o pacote** (PowerShell, na raiz do projeto, no notebook;
    troque `usuario@IP`):
    ```powershell
-   ssh usuario@IP "mkdir -p ~/painel-nuvem"
-   scp -r app ferramentas painel deploy usuario@IP:~/painel-nuvem/
+   .\deploy\empacotar_vps.ps1                       # gera dist-vps\painel-nuvem-1.1.0.tar.gz (sem segredos)
+   scp dist-vps\painel-nuvem-1.1.0.tar.gz usuario@IP:~
+   ssh usuario@IP "tar -xzf painel-nuvem-1.1.0.tar.gz"   # cria ~/painel-nuvem
    ```
-   (não copie `app\dist`, `app\build`, `dados` nem `backup`; o script descarta
-   os segredos da fábrica que estiverem em `app\`.)
+   **Com o Claude Code na VPS**: `cd ~/painel-nuvem && claude` — o `CLAUDE.md`
+   do pacote (no repositório: `deploy/CLAUDE_VPS.md`) traz o levantamento, a
+   instalação, as verificações e as regras de segurança (não mexer em outros
+   sites, não mostrar a chave, não se trancar no firewall). Os passos abaixo
+   são o mesmo roteiro feito à mão.
 3. **Instalar o servidor** (na VPS):
    ```bash
    cd ~/painel-nuvem
@@ -133,5 +142,7 @@ principal).
 
 ## Atualizar a VPS depois
 
-Copie as pastas de novo (passo 2.2) e rode `sudo bash deploy/instalar_vps.sh`
-— mantém dados, logins e chave.
+Gere e copie o pacote de novo (passo 2.2), extraia por cima e rode
+`sudo bash deploy/instalar_vps.sh` — mantém dados, logins e chave. Para
+conferir a chave sem gravar nada: `POST /api/nuvem/ping` com o cabeçalho
+`X-Chave-Nuvem` (responde `{"ok": true}` ou 403).

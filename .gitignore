@@ -44,3 +44,7 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# pacote da VPS e .exe de versoes novas gerados localmente
+dist-vps/
+app/dist_*/

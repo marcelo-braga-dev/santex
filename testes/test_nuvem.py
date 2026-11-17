@@ -115,6 +115,13 @@ class TesteModoNuvem(unittest.TestCase):
         sinc = json.loads(self.pedir("/sincronizacao", cabecalhos={"Authorization": self.login})[1])
         self.assertEqual((sinc["modo"], sinc["estado"], sinc["firmware"], sinc["pendentes_esp"]), ("nuvem", "conectado", "3.0", 3))
 
+    def test_2b_ping_confere_a_chave_sem_gravar(self):
+        self.assertEqual(self.pedir("/api/nuvem/ping", "POST", {}, {"X-Chave-Nuvem": "errada"})[0], 403)
+        st, corpo = self.pedir("/api/nuvem/ping", "POST", {}, {"X-Chave-Nuvem": CHAVE})
+        self.assertEqual((st, json.loads(corpo)["ok"]), (200, True))
+        sinc = json.loads(self.pedir("/sincronizacao", cabecalhos={"Authorization": self.login})[1])
+        self.assertNotIn("config_recebida_em", sinc)  # o ping nao finge que a configuracao chegou
+
     def test_3_nuvem_nunca_edita(self):
         # atras do Caddy toda visita vem de 127.0.0.1 - mesmo assim, somente leitura
         cab = {"Authorization": self.login, "Content-Type": "application/json"}

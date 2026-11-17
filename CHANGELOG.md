@@ -22,6 +22,12 @@ Acesso remoto: quem está fora da rede da empresa vê o painel em
   notebook mostra se a configuração e os ciclos estão chegando à VPS.
 - Notebook não baixa de novo o que já tem e pede a limpeza do ESP32 no
   máximo a cada 60 s enquanto a VPS não alcança.
+- `deploy/empacotar_vps.ps1` monta o pacote da VPS (sem segredos, com quebra
+  de linha Linux) e inclui `deploy/CLAUDE_VPS.md` como `CLAUDE.md`: o Claude
+  Code roda a instalação na VPS seguindo esse roteiro.
+- `POST /api/nuvem/ping`: confere a chave sem gravar nada (teste da instalação).
+- Verificado: `santex.rexar.com.br` está com o proxy da Cloudflare ligado —
+  precisa ficar "Somente DNS" para o ESP32 conseguir enviar.
 
 ## 1.0.0 — 17/11/2026 (app 1.0.0 · firmware 2.2)
 

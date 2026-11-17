@@ -43,7 +43,7 @@ controle_producao_horimetro/
 ├── painel/
 │   ├── index.html                   # Painel web (servido pelo app)
 │   └── assets/                      # Logo da empresa
-├── deploy/                          # Instalação na VPS (systemd, Caddy, script)
+├── deploy/                          # VPS: systemd, Caddy, instalar_vps.sh, empacotar_vps.ps1, CLAUDE_VPS.md
 ├── testes/
 │   └── test_backend.py              # python -m unittest discover -s testes -v
 ├── dados/                           # Banco/configuração em desenvolvimento (fora do git)
