@@ -41,6 +41,8 @@ Primeira versão para produção permanente.
 - Versão no rodapé; aviso de backup e de chave no popover do controlador.
 - Linha "Exibindo" mostra o dia da semana no período Dia
   ("Terça-feira, 17/11/2026 (hoje)").
+- Rodapé: "Desenvolvido por Marcelo Braga" no lugar da dica de arrastar CSV
+  (arrastar um CSV para a tela continua funcionando).
 - Excel funciona **sem internet**: biblioteca SheetJS 0.18.5 incluída em
   `painel/assets/xlsx.full.min.js` (a internet fica só como reserva).
 
