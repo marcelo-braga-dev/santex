@@ -533,6 +533,9 @@
   .sb-left { display: flex; align-items: center; gap: 14px; flex: 1 1 auto; min-width: 0; overflow: hidden; }
   .sb-left > span:empty { display: none; }
   .period-note { color: var(--warning); font-weight: 600; white-space: nowrap; }
+  .dados-aviso { display: inline-flex; align-items: center; gap: 2px; }
+  .aviso-x { border: none; background: none; color: var(--warning); font: inherit; font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer; padding: 1px 5px; border-radius: 5px; }
+  .aviso-x:hover, .aviso-x:focus-visible { background: var(--warning-wash); }
   .sb-right { display: flex; align-items: center; gap: 10px; flex: none; }
 
   /* ESP32 na barra de status */
@@ -1263,7 +1266,7 @@
     .statusbar { gap: 8px; padding: 0 8px; }
     .statusbar::before { width: 80px; }
     .sb-left { gap: 8px; }
-    .sb-left .period-note { display: none; }
+    .sb-left .period-note, .sb-left .aviso-x { display: none; }
     .sb-right { flex: 0 1 auto; min-width: 0; }
     .sync-bar { min-width: 0; max-width: 100%; }
     .sync-toggle { max-width: 100%; min-width: 0; padding: 0 6px 0 8px; gap: 6px; }
@@ -2042,7 +2045,7 @@
     </div>
     <span class="period-note" id="period-note"></span>
     <span class="period-note" id="shift-note"></span>
-    <span class="period-note" id="dados-note"></span>
+    <span class="dados-aviso"><span class="period-note" id="dados-note"></span><button class="aviso-x" id="dados-note-x" type="button" hidden title="Dispensar o aviso de ciclos sem data/hora (ele só volta se surgirem ciclos sem hora novos)" aria-label="Dispensar aviso de ciclos sem data/hora">×</button></span>
     <button class="ro-note" id="ro-note" type="button" hidden title="Este aparelho só visualiza. Alterações são feitas no computador do painel — ou clique para informar o PIN.">🔒 Somente leitura</button>
   </div>
   <div class="sb-right">
@@ -2444,7 +2447,8 @@
     return {
       pausas: [],
       calendario: { ativo: false, diasSemana: [1, 2, 3, 4, 5], diasTurnos: [], paradas: [] },
-      historico: { taxa: {}, meta: [], metaPct: [], turnos: [] }
+      historico: { taxa: {}, meta: [], metaPct: [], turnos: [] },
+      avisos: { semHoraDispensados: 0 }
     };
   }
   const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -2515,12 +2519,19 @@
     h.turnos = normalizarVigencias(v.turnos, (x) => turnosValidos(x)).map((vg) => ({ desde: vg.desde, valor: copiaTurnos(vg.valor) }));
     return h;
   }
+  // Avisos dispensados pelo usuario: quantos ciclos "sem data/hora" ja
+  // estavam la quando ele clicou no x (o aviso volta so se o numero crescer).
+  function normalizarAvisos(v) {
+    const n = v && Number(v.semHoraDispensados);
+    return { semHoraDispensados: Number.isInteger(n) && n >= 0 ? n : 0 };
+  }
   function normalizarExtras(raw) {
     raw = raw && typeof raw === "object" ? raw : {};
     return {
       pausas: normalizarPausas(raw.pausas),
       calendario: normalizarCalendario(raw.calendario),
-      historico: normalizarHistorico(raw.historico)
+      historico: normalizarHistorico(raw.historico),
+      avisos: normalizarAvisos(raw.avisos)
     };
   }
   function loadExtras() {
@@ -2531,7 +2542,7 @@
     extrasVersao++;
     try { localStorage.setItem(extrasKey(), JSON.stringify(extras)); } catch (e) { /* localStorage indisponível */ }
     const envio = {};
-    (chaves || ["pausas", "calendario", "historico"]).forEach((k) => { envio[k] = extras[k]; });
+    (chaves || ["pausas", "calendario", "historico", "avisos"]).forEach((k) => { envio[k] = extras[k]; });
     enviarConfigParaServidor({ extras: envio });
   }
 
@@ -5218,17 +5229,41 @@
 
 
   // Rodape: avisos sobre os dados que ficaram de fora ou foram ajustados.
+  function contarSemHora() {
+    return usingRealTime ? todosRegistros.filter((r) => r.tsIni === null).length : 0;
+  }
+  function semHoraDispensadosKey() { return `painel_semhora_dispensados__${setorAtual.id}`; }
+  // Dispensa: a do servidor (vale para todos os aparelhos) ou a deste
+  // aparelho (quem esta em somente leitura so consegue guardar aqui).
+  function semHoraDispensados() {
+    let local = 0;
+    try { local = parseInt(localStorage.getItem(semHoraDispensadosKey()), 10) || 0; } catch (e) { /* sem localStorage */ }
+    return Math.max(local, extras.avisos ? extras.avisos.semHoraDispensados : 0);
+  }
+  function dispensarAvisoSemHora() {
+    const total = contarSemHora();
+    try { localStorage.setItem(semHoraDispensadosKey(), String(total)); } catch (e) { /* sem localStorage */ }
+    extras.avisos = { semHoraDispensados: total };
+    if (podeEditar) saveExtras(["avisos"]);
+    renderQualidadeDados();
+  }
+  $("#dados-note-x").addEventListener("click", dispensarAvisoSemHora);
+
   function renderQualidadeDados() {
     const alvo = $("#dados-note");
     if (!alvo) return;
-    const semHora = usingRealTime ? todosRegistros.filter((r) => r.tsIni === null).length : 0;
+    const semHoraTotal = contarSemHora();
+    const dispensados = semHoraDispensados();
+    // depois de dispensado, so os ciclos sem hora que surgiram DEPOIS
+    const semHora = semHoraTotal > dispensados ? semHoraTotal - dispensados : 0;
+    const novos = semHora > 0 && dispensados > 0;
     const partes = [], detalhes = [];
     if (qualidadeDados.simulados) {
       partes.push(`${qualidadeDados.simulados} simulado${qualidadeDados.simulados > 1 ? "s" : ""} ignorado${qualidadeDados.simulados > 1 ? "s" : ""}`);
       detalhes.push("Ciclos SIMULADOS (modo de teste do controlador) não contam como produção.");
     }
     if (semHora) {
-      partes.push(`${semHora} sem data/hora`);
+      partes.push(`${semHora} sem data/hora${novos ? " (novos)" : ""}`);
       detalhes.push("Ciclos gravados enquanto o controlador estava sem relógio (bateria do RTC?). Continuam guardados no banco, mas como não se sabe quando aconteceram, não entram em nenhum período nem turno. Com o firmware 2.2, ciclos assim recebem a hora real sozinhos quando o relógio é acertado.");
     }
     if (qualidadeDados.sobrepostos) {
@@ -5237,6 +5272,7 @@
     }
     alvo.textContent = partes.length ? `⚠ ${partes.join(" · ")}` : "";
     alvo.title = detalhes.join("\n");
+    $("#dados-note-x").hidden = !semHora;
   }
 
   function renderAll() {
@@ -5421,7 +5457,7 @@
       if (dados.extras && typeof dados.extras === "object") {
         const doServidor = normalizarExtras(dados.extras);
         const faltando = [];
-        ["pausas", "calendario", "historico"].forEach((k) => {
+        ["pausas", "calendario", "historico", "avisos"].forEach((k) => {
           if (dados.extras[k] === undefined) { faltando.push(k); return; }
           if (JSON.stringify(doServidor[k]) !== JSON.stringify(extras[k])) { extras[k] = doServidor[k]; extrasVersao++; }
         });

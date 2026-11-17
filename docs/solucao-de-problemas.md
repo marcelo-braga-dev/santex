@@ -243,5 +243,8 @@ no banco, mas fora dos períodos e turnos, porque não se sabe quando
 aconteceram.
 
 **Correção:** troque a bateria do RTC e confira o relógio na página de
-diagnóstico do controlador. Com o firmware 2.2, ciclos gravados sem hora
+diagnóstico do controlador. Depois de ver o aviso, clique no **×** ao lado
+dele para dispensá-lo: vale para todos os aparelhos (fica salvo no
+servidor) e ele só volta se aparecerem ciclos sem hora **novos**, mostrando
+apenas esses ("⚠ 1 sem data/hora (novos)"). Com o firmware 2.2, ciclos gravados sem hora
 recebem a hora real sozinhos quando o relógio é acertado no mesmo boot.

@@ -36,6 +36,8 @@ Primeira versão para produção permanente.
   renomeado de "Meta/dia" para "Meta por turno".
 - Faixa e linhas tracejadas dos **turnos** na Linha do tempo.
 - Removido o gráfico "Tendência diária de rendimento" da página Desempenho.
+- Aviso "⚠ N sem data/hora" do rodapé pode ser dispensado (×); volta sozinho
+  só se surgirem ciclos sem hora novos ("1 sem data/hora (novos)").
 - Versão no rodapé; aviso de backup e de chave no popover do controlador.
 - Excel funciona **sem internet**: biblioteca SheetJS 0.18.5 incluída em
   `painel/assets/xlsx.full.min.js` (a internet fica só como reserva).
