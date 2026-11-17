@@ -62,7 +62,8 @@ se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
 cat /etc/os-release | head -3
 python3 --version                      # precisa de 3.10 ou mais novo
 sudo ss -ltnp | grep -E ':(80|443|8080)\b' || echo "80/443/8080 livres"
-systemctl is-active nginx apache2 caddy 2>/dev/null
+systemctl is-active nginx apache2 caddy lsws lshttpd 2>/dev/null
+ls -d /usr/local/lsws /usr/local/CyberCP 2>/dev/null    # OpenLiteSpeed / CyberPanel
 sudo ufw status verbose 2>/dev/null | head -20
 getent hosts santex.rexar.com.br; curl -s -4 ifconfig.me; echo
 ```
@@ -107,7 +108,47 @@ sudo journalctl -u painel-nuvem -n 20 --no-pager
 
 ## Passo 2 — HTTPS
 
+**Situação verificada em 17/11/2026 (de fora):** `santex.rexar.com.br` →
+`212.85.17.175`, sem proxy da Cloudflare; quem atende 80/443 é um
+**LiteSpeed**, que já tem certificado Let's Encrypt válido para
+`santex.rexar.com.br` (cadeia `YR1 ← Root YR ← ISRG Root X1`, enviada
+completa — validada como o ESP32 faria, em TLS 1.2 e 1.3). Hoje ele responde
+404 (vhost sem o painel). Portanto, **o caminho esperado é o do LiteSpeed**:
+não instale o Caddy (brigaria pelas portas 80/443 com o LiteSpeed). Confirme
+no Passo 0 antes.
+
 Escolha conforme o levantamento (e confirme com o usuário):
+
+- **LiteSpeed (OpenLiteSpeed / CyberPanel) já nas portas** → proxy reverso no
+  vhost de `santex.rexar.com.br`, mantendo o certificado que ele já usa:
+  1. Ache o arquivo do vhost: `sudo grep -ril 'santex.rexar.com.br' /usr/local/lsws/conf/vhosts/ /usr/local/lsws/conf/httpd_config.conf`
+     (no CyberPanel costuma ser `/usr/local/lsws/conf/vhosts/santex.rexar.com.br/vhost.conf`).
+  2. Faça cópia (`sudo cp vhost.conf vhost.conf.bak-$(date +%F)`), mostre ao
+     usuário e, com a confirmação, acrescente ao vhost:
+     ```
+     extprocessor painel_nuvem {
+       type                    proxy
+       address                 127.0.0.1:8080
+       maxConns                100
+       initTimeout             60
+       retryTimeout            0
+       respBuffer              0
+     }
+
+     context / {
+       type                    proxy
+       handler                 painel_nuvem
+       addDefaultCharset       off
+     }
+     ```
+     Se o vhost já tiver um `context /` (site antigo no mesmo domínio), **pare
+     e pergunte** — não substitua sem confirmação.
+  3. Reinicie de forma suave: `sudo /usr/local/lsws/bin/lswsctrl restart`
+     (ou pelo painel do CyberPanel/OpenLiteSpeed WebAdmin, em `:7080`).
+  4. Confira: `curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status` → **401**
+     (o painel pedindo login). Ainda 404 = o proxy não pegou; veja
+     `/usr/local/lsws/logs/error.log`.
+  5. Renovação do certificado: continua com o LiteSpeed/CyberPanel (Let's Encrypt). Não mexa.
 
 - **80/443 livres** → Caddy:
   ```bash

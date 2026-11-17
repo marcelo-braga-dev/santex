@@ -48,8 +48,9 @@ a mesma `NUVEM_CHAVE`.**
 Requisitos: Ubuntu 22.04/24.04 ou Debian 12, acesso SSH com `sudo`, portas
 80 e 443 livres (ou um servidor web já existente — ver "Se a VPS já tem nginx").
 
-1. **DNS — obrigatório: "Somente DNS" (nuvem cinza) na Cloudflare.** Em
-   17/11/2026, `santex.rexar.com.br` estava com o **proxy da Cloudflare ligado**
+1. **DNS — obrigatório: "Somente DNS" (nuvem cinza) na Cloudflare.** ✅ Feito
+   em 17/11/2026 (agora resolve para 212.85.17.175). Antes, `santex.rexar.com.br`
+   estava com o **proxy da Cloudflare ligado**
    (resolve para 104.21.7.220 / 172.67.156.123). Assim o ESP32 **nunca**
    conseguiria enviar: a Cloudflare entrega certificado do Google Trust
    Services (WE1 ← GTS Root R4), mas o ESP32 só confia na Let's Encrypt
@@ -89,6 +90,35 @@ Requisitos: Ubuntu 22.04/24.04 ou Debian 12, acesso SSH com `sudo`, portas
    ```
    Também: `listar`, `remover maria`, `senha maria`. Vale na hora.
 6. **Firewall**: `sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable`.
+
+### Se a VPS já tem LiteSpeed (OpenLiteSpeed / CyberPanel) — o caso desta VPS
+
+Verificado de fora em 17/11/2026: `santex.rexar.com.br` → `212.85.17.175`
+(Cloudflare em "Somente DNS" ✅), atendido por **LiteSpeed** com certificado
+Let's Encrypt já válido (cadeia completa até a ISRG Root X1, aceita pelo
+ESP32 em TLS 1.2 e 1.3). **Não instale o Caddy** (as portas 80/443 são do
+LiteSpeed). No vhost de `santex.rexar.com.br` (CyberPanel:
+`/usr/local/lsws/conf/vhosts/santex.rexar.com.br/vhost.conf`; faça cópia antes):
+
+```
+extprocessor painel_nuvem {
+  type                    proxy
+  address                 127.0.0.1:8080
+  maxConns                100
+  initTimeout             60
+  retryTimeout            0
+  respBuffer              0
+}
+
+context / {
+  type                    proxy
+  handler                 painel_nuvem
+  addDefaultCharset       off
+}
+```
+
+Depois `sudo /usr/local/lsws/bin/lswsctrl restart` e confira:
+`https://santex.rexar.com.br/status` deve responder **401** (pede login).
 
 ### Se a VPS já tem nginx
 
