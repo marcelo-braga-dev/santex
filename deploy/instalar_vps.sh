@@ -63,5 +63,5 @@ systemctl --no-pager --lines=5 status painel-nuvem || true
 echo
 echo "Pronto. Proximos passos (uma vez):"
 echo "  1) Caddy com HTTPS: deploy/Caddyfile  ->  /etc/caddy/Caddyfile ; sudo systemctl reload caddy"
-echo "  2) Logins: sudo -u painel PAINEL_DADOS=$DADOS python3 $DESTINO/ferramentas/usuarios_nuvem.py adicionar <nome>"
-echo "  3) Teste: https://santex.rexar.com.br  (pede usuario e senha)"
+echo "  2) Senha de acesso: definida no NOTEBOOK da fabrica (Configuracoes -> Acesso remoto); chega aqui sozinha"
+echo "  3) Teste: https://santex.rexar.com.br  (tela de login com a senha)"

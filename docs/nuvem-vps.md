@@ -1,8 +1,9 @@
 # Acesso remoto pela VPS (app 1.1.0 + firmware 3.0)
 
 Quem está **fora da rede da empresa** abre o painel em
-**https://santex.rexar.com.br**, com usuário e senha, somente para
-visualizar. Nada muda para quem está na empresa.
+**https://santex.rexar.com.br** com **uma senha única**, somente para
+visualizar. A senha é definida e trocada no notebook da fábrica, em
+**⚙ Configurações → Acesso remoto** (o notebook guarda e envia só o hash). Nada muda para quem está na empresa.
 
 ```
                  rede da empresa                              internet
@@ -84,11 +85,10 @@ Requisitos: Ubuntu 22.04/24.04 ou Debian 12, acesso SSH com `sudo`, portas
    sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
    sudo systemctl reload caddy
    ```
-5. **Logins** (um por pessoa):
-   ```bash
-   sudo -u painel PAINEL_DADOS=/var/lib/painel-nuvem python3 /opt/painel-nuvem/ferramentas/usuarios_nuvem.py adicionar maria
-   ```
-   Também: `listar`, `remover maria`, `senha maria`. Vale na hora.
+5. **Senha de acesso**: não é criada na VPS. No notebook da fábrica, em
+   **⚙ Configurações → Acesso remoto**, defina a senha; ela chega à VPS em
+   segundos (junto com a configuração). Para trocar, é só definir outra —
+   quem estiver conectado na VPS precisa entrar de novo.
 6. **Firewall**: `sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable`.
 
 ### Se a VPS já tem LiteSpeed (OpenLiteSpeed / CyberPanel) — o caso desta VPS
@@ -173,6 +173,6 @@ principal).
 ## Atualizar a VPS depois
 
 Gere e copie o pacote de novo (passo 2.2), extraia por cima e rode
-`sudo bash deploy/instalar_vps.sh` — mantém dados, logins e chave. Para
+`sudo bash deploy/instalar_vps.sh` — mantém dados, senha e chave. Para
 conferir a chave sem gravar nada: `POST /api/nuvem/ping` com o cabeçalho
 `X-Chave-Nuvem` (responde `{"ok": true}` ou 403).

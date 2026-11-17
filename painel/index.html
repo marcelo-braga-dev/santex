@@ -1309,7 +1309,14 @@
     #machine-selector .segmented-btn { flex: 1 1 calc(50% - 2px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   .foot-versao { color: var(--ink-400); font-variant-numeric: tabular-nums; }
-  body.modo-nuvem [data-abrir="esp"] { display: none; }
+  body.modo-nuvem [data-abrir="esp"], body.modo-nuvem [data-abrir="acesso-remoto"] { display: none; }
+  .foot-sair { display: none; margin-left: 10px; border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+  .foot-sair:hover { border-color: var(--border-strong); color: var(--ink-900); }
+  body.modo-nuvem .foot-sair { display: inline-block; }
+  .acesso-status { font-size: 13px; line-height: 1.5; padding: 10px 12px; border-radius: 10px; background: var(--surface-sunken); border: 1px solid var(--border); margin-bottom: 14px; }
+  .acesso-status strong { font-weight: 700; }
+  .acesso-status .ok { color: var(--good); } .acesso-status .aviso { color: var(--warning); }
+  .acesso-ok { color: var(--good); font-size: 13px; font-weight: 600; min-height: 18px; }
   .ro-note { border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .ro-note:hover { border-color: var(--border-strong); color: var(--ink-900); }
   @media (prefers-reduced-motion: reduce) {
@@ -1489,6 +1496,10 @@
           <button class="menu-item" type="button" role="menuitem" data-abrir="esp">
             <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 12l1.5 1.5L14 10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span>Diagnóstico do controlador<small>Relógio (RTC), rede, memória, eventos e ações</small></span>
+          </button>
+          <button class="menu-item" type="button" role="menuitem" data-abrir="acesso-remoto">
+            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1.4" fill="currentColor"/></svg></span>
+            <span>Acesso remoto<small>Senha de quem acessa de fora da empresa</small></span>
           </button>
           <div class="menu-sep"></div>
           <div class="menu-section">Dados</div>
@@ -2031,7 +2042,7 @@
 
   <footer class="app-footer">
     <span><span class="foot-brand" id="foot-brand">Painel de Produção — uso interno de gestão</span> <span class="foot-versao" id="foot-versao"></span></span>
-    <span class="foot-autor">Desenvolvido por Marcelo Braga</span>
+    <span class="foot-autor">Desenvolvido por Marcelo Braga<form method="post" action="/logout" style="display:inline"><button class="foot-sair" type="submit" title="Sair do acesso remoto neste navegador">Sair</button></form></span>
   </footer>
 </main>
 
@@ -2122,6 +2133,32 @@
     <div class="modal-foot">
       <button class="btn" id="meta-cancel" type="button">Cancelar</button>
       <button class="btn primary" id="meta-save" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="acesso-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="acesso-title">
+    <div class="modal-head">
+      <div class="modal-title" id="acesso-title">Acesso remoto</div>
+      <button class="modal-close" id="acesso-close" type="button" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-note" id="acesso-explica">Quem está fora da empresa abre o painel pela internet e entra com esta senha (somente visualização).</div>
+      <div class="acesso-status" id="acesso-status">Verificando…</div>
+      <label class="config-field">Nova senha
+        <input type="password" id="acesso-senha" class="input" autocomplete="new-password" minlength="8" maxlength="128" placeholder="mínimo 8 caracteres" />
+      </label>
+      <label class="config-field">Repita a nova senha
+        <input type="password" id="acesso-senha2" class="input" autocomplete="new-password" minlength="8" maxlength="128" />
+      </label>
+      <div class="settings-note">Trocar a senha desconecta todos que estiverem usando o acesso remoto — eles entram de novo com a senha nova. A senha é guardada só de forma cifrada (hash), aqui e no servidor.</div>
+      <div class="settings-error" id="acesso-erro"></div>
+      <div class="acesso-ok" id="acesso-ok"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="acesso-cancel" type="button">Fechar</button>
+      <button class="btn primary" id="acesso-save" type="button">Salvar senha</button>
     </div>
   </div>
 </div>
@@ -5548,6 +5585,7 @@
   async function consultarStatusLeitura() {
     try {
       const res = await fetch(CONTROLE_URL + "/status", { cache: "no-store", headers: cabecalhosControle() });
+      if (res.status === 401) { location.reload(); return; } // acesso remoto: sessao encerrada -> tela de login
       const dados = await res.json();
       leituraAtiva = !!dados.rodando;
       servidorOnline = true;
@@ -6347,6 +6385,84 @@
   }
 
   ABRIR_POPUP.meta = abrirMeta;
+
+  // ---------------------------------------------------------------------
+  // Popup: senha do acesso remoto (notebook). Quem esta fora da empresa
+  // entra no painel da VPS com esta senha; o servidor guarda so o hash e o
+  // envia para a VPS junto com a configuracao.
+  // ---------------------------------------------------------------------
+  async function renderAcessoRemoto() {
+    const alvo = $("#acesso-status");
+    let ar = null;
+    try {
+      const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
+      ar = res.ok ? (await res.json()).acessoRemoto : null;
+    } catch (e) { /* sem servidor */ }
+    if (!ar) { alvo.textContent = "Indisponível: abra pelo aplicativo do painel."; return; }
+    const url = ar.url ? escaparHtml(ar.url) : "";
+    $("#acesso-explica").innerHTML = url
+      ? `Quem está fora da empresa abre <strong>${url}</strong> e entra com esta senha (somente visualização).`
+      : "O endereço da nuvem (NUVEM_URL) não está configurado neste aplicativo — a senha fica guardada, mas não há para onde enviar.";
+    const linhas = [];
+    linhas.push(ar.definida
+      ? `<span class="ok">✔ Senha definida</span>${ar.alteradaEm ? ` em <strong>${fmtQuando(ar.alteradaEm)}</strong>` : ""}.`
+      : `<span class="aviso">⚠ Nenhuma senha definida</span> — ninguém consegue entrar pelo acesso remoto.`);
+    const n = sincronizacao && sincronizacao.nuvem;
+    if (ar.definida && n && n.ativo) {
+      linhas.push(n.erro
+        ? `<span class="aviso">⚠ Ainda não chegou à nuvem:</span> ${escaparHtml(n.erro)}. Tenta de novo sozinho.`
+        : n.ultimo_envio ? `Enviada para a nuvem ${fmtQuando(n.ultimo_envio)}.` : "Aguardando o envio para a nuvem…");
+    }
+    alvo.innerHTML = linhas.join("<br>");
+  }
+
+  function abrirAcessoRemoto() {
+    if (!podeEditar) {
+      alert("Somente o computador do painel (ou um aparelho com o PIN) pode definir a senha do acesso remoto.");
+      return;
+    }
+    $("#acesso-senha").value = "";
+    $("#acesso-senha2").value = "";
+    $("#acesso-erro").textContent = "";
+    $("#acesso-ok").textContent = "";
+    $("#acesso-status").textContent = "Verificando…";
+    $("#acesso-overlay").classList.add("visible");
+    renderAcessoRemoto();
+    $("#acesso-senha").focus();
+  }
+
+  function fecharAcessoRemoto() { $("#acesso-overlay").classList.remove("visible"); }
+
+  async function salvarAcessoRemoto() {
+    const senha = $("#acesso-senha").value;
+    const erro = $("#acesso-erro");
+    $("#acesso-ok").textContent = "";
+    if (senha.length < 8) { erro.textContent = "A senha precisa ter pelo menos 8 caracteres."; return; }
+    if (senha !== $("#acesso-senha2").value) { erro.textContent = "As duas senhas não são iguais."; return; }
+    erro.textContent = "";
+    $("#acesso-save").disabled = true;
+    try {
+      const res = await postControle("/config", { setor: setorAtual.id, senhaRemota: senha });
+      const dados = await res.json();
+      if (!res.ok || !dados.ok) {
+        erro.textContent = dados.erro || "Não foi possível salvar a senha.";
+      } else {
+        $("#acesso-senha").value = "";
+        $("#acesso-senha2").value = "";
+        $("#acesso-ok").textContent = "Senha salva. Ela chega à nuvem em alguns segundos (com internet).";
+        setTimeout(() => { consultarSincronizacao(); setTimeout(renderAcessoRemoto, 1500); }, 1500);
+        renderAcessoRemoto();
+      }
+    } catch (e) {
+      erro.textContent = e.somenteLeitura ? "Este aparelho está em modo somente leitura." : "Servidor local indisponível.";
+    }
+    $("#acesso-save").disabled = false;
+  }
+
+  ABRIR_POPUP["acesso-remoto"] = abrirAcessoRemoto;
+  ligarPopup("acesso", fecharAcessoRemoto);
+  $("#acesso-save").addEventListener("click", salvarAcessoRemoto);
+  $("#acesso-senha2").addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarAcessoRemoto(); });
   ligarPopup("meta", fecharMeta);
   $("#meta-save").addEventListener("click", salvarMeta);
   $("#meta-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarMeta(); });

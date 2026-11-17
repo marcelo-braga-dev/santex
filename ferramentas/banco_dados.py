@@ -159,6 +159,14 @@ CREATE TABLE IF NOT EXISTS config_extra (
     PRIMARY KEY (setor, chave)
 );
 
+-- segredos do painel (ex.: hash da senha do acesso remoto) - separados da
+-- configuracao para NUNCA sairem pelo GET /config
+CREATE TABLE IF NOT EXISTS segredos (
+    chave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS turnos (
     setor TEXT NOT NULL,
     ordem INTEGER NOT NULL,
@@ -444,6 +452,21 @@ class BancoDados:
                 "INSERT INTO config_extra (setor, chave, valor, atualizado_em) VALUES (?, ?, ?, datetime('now', 'localtime')) "
                 "ON CONFLICT(setor, chave) DO UPDATE SET valor = excluded.valor, atualizado_em = excluded.atualizado_em",
                 [(SETOR_GERAL if k in CHAVES_GERAIS else setor, k, v) for k, v in extras_json.items()],
+            )
+
+    # -- segredos (nunca expostos pela API) ------------------------------------
+
+    def obter_segredo(self, chave):
+        with self._lock:
+            linha = self._conn.execute("SELECT valor FROM segredos WHERE chave = ?", (chave,)).fetchone()
+        return linha["valor"] if linha else None
+
+    def salvar_segredo(self, chave, valor):
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO segredos (chave, valor, atualizado_em) VALUES (?, ?, datetime('now', 'localtime')) "
+                "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, atualizado_em = excluded.atualizado_em",
+                (chave, valor),
             )
 
     # -- migracao do formato antigo ---------------------------------------

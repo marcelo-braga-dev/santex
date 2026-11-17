@@ -274,7 +274,8 @@ http://painel.local
 Para quem não está na rede da empresa: **https://santex.rexar.com.br**, com
 login, somente leitura. O ESP32 (firmware 3.0) envia os dados direto para lá
 e o app envia a configuração editada aqui sempre que ela muda (status em
-**Controlador**, na barra inferior). Instalação e logins:
+**Controlador**, na barra inferior). A **senha** de quem acessa de fora é
+definida e trocada aqui, em **⚙ Configurações → Acesso remoto**. Instalação:
 [nuvem-vps.md](nuvem-vps.md).
 
 ## Backup automático do banco

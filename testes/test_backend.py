@@ -323,6 +323,20 @@ class TesteServidor(unittest.TestCase):
         finally:
             os.remove(caminho)
 
+    def test_senha_do_acesso_remoto_definida_no_notebook(self):
+        cab = {"Content-Type": "application/json"}
+        st, _, corpo = self.pedir("/config", "POST", {"senhaRemota": "curta"}, cab)
+        self.assertEqual(st, 400)
+        self.assertIn("8 a 128", json.loads(corpo)["erro"])
+        st, _, corpo = self.pedir("/config", "POST", {"senhaRemota": "senha-da-fabrica-1"}, cab)
+        self.assertEqual((st, json.loads(corpo)["acessoRemoto"]["definida"]), (200, True))
+        cfg = self.pedir("/config")[2].decode()
+        self.assertNotIn("pbkdf2", cfg)            # o hash nunca sai pela API
+        self.assertNotIn("senha-da-fabrica-1", cfg)
+        self.assertTrue(json.loads(cfg)["acessoRemoto"]["definida"])
+        guardado = servidor.nuvem.dados_senha_remota(servidor.banco)["hash"]
+        self.assertTrue(servidor.nuvem.verificar_senha("senha-da-fabrica-1", guardado))
+
     def test_post_desconhecido_404(self):
         self.assertEqual(self.pedir("/apagar-tudo", "POST")[0], 404)
 

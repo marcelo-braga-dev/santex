@@ -14,8 +14,13 @@ Acesso remoto: quem está fora da rede da empresa vê o painel em
 - **Notebook** continua o fornecedor principal na empresa e envia a
   configuração (máquinas, metas, turnos, cores) para a VPS quando muda.
 - **VPS**: o mesmo servidor em `PAINEL_MODO=nuvem` — recebe do ESP32 e do
-  notebook com a `NUVEM_CHAVE`, login por pessoa (`usuarios_nuvem.py`),
-  sempre somente leitura, bloqueio após 10 senhas erradas. Arquivos de
+  notebook com a `NUVEM_CHAVE`, sempre somente leitura, bloqueio após 10
+  senhas erradas.
+- **Senha única do acesso remoto**, definida e trocada no notebook
+  (⚙ Configurações → Acesso remoto). O notebook guarda só o hash (PBKDF2) e
+  o envia para a VPS com a configuração; a VPS mostra uma tela de login só
+  com senha e mantém a sessão por 30 dias. Trocar a senha desconecta todos.
+  O hash nunca sai pelo `GET /config` (tabela `segredos` separada). Arquivos de
   instalação em `deploy/` (systemd + Caddy).
 - **Painel**: na VPS mostra "Controlador enviando / sem enviar", quando a
   configuração chegou do notebook e esconde os controles da rede local; no

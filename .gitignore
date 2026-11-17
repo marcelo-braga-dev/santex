@@ -26,7 +26,7 @@ dados/backup.json
 dados/seguranca.json
 dados/nuvem.json
 dados/nuvem_status.json
-dados/usuarios.json
+dados/sessao.key
 dados/sincronizacao.json
 dados/conexao.json
 dados/esp32_ip_empresa.txt

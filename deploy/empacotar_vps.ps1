@@ -25,7 +25,7 @@ $pacote = Join-Path $temp "painel-nuvem"
 $arquivos = @(
     "app\servidor.py", "app\caminhos.py", "app\anuncio_rede.py",
     "ferramentas\banco_dados.py", "ferramentas\backup_banco.py", "ferramentas\monitor_serial.py",
-    "ferramentas\monitor_wifi.py", "ferramentas\nuvem.py", "ferramentas\usuarios_nuvem.py",
+    "ferramentas\monitor_wifi.py", "ferramentas\nuvem.py",
     "ferramentas\controle_leitura_server.py",
     "painel\index.html",
     "deploy\instalar_vps.sh", "deploy\painel-nuvem.service", "deploy\Caddyfile", "deploy\painel-nuvem.env.exemplo",

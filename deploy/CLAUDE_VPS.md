@@ -20,13 +20,16 @@ se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
 - Nesta VPS roda o **mesmo servidor Python do app** em `PAINEL_MODO=nuvem`
   (`ferramentas/controle_leitura_server.py` → `app/servidor.py` +
   `ferramentas/nuvem.py`): guarda uma cópia em SQLite e serve o painel
-  **somente leitura**, com **login HTTP Basic** por pessoa, atrás do **Caddy**
-  (HTTPS). Só biblioteca padrão do Python + `pyserial`.
+  **somente leitura**, com **uma senha única** (tela de login só com senha,
+  sessão de 30 dias em cookie assinado), atrás do servidor web com HTTPS.
+  A senha é definida **no notebook** (⚙ Configurações → Acesso remoto) e
+  chega aqui só como hash, junto com a configuração — **não existe cadastro
+  de usuários na VPS**. Só biblioteca padrão do Python + `pyserial`.
 
 | Item | Valor |
 |---|---|
 | Código | `/opt/painel-nuvem` (dono root) |
-| Dados (banco, logins, backups) | `/var/lib/painel-nuvem` (dono `painel`) — **nunca apagar** |
+| Dados (banco, hash da senha, backups) | `/var/lib/painel-nuvem` (dono `painel`) — **nunca apagar** |
 | Chave | `/etc/painel-nuvem.env` (`NUVEM_CHAVE=...`, root, 600) |
 | Serviço | `painel-nuvem` (systemd), escuta só em `127.0.0.1:8080` |
 | HTTPS | Caddy → `127.0.0.1:8080` (`deploy/Caddyfile`) |
@@ -38,9 +41,10 @@ se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
    comandos com `echo`, nem em respostas). Para usá-la num teste, leia do
    arquivo dentro de um `sudo bash -c '. /etc/painel-nuvem.env; ...'` sem exibi-la.
 2. **Senhas e a chave são digitadas pelo usuário, não por você.** Os comandos
-   interativos (`instalar_vps.sh` na primeira vez, `usuarios_nuvem.py`) pedem
-   entrada oculta: peça ao usuário para rodá-los ele mesmo digitando
-   `! <comando>` no prompt do Claude Code.
+   interativos (`instalar_vps.sh` na primeira vez) pedem entrada oculta:
+   peça ao usuário para rodá-los ele mesmo digitando `! <comando>` no prompt
+   do Claude Code. A senha do painel nem passa pela VPS em texto: é definida
+   no notebook.
 3. **Não quebre outros sites.** Antes de qualquer mudança em servidor web
    (nginx, Apache, Caddy existente), mostre o que existe, faça cópia
    (`sudo cp arquivo arquivo.bak-$(date +%F)`) e **peça confirmação**. Nunca
@@ -96,7 +100,7 @@ ainda não existe — peça ao usuário:
 
 (o script pede a NUVEM_CHAVE sem mostrar; ela está no `.env` do notebook da
 fábrica). Nas **atualizações** você mesmo pode rodar
-`sudo bash deploy/instalar_vps.sh` — ele mantém chave, dados e logins.
+`sudo bash deploy/instalar_vps.sh` — ele mantém chave, dados e senha.
 
 Confira:
 
@@ -165,23 +169,27 @@ Escolha conforme o levantamento (e confirme com o usuário):
 
 Firewall (se o `ufw` estiver em uso): `sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp`.
 
-## Passo 3 — Logins de quem acessa
+## Passo 3 — Senha de acesso (é definida no notebook, não aqui)
 
-Peça ao usuário (a senha é digitada por ele):
+Não há usuários para criar. Peça ao usuário para, **no notebook da fábrica**
+(app 1.1.0), abrir **⚙ Configurações → Acesso remoto** e definir a senha. O
+app envia o hash para cá em segundos. Confira sem ver a senha nem o hash:
 
+```bash
+sudo python3 -c "import sqlite3,json; r=sqlite3.connect('/var/lib/painel-nuvem/painel.db').execute(\"select valor from segredos where chave='acesso_remoto'\").fetchone(); print('senha definida:', bool(r), json.loads(r[0]).get('alterado_em') if r else '')"
 ```
-! sudo -u painel PAINEL_DADOS=/var/lib/painel-nuvem python3 /opt/painel-nuvem/ferramentas/usuarios_nuvem.py adicionar <nome>
-```
 
-Você pode listar: `sudo -u painel PAINEL_DADOS=/var/lib/painel-nuvem python3 /opt/painel-nuvem/ferramentas/usuarios_nuvem.py listar`.
+Enquanto não chegar, a tela de login avisa "A senha do acesso remoto ainda
+não foi definida". Nunca grave um hash na VPS por conta própria.
 
 ## Passo 4 — Conferir de ponta a ponta
 
 ```bash
 # certificado: a cadeia precisa terminar na ISRG Root X1 (Let's Encrypt)
 echo | openssl s_client -connect santex.rexar.com.br:443 -servername santex.rexar.com.br 2>/dev/null | grep -E '^ *[0-9] s:| i:'
-# painel pede login pela internet
+# painel pede login pela internet (sem sessao: /status = 401; / = tela de login)
 curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status          # esperado: 401
+curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # esperado: 1
 # chave errada e recusada
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'X-Chave-Nuvem: errada' https://santex.rexar.com.br/api/nuvem/ping   # esperado: 403
 # chave certa e aceita - /api/nuvem/ping nao grava nada; a chave nao aparece
@@ -204,6 +212,8 @@ sudo cat /var/lib/painel-nuvem/nuvem_status.json   # ultimo_contato recente, fir
 | `painel-nuvem` reiniciando | erro no código ou permissão | `journalctl -u painel-nuvem -n 50`; dono de `/var/lib/painel-nuvem` deve ser `painel` |
 | Horários errados no painel | fuso | o serviço define `TZ=America/Sao_Paulo`; confira `systemctl show painel-nuvem -p Environment` |
 | 429 no painel | 10 senhas/chaves erradas em 10 min daquele IP | esperar 10 min ou `sudo systemctl restart painel-nuvem` |
+| Login: "senha ainda não foi definida" | o notebook não enviou a senha (sem internet, app antigo ou senha não definida) | no notebook: ⚙ Configurações → Acesso remoto; conferir "Enviada para a nuvem" |
+| Todos foram desconectados | a senha foi trocada no notebook | entrar com a senha nova (comportamento esperado) |
 
 ## Desfazer (sem perder dados)
 
@@ -217,5 +227,5 @@ sudo systemctl disable --now painel-nuvem
 ## Ao terminar
 
 Resuma para o usuário: o que foi instalado, o resultado de cada verificação do
-Passo 4, quais logins existem (só os nomes) e o que falta do lado da fábrica
+Passo 4, se a senha de acesso já chegou do notebook e o que falta do lado da fábrica
 (gravar o firmware 3.0 **depois** da VPS no ar e instalar o app 1.1.0).

@@ -17,8 +17,11 @@ Rotas da VPS (POST, com o cabecalho X-Chave-Nuvem = NUVEM_CHAVE do .env):
                        "ciclos": "id,maquina,ciclo,inicio,fim,duracao_s,obs\\n..."}
   /api/nuvem/config  <- notebook: o mesmo formato de GET /config
 
-Pessoas: login HTTP Basic (sempre atras do HTTPS do Caddy) com usuarios em
-dados/usuarios.json - criados com ferramentas/usuarios_nuvem.py.
+Pessoas: UMA senha de acesso, definida e trocada no painel do NOTEBOOK
+(menu Configuracoes -> Acesso remoto). O notebook guarda so o hash (PBKDF2) e
+o envia para a VPS junto com a configuracao; a VPS mostra uma tela de login
+so com senha e mantem a pessoa conectada por 30 dias naquele navegador.
+Trocar a senha no notebook desconecta todo mundo.
 """
 
 import base64
@@ -37,7 +40,11 @@ from banco_dados import normalizar_extras, normalizar_turnos
 from monitor_wifi import ARQUIVO_CHAVE_APP, _gravar_json, gravar_linhas_ciclos
 
 ARQUIVO_STATUS_NUVEM = "nuvem_status.json"
-ARQUIVO_USUARIOS = "usuarios.json"
+ARQUIVO_CHAVE_SESSAO = "sessao.key"  # VPS: assina os cookies de sessao (gerado uma vez)
+SEGREDO_SENHA_REMOTA = "acesso_remoto"  # tabela segredos: {"hash", "alterado_em"}
+COOKIE_SESSAO = "painel_sessao"
+DIAS_SESSAO = 30
+SENHA_MIN, SENHA_MAX = 8, 128
 ARQUIVO_CONFIG_NUVEM = "nuvem.json"  # no notebook: {"url": "...", "chave": "..."} (opcional)
 ESP_SEM_ENVIAR_S = 60  # sem envio do ESP32 ha mais que isso = "controlador sem enviar"
 MAX_CICLOS_POR_ENVIO = 500
@@ -179,6 +186,10 @@ def receber_do_esp(banco, dir_dados, setor, corpo, ip=""):
 
 def receber_config(banco, dir_dados, corpo, setor_padrao):
     aplicar_config(banco, corpo, setor_padrao)
+    acesso = corpo.get("acessoRemoto") if isinstance(corpo.get("acessoRemoto"), dict) else {}
+    if _hash_valido(acesso.get("hash")):  # a senha unica, definida no notebook (so o hash)
+        banco.salvar_segredo(SEGREDO_SENHA_REMOTA, json.dumps(
+            {"hash": acesso["hash"], "alterado_em": str(acesso.get("alteradoEm", ""))[:25]}))
     _atualizar_status(dir_dados, config_recebida_em=_agora_iso())
     return {"ok": True}
 
@@ -198,7 +209,7 @@ def status_nuvem(dir_dados):
 
 
 # ---------------------------------------------------------------------
-# VPS: login das pessoas (HTTP Basic, sempre atras do HTTPS)
+# Senha unica do acesso remoto (definida no notebook, conferida na VPS)
 # ---------------------------------------------------------------------
 ITERACOES_SENHA = 200_000
 
@@ -220,62 +231,127 @@ def verificar_senha(senha, guardado):
         return False
 
 
-def carregar_usuarios(dir_dados):
+def _hash_valido(texto):
+    partes = str(texto or "").split("$")
+    return len(partes) == 4 and partes[0] == "pbkdf2_sha256" and partes[1].isdigit()
+
+
+def dados_senha_remota(banco):
+    """{"hash", "alterado_em"} ou {} (senha ainda nao definida)."""
     try:
-        with open(os.path.join(dir_dados, ARQUIVO_USUARIOS), "r", encoding="utf-8") as arquivo:
-            dados = json.load(arquivo)
-    except (OSError, ValueError):
+        dados = json.loads(banco.obter_segredo(SEGREDO_SENHA_REMOTA) or "{}")
+    except ValueError:
         return {}
-    return {str(k): str(v) for k, v in dados.items()} if isinstance(dados, dict) else {}
+    return dados if isinstance(dados, dict) and _hash_valido(dados.get("hash")) else {}
 
 
-def salvar_usuarios(dir_dados, usuarios):
-    _gravar_json(os.path.join(dir_dados, ARQUIVO_USUARIOS), usuarios)
+def status_senha_remota(banco):
+    """Para o painel do notebook - nunca inclui o hash."""
+    dados = dados_senha_remota(banco)
+    return {"definida": bool(dados), "alteradaEm": dados.get("alterado_em", "")}
 
 
-class Autenticador:
-    """Confere o cabecalho Authorization: Basic. O PBKDF2 e lento de
-    proposito (protege as senhas), entao um login que ja deu certo fica
-    lembrado por 10 min - o painel faz varias consultas por minuto."""
+def definir_senha_remota(banco, senha):
+    """Notebook: grava o hash da nova senha. ValueError se for invalida."""
+    senha = str(senha or "")
+    if not SENHA_MIN <= len(senha) <= SENHA_MAX:
+        raise ValueError(f"A senha precisa ter de {SENHA_MIN} a {SENHA_MAX} caracteres.")
+    banco.salvar_segredo(SEGREDO_SENHA_REMOTA, json.dumps({"hash": hash_senha(senha), "alterado_em": _agora_iso()}))
 
-    LEMBRAR_S = 600
-    MAX_FALHAS, JANELA_FALHAS_S = 10, 600
 
-    def __init__(self, dir_dados):
-        self.dir_dados = dir_dados
-        self._ok = {}      # sha256(cabecalho) -> (usuario, valido_ate)
-        self._falhas = {}  # ip -> [instantes]
+class LimiteTentativas:
+    """10 senhas ou chaves erradas em 10 min bloqueiam aquele IP."""
+
+    MAX_FALHAS, JANELA_S = 10, 600
+
+    def __init__(self):
+        self._falhas = {}
         self._trava = threading.Lock()
 
     def bloqueado(self, ip):
         agora = time.monotonic()
         with self._trava:
-            recentes = [t for t in self._falhas.get(ip, []) if agora - t < self.JANELA_FALHAS_S]
+            recentes = [t for t in self._falhas.get(ip, []) if agora - t < self.JANELA_S]
             self._falhas[ip] = recentes
             return len(recentes) >= self.MAX_FALHAS
 
-    def usuario(self, cabecalho, ip):
-        """Nome do usuario autenticado, ou None."""
-        if not cabecalho or not cabecalho.startswith("Basic "):
-            return None
-        chave = hashlib.sha256(cabecalho.encode("utf-8")).hexdigest()
-        agora = time.monotonic()
+    def falhou(self, ip):
         with self._trava:
-            lembrado = self._ok.get(chave)
-            if lembrado and lembrado[1] > agora:
-                return lembrado[0]
+            self._falhas.setdefault(ip, []).append(time.monotonic())
+
+
+class Sessoes:
+    """Cookie de sessao assinado (HMAC) - nao guarda nada em memoria, vale
+    depois de reiniciar o servidor e deixa de valer sozinho quando a senha
+    muda (a assinatura inclui o hash da senha atual)."""
+
+    def __init__(self, dir_dados):
+        caminho = os.path.join(dir_dados, ARQUIVO_CHAVE_SESSAO)
         try:
-            nome, senha = base64.b64decode(cabecalho[6:].strip()).decode("utf-8").split(":", 1)
-        except (ValueError, UnicodeDecodeError):
-            nome, senha = "", ""
-        guardado = carregar_usuarios(self.dir_dados).get(nome)
-        if guardado and verificar_senha(senha, guardado):
-            with self._trava:
-                self._ok[chave] = (nome, agora + self.LEMBRAR_S)
-            return nome
-        with self._trava:
-            self._falhas.setdefault(ip, []).append(agora)
-        return None
+            with open(caminho, "r", encoding="utf-8") as arquivo:
+                self._segredo = bytes.fromhex(arquivo.read().strip())
+        except (OSError, ValueError):
+            self._segredo = secrets.token_bytes(32)
+            with open(caminho, "w", encoding="utf-8") as arquivo:
+                arquivo.write(self._segredo.hex())
+            try:
+                os.chmod(caminho, 0o600)
+            except OSError:
+                pass
+
+    def _assinar(self, expira, hash_senha_atual):
+        return hmac.new(self._segredo, f"{expira}|{hash_senha_atual}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def criar(self, hash_senha_atual):
+        expira = int(time.time()) + DIAS_SESSAO * 86400
+        return f"{expira}.{self._assinar(expira, hash_senha_atual)}"
+
+    def valida(self, token, hash_senha_atual):
+        if not token or not hash_senha_atual:
+            return False
+        try:
+            expira, assinatura = str(token).split(".", 1)
+            if int(expira) < time.time():
+                return False
+        except ValueError:
+            return False
+        return hmac.compare_digest(assinatura, self._assinar(expira, hash_senha_atual))
+
+
+def pagina_login(erro="", senha_definida=True):
+    """Tela de login da VPS: so o campo de senha."""
+    from html import escape
+
+    aviso = ""
+    if not senha_definida:
+        aviso = ('<p class="aviso">A senha do acesso remoto ainda não foi definida. No computador do painel, '
+                 'na empresa: <b>⚙ Configurações → Acesso remoto</b>.</p>')
+    elif erro:
+        aviso = f'<p class="erro">{escape(erro)}</p>'
+    return f"""<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de Produção · acesso remoto</title>
+<style>
+:root{{color-scheme:light dark;--fundo:#f3f4f6;--cartao:#fff;--texto:#111827;--suave:#6b7280;--borda:#d1d5db;--acento:#c2410c;--erro:#b91c1c}}
+@media (prefers-color-scheme:dark){{:root{{--fundo:#0f172a;--cartao:#1e293b;--texto:#f1f5f9;--suave:#94a3b8;--borda:#334155;--acento:#fb923c;--erro:#f87171}}}}
+*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--fundo);color:var(--texto);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}}
+main{{width:100%;max-width:380px;background:var(--cartao);border:1px solid var(--borda);border-radius:14px;padding:28px 24px;box-shadow:0 10px 30px rgba(0,0,0,.08)}}
+img{{display:block;height:44px;margin:0 auto 14px;background:#fff;border-radius:8px;padding:4px 8px}}
+h1{{font-size:19px;margin:0 0 4px;text-align:center}}.sub{{color:var(--suave);font-size:14px;text-align:center;margin:0 0 20px}}
+label{{display:block;font-size:14px;font-weight:600;margin-bottom:6px}}
+input{{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--borda);border-radius:9px;background:transparent;color:var(--texto)}}
+input:focus{{outline:2px solid var(--acento);outline-offset:1px}}
+button{{width:100%;margin-top:14px;font:inherit;font-weight:600;padding:11px;border:0;border-radius:9px;background:var(--acento);color:#fff;cursor:pointer}}
+.erro{{color:var(--erro);font-size:14px;margin:0 0 12px}}.aviso{{font-size:14px;margin:0 0 12px;color:var(--suave)}}
+</style></head><body><main>
+<img src="/assets/logo.png" alt="">
+<h1>Painel de Produção</h1><p class="sub">Acesso remoto · somente visualização</p>
+{aviso}
+<form method="post" action="/login">
+<label for="senha">Senha de acesso</label>
+<input id="senha" name="senha" type="password" autocomplete="current-password" required autofocus>
+<button type="submit">Entrar</button>
+</form></main></body></html>"""
 
 
 # ---------------------------------------------------------------------
@@ -333,6 +409,9 @@ class EnviadorConfig:
         if not cfg["url"]:
             return False
         corpo = {"setor": self.setor, **config_do_setor(self.banco, self.setor)}
+        senha = dados_senha_remota(self.banco)
+        if senha:  # so o hash - a senha em si nunca sai do notebook
+            corpo["acessoRemoto"] = {"hash": senha["hash"], "alteradoEm": senha.get("alterado_em", "")}
         texto = json.dumps(corpo, sort_keys=True, ensure_ascii=False)
         resumo = hashlib.sha256(texto.encode("utf-8")).hexdigest()
         if resumo == self._ultimo_hash and time.monotonic() - self._ultimo_ok < self.REENVIAR_S:

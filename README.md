@@ -31,8 +31,7 @@ controle_producao_horimetro/
 ├── ferramentas/
 │   ├── banco_dados.py               # Banco SQLite (ciclos, máquinas, turnos, metas)
 │   ├── backup_banco.py              # Backup diário automático do banco
-│   ├── nuvem.py                     # Acesso remoto: VPS (modo nuvem) + envio da configuração
-│   ├── usuarios_nuvem.py            # Logins de quem acessa pela VPS
+│   ├── nuvem.py                     # Acesso remoto: VPS (modo nuvem), senha única, envio da configuração
 │   ├── monitor_wifi.py              # Busca os ciclos do ESP32 pelo Wi-Fi
 │   ├── monitor_serial.py            # Leitura pelo cabo USB (alternativa)
 │   ├── gerar_segredos.py            # .env -> segredos.h (firmware) + segredos_app.json (app)
@@ -59,7 +58,7 @@ fora do git e do `.exe`.
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/nuvem-vps.md`](docs/nuvem-vps.md) | **Acesso remoto** pela VPS (https://santex.rexar.com.br): instalação, logins, firmware 3.0 |
+| [`docs/nuvem-vps.md`](docs/nuvem-vps.md) | **Acesso remoto** pela VPS (https://santex.rexar.com.br): instalação, senha de acesso, firmware 3.0 |
 | [`docs/aplicativo-desktop.md`](docs/aplicativo-desktop.md) | Gerar e instalar o `.exe`, acesso pela rede, **somente leitura/PIN**, **backup automático**, **produção permanente**, como atualizar |
 | [`docs/firmware.md`](docs/firmware.md) | Pinagem, lógica, flash/NVS, RTC, Wi-Fi e API, **chave da API**, recomendações de hardware |
 | [`docs/painel.md`](docs/painel.md) | Todas as seções e funcionalidades do painel |

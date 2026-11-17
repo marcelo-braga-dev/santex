@@ -20,8 +20,9 @@ Sem esse arquivo, os outros aparelhos ficam somente leitura.
 Modo nuvem (VPS, acesso de fora da rede - ver ferramentas/nuvem.py e
 docs/nuvem-vps.md): PAINEL_MODO=nuvem. Sem leitura do ESP32 (ele envia
 sozinho para /api/nuvem/enviar), sem anuncio na rede local, painel com
-login (dados/usuarios.json) e SEMPRE somente leitura - atras do Caddy toda
-visita chega de 127.0.0.1, que no modo local seria "este computador".
+login por SENHA UNICA (definida no notebook, chega aqui como hash junto com
+a configuracao) e SEMPRE somente leitura - atras do proxy toda visita chega
+de 127.0.0.1, que no modo local seria "este computador".
 Variaveis: PAINEL_PORTA, PAINEL_ESCUTA, PAINEL_DADOS, NUVEM_CHAVE.
 """
 
@@ -35,6 +36,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
@@ -63,7 +65,8 @@ from banco_dados import BancoDados, NOME_ARQUIVO  # noqa: E402
 from monitor_serial import SETOR_PADRAO  # noqa: E402
 
 banco = BancoDados(os.path.join(dir_dados_usuario(), NOME_ARQUIVO))
-autenticador = nuvem.Autenticador(dir_dados_usuario()) if MODO_NUVEM else None
+limite = nuvem.LimiteTentativas() if MODO_NUVEM else None
+sessoes = nuvem.Sessoes(dir_dados_usuario()) if MODO_NUVEM else None
 enviador_nuvem = None  # notebook: EnviadorConfig (configuracao -> VPS)
 
 _thread_leitura = None
@@ -211,25 +214,77 @@ class Handler(BaseHTTPRequestHandler):
             return encaminhado.split(",")[0].strip()
         return ip
 
+    def _sessao_valida(self):
+        """Modo nuvem: cookie de sessao valido para a senha ATUAL."""
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+        except Exception:  # noqa: BLE001 - cookie malformado = sem sessao
+            return False
+        token = cookie[nuvem.COOKIE_SESSAO].value if nuvem.COOKIE_SESSAO in cookie else ""
+        return sessoes.valida(token, nuvem.dados_senha_remota(banco).get("hash"))
+
     def _autorizar_visitante(self):
-        """Modo nuvem: o painel e os dados so com login (HTTP Basic). Devolve
-        True se pode seguir; senao ja respondeu 401/429."""
+        """Modo nuvem: o painel e os dados so depois do login (senha unica).
+        Sem sessao: a pagina inicial vira a tela de login e o resto responde
+        401 (o painel recarrega e cai na tela de login). Devolve True se pode
+        seguir; senao ja respondeu."""
         if not MODO_NUVEM:
             return True
-        ip = self._ip_cliente()
-        if autenticador.bloqueado(ip):
-            self._responder_json({"ok": False, "erro": "muitas tentativas - aguarde alguns minutos"}, status=429)
-            return False
-        if autenticador.usuario(self.headers.get("Authorization", ""), ip):
+        caminho = urlparse(self.path).path
+        if self.command == "GET" and caminho == "/assets/logo.png":
+            return True  # o logo aparece na propria tela de login
+        if self._sessao_valida():
             return True
-        dados = "Login necessario.".encode("utf-8")
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="Painel de Producao", charset="UTF-8"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        if self.command == "GET" and caminho in ("/", "/index.html"):
+            self._responder_html(nuvem.pagina_login(senha_definida=bool(nuvem.dados_senha_remota(banco))))
+        else:
+            self._responder_json({"ok": False, "erro": "login"}, status=401)
+        return False
+
+    def _responder_html(self, html, status=200, cabecalhos=None):
+        dados = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        for nome, valor in (cabecalhos or {}).items():
+            self.send_header(nome, valor)
         self.send_header("Content-Length", str(len(dados)))
         self.end_headers()
         self.wfile.write(dados)
-        return False
+
+    def _redirecionar(self, destino, cookie=None):
+        self.send_response(303)
+        self.send_header("Location", destino)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _login(self):
+        """POST /login (VPS): confere a senha unica e abre a sessao (30 dias)."""
+        ip = self._ip_cliente()
+        if limite.bloqueado(ip):
+            self._responder_html(nuvem.pagina_login("Muitas tentativas erradas. Aguarde 10 minutos."), status=429)
+            return
+        tamanho = min(int(self.headers.get("Content-Length", 0) or 0), 4096)
+        bruto = self.rfile.read(tamanho).decode("utf-8", errors="replace") if tamanho else ""
+        if "json" in self.headers.get("Content-Type", ""):
+            try:
+                senha = str(json.loads(bruto).get("senha", ""))
+            except (ValueError, AttributeError):
+                senha = ""
+        else:
+            senha = parse_qs(bruto).get("senha", [""])[0]
+        guardado = nuvem.dados_senha_remota(banco).get("hash")
+        if guardado and nuvem.verificar_senha(senha, guardado):
+            token = sessoes.criar(guardado)
+            self._redirecionar("/", f"{nuvem.COOKIE_SESSAO}={token}; Path=/; Max-Age={nuvem.DIAS_SESSAO * 86400}; "
+                                    "HttpOnly; Secure; SameSite=Lax")
+            return
+        limite.falhou(ip)
+        self._responder_html(nuvem.pagina_login("Senha incorreta.", senha_definida=bool(guardado)), status=401)
 
     def _pode_editar(self):
         """Este computador sempre pode; os outros so com o PIN correto. Na
@@ -326,7 +381,11 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._responder_json(monitor_wifi.diagnostico_esp(status_sincronizacao()))
         elif url.path == "/config":
-            self._responder_json(nuvem.config_do_setor(banco, setor))
+            config = nuvem.config_do_setor(banco, setor)
+            if not MODO_NUVEM:  # notebook: situacao da senha do acesso remoto (nunca o hash)
+                config["acessoRemoto"] = {**nuvem.status_senha_remota(banco),
+                                          "url": nuvem.config_nuvem_app(dir_dados_usuario())["url"]}
+            self._responder_json(config)
         else:
             self._responder_estatico(url.path)
 
@@ -406,6 +465,12 @@ class Handler(BaseHTTPRequestHandler):
         if MODO_NUVEM and rota.startswith("/api/nuvem/"):
             self._post_nuvem(rota)
             return
+        if MODO_NUVEM and rota == "/login":
+            self._login()
+            return
+        if MODO_NUVEM and rota == "/logout":
+            self._redirecionar("/", f"{nuvem.COOKIE_SESSAO}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax")
+            return
         if not self._autorizar_visitante():
             return
         if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao"):
@@ -443,12 +508,11 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         ip = self._ip_cliente()
-        if autenticador.bloqueado(ip):
+        if limite.bloqueado(ip):
             self._responder_json({"ok": False, "erro": "muitas tentativas"}, status=429)
             return
         if not nuvem.chave_confere(NUVEM_CHAVE, self.headers.get("X-Chave-Nuvem", "")):
-            with autenticador._trava:
-                autenticador._falhas.setdefault(ip, []).append(time.monotonic())
+            limite.falhou(ip)
             self._responder_json({"ok": False, "erro": "chave invalida"}, status=403)
             return
         if rota == "/api/nuvem/ping":  # so confere a chave (teste da instalacao), nao grava nada
@@ -471,8 +535,16 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
             return
+        if "senhaRemota" in corpo:  # senha do acesso pela VPS (so o hash e guardado)
+            try:
+                nuvem.definir_senha_remota(banco, corpo["senhaRemota"])
+            except ValueError as erro:
+                self._responder_json({"ok": False, "erro": str(erro)}, status=400)
+                return
+            if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima conferencia
+                threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
         nuvem.aplicar_config(banco, corpo, SETOR_PADRAO)
-        self._responder_json({"ok": True})
+        self._responder_json({"ok": True, "acessoRemoto": nuvem.status_senha_remota(banco)})
 
     def _salvar_conexao(self):
         """Troca a origem dos dados (Wi-Fi do ESP32 ou cabo USB) pelo
