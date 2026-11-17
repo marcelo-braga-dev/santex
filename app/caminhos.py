@@ -37,8 +37,9 @@ def _dir_usuario_app():
 
 def dir_dados_usuario():
     """Onde o banco de dados (painel.db) e lido/gravado - sempre uma pasta
-    do usuario, nunca apagada entre execucoes."""
-    caminho = os.path.join(_dir_usuario_app(), "dados")
+    do usuario, nunca apagada entre execucoes. PAINEL_DADOS troca a pasta
+    (na VPS: /var/lib/painel-nuvem)."""
+    caminho = os.environ.get("PAINEL_DADOS") or os.path.join(_dir_usuario_app(), "dados")
     os.makedirs(caminho, exist_ok=True)
     return caminho
 
@@ -61,6 +62,10 @@ def dir_backup():
     """Pasta dos backups automaticos do banco: backup/ na raiz do projeto
     (fora do git - .gitignore - e fora do .exe). No .exe rodando num PC sem a
     pasta do projeto, usa %APPDATA%/PainelProducaoSantex/dados/backups."""
+    if os.environ.get("PAINEL_DADOS"):  # VPS: backups junto dos dados
+        caminho = os.path.join(dir_dados_usuario(), "backups")
+        os.makedirs(caminho, exist_ok=True)
+        return caminho
     raiz = _raiz_projeto()
     caminho = os.path.join(raiz, "backup") if raiz else os.path.join(dir_dados_usuario(), "backups")
     try:

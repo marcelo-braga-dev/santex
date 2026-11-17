@@ -120,6 +120,15 @@ O servidor atende várias requisições ao mesmo tempo (`ThreadingHTTPServer`)
 e manda o painel com `Cache-Control: no-cache` (atualizou o app, todos os
 aparelhos pegam a versão nova).
 
+## `nuvem.py` e `usuarios_nuvem.py` (acesso remoto)
+
+`nuvem.py` reúne o acesso remoto: na VPS (`PAINEL_MODO=nuvem`) recebe os
+envios do ESP32 (`POST /api/nuvem/enviar`) e a configuração do notebook
+(`POST /api/nuvem/config`), ambos com a `NUVEM_CHAVE`, e confere o login das
+pessoas; no notebook, `EnviadorConfig` manda a configuração para a VPS
+quando ela muda. `usuarios_nuvem.py` cria e remove os logins, na VPS. Ver
+[nuvem-vps.md](nuvem-vps.md).
+
 ## `backup_banco.py`
 
 Backup diário do `painel.db` pela API de backup do SQLite (seguro com o app

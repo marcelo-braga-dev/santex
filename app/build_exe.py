@@ -31,6 +31,7 @@ MONITOR_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_serial.py")
 MONITOR_WIFI_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_wifi.py")
 BANCO_DADOS_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "banco_dados.py")
 BACKUP_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "backup_banco.py")
+NUVEM_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "nuvem.py")
 # Chave das acoes no ESP32 (gerada por ferramentas/gerar_segredos.py a partir
 # do .env) - o firmware gravado precisa ter a mesma.
 SEGREDOS_APP = os.path.join(DIR_BASE, "segredos_app.json")
@@ -69,6 +70,7 @@ ARGS = [
     f"--add-data={MONITOR_WIFI_SRC}{SEP}ferramentas",
     f"--add-data={BANCO_DADOS_SRC}{SEP}ferramentas",
     f"--add-data={BACKUP_SRC}{SEP}ferramentas",
+    f"--add-data={NUVEM_SRC}{SEP}ferramentas",
     f"--add-data={SEGREDOS_APP}{SEP}app",
     f"--add-data={BUILD_INFO}{SEP}app",
     "--hidden-import=serial.tools.list_ports",
@@ -83,6 +85,9 @@ ARGS = [
     "--hidden-import=gzip",
     "--hidden-import=hmac",
     "--hidden-import=secrets",
+    # nuvem.py (acesso remoto): login e envio da configuracao para a VPS
+    "--hidden-import=base64",
+    "--hidden-import=hashlib",
     # anuncio http://painel.local (anuncio_rede.py): o zeroconf tem modulos
     # compilados carregados dinamicamente - inclui todos para nao faltar nada
     "--collect-submodules=zeroconf",

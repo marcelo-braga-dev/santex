@@ -1,0 +1,34 @@
+# Painel de Producao - servidor do acesso remoto (modo nuvem) na VPS.
+# Instalado por deploy/instalar_vps.sh em /etc/systemd/system/.
+# Logs: journalctl -u painel-nuvem -f
+[Unit]
+Description=Painel de Producao - acesso remoto (modo nuvem)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=painel
+Group=painel
+WorkingDirectory=/opt/painel-nuvem
+# NUVEM_CHAVE (a mesma do .env da fabrica) fica so neste arquivo, fora do codigo
+EnvironmentFile=/etc/painel-nuvem.env
+Environment=PAINEL_MODO=nuvem
+Environment=PAINEL_DADOS=/var/lib/painel-nuvem
+Environment=PAINEL_PORTA=8080
+Environment=PAINEL_ESCUTA=127.0.0.1
+# horarios do painel e do banco no fuso da fabrica
+Environment=TZ=America/Sao_Paulo
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ferramentas/controle_leitura_server.py
+Restart=always
+RestartSec=5
+
+# isolamento: so escreve na pasta de dados
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/painel-nuvem
+
+[Install]
+WantedBy=multi-user.target

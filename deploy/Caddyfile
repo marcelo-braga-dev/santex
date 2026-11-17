@@ -1,0 +1,20 @@
+# Caddy na VPS: HTTPS automatico (Let's Encrypt) para o acesso remoto.
+# Copie para /etc/caddy/Caddyfile (ou acrescente este bloco se o Caddy ja
+# serve outros sites) e rode: sudo systemctl reload caddy
+#
+# O DNS de santex.rexar.com.br precisa apontar para o IP da VPS (registro A)
+# SEM proxy da Cloudflare (nuvem cinza): o ESP32 confere o certificado da
+# Let's Encrypt (firmware/controle_producao_horimetro/certificados.h).
+
+santex.rexar.com.br {
+	# o servidor do painel escuta so na propria VPS (painel-nuvem.service)
+	reverse_proxy 127.0.0.1:8080
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

@@ -16,6 +16,13 @@ mas so ESTE computador altera configuracoes sem senha. Os outros so podem
 alterar com o PIN definido em dados/seguranca.json:
     {"pin_remoto": "4821"}
 Sem esse arquivo, os outros aparelhos ficam somente leitura.
+
+Modo nuvem (VPS, acesso de fora da rede - ver ferramentas/nuvem.py e
+docs/nuvem-vps.md): PAINEL_MODO=nuvem. Sem leitura do ESP32 (ele envia
+sozinho para /api/nuvem/enviar), sem anuncio na rede local, painel com
+login (dados/usuarios.json) e SEMPRE somente leitura - atras do Caddy toda
+visita chega de 127.0.0.1, que no modo local seria "este computador".
+Variaveis: PAINEL_PORTA, PAINEL_ESCUTA, PAINEL_DADOS, NUVEM_CHAVE.
 """
 
 import gzip
@@ -30,12 +37,15 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from anuncio_rede import AnuncioRede, _ips_locais
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.0.0"
-PORTA_SERVIDOR = 80  # porta padrao da web: http://painel.local (sem ":porta")
-ENDERECO_ESCUTA = "::"  # todas as placas de rede, IPv6 e IPv4 (acesso por outros PCs)
+APP_VERSAO = "1.1.0"
+MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
+# porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
+PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
+# todas as placas de rede (acesso por outros PCs); na VPS so o Caddy, na mesma maquina
+ENDERECO_ESCUTA = os.environ.get("PAINEL_ESCUTA") or ("127.0.0.1" if MODO_NUVEM else "::")
+NUVEM_CHAVE = os.environ.get("NUVEM_CHAVE", "").strip()  # VPS: a mesma do .env da fabrica
 TIMEOUT_CONEXAO_S = 30  # cliente parado no meio da requisicao nao prende uma thread para sempre
 MAX_CORPO_BYTES = 1_000_000
 ARQUIVO_SEGURANCA = "seguranca.json"
@@ -48,10 +58,13 @@ sys.path.insert(0, FERRAMENTAS_DIR)
 import backup_banco  # noqa: E402 (precisa do sys.path.insert acima)
 import monitor_serial  # noqa: E402
 import monitor_wifi  # noqa: E402
-from banco_dados import BancoDados, NOME_ARQUIVO, normalizar_turnos, normalizar_extras  # noqa: E402
+import nuvem  # noqa: E402
+from banco_dados import BancoDados, NOME_ARQUIVO  # noqa: E402
 from monitor_serial import SETOR_PADRAO  # noqa: E402
 
 banco = BancoDados(os.path.join(dir_dados_usuario(), NOME_ARQUIVO))
+autenticador = nuvem.Autenticador(dir_dados_usuario()) if MODO_NUVEM else None
+enviador_nuvem = None  # notebook: EnviadorConfig (configuracao -> VPS)
 
 _thread_leitura = None
 _evento_parar = threading.Event()
@@ -106,9 +119,12 @@ def iniciar():
 def status_sincronizacao():
     """O que o painel mostra na barra de sincronizacao: origem dos dados,
     leitura rodando ou nao e, no Wi-Fi, a situacao gravada pelo monitor."""
+    if MODO_NUVEM:
+        return {**nuvem.status_nuvem(dir_dados_usuario()), "backup": backup_banco.status()}
     modo = monitor_wifi.modo_conexao(dir_dados_usuario())
     status = monitor_wifi.ler_status_sincronizacao(dir_dados_usuario()) if modo == "wifi" else {}
-    return {**status, "modo": modo, "rodando": esta_rodando(), "backup": backup_banco.status()}
+    extra = {"nuvem": enviador_nuvem.status()} if enviador_nuvem is not None else {}
+    return {**status, **extra, "modo": modo, "rodando": esta_rodando(), "backup": backup_banco.status()}
 
 
 def parar():
@@ -142,6 +158,8 @@ def _enderecos_deste_pc():
     """IPv4 E IPv6 deste PC: o Windows abre http://painel.local preferindo
     IPv6, entao o painel aberto assim no proprio PC chega por um endereco
     IPv6 dele - sem isso, cairia em "somente leitura"."""
+    from anuncio_rede import _ips_locais  # so no modo local (zeroconf nao e preciso na VPS)
+
     ips = set(_ips_locais())
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None):
@@ -165,6 +183,11 @@ def _eh_este_computador(ip):
     return ip in _cache_ips["ips"]
 
 
+def _eh_loopback(ip):
+    ip = ip.split("%", 1)[0]
+    return ip in _ENDERECOS_LOCAIS or ip.startswith("127.") or ip.startswith("::ffff:127.")
+
+
 def _csv_atual():
     versao = banco.versao_ciclos(SETOR_PADRAO)
     with _trava_cache:
@@ -180,8 +203,39 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- autorizacao -----------------------------------------------------
 
+    def _ip_cliente(self):
+        """IP de quem pediu: atras do Caddy (VPS) vem no X-Forwarded-For."""
+        ip = self.client_address[0]
+        encaminhado = self.headers.get("X-Forwarded-For", "")
+        if encaminhado and _eh_loopback(ip):
+            return encaminhado.split(",")[0].strip()
+        return ip
+
+    def _autorizar_visitante(self):
+        """Modo nuvem: o painel e os dados so com login (HTTP Basic). Devolve
+        True se pode seguir; senao ja respondeu 401/429."""
+        if not MODO_NUVEM:
+            return True
+        ip = self._ip_cliente()
+        if autenticador.bloqueado(ip):
+            self._responder_json({"ok": False, "erro": "muitas tentativas - aguarde alguns minutos"}, status=429)
+            return False
+        if autenticador.usuario(self.headers.get("Authorization", ""), ip):
+            return True
+        dados = "Login necessario.".encode("utf-8")
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="Painel de Producao", charset="UTF-8"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(dados)))
+        self.end_headers()
+        self.wfile.write(dados)
+        return False
+
     def _pode_editar(self):
-        """Este computador sempre pode; os outros so com o PIN correto."""
+        """Este computador sempre pode; os outros so com o PIN correto. Na
+        VPS ninguem edita: a configuracao vem do notebook."""
+        if MODO_NUVEM:
+            return False
         if _eh_este_computador(self.client_address[0]):
             return True
         pin = _pin_remoto()
@@ -212,7 +266,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Pin, If-None-Match")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Pin, If-None-Match, Authorization")
         self.send_header("Access-Control-Expose-Headers", "ETag")
         self.end_headers()
 
@@ -239,13 +293,21 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def _get(self):
+        if not self._autorizar_visitante():
+            return
         url = urlparse(self.path)
         consulta = parse_qs(url.query)
         setor = consulta.get("setor", [SETOR_PADRAO])[0]
         if url.path == "/status":
+            if MODO_NUVEM:
+                s = nuvem.status_nuvem(dir_dados_usuario())
+                self._responder_json({"rodando": s["rodando"], "modo": "nuvem", "modoServidor": "nuvem",
+                                      "versao": APP_VERSAO, "podeEditar": False, "pinConfigurado": False})
+                return
             self._responder_json({
                 "rodando": esta_rodando(),
                 "modo": monitor_wifi.modo_conexao(dir_dados_usuario()),
+                "modoServidor": "local",
                 "versao": APP_VERSAO,
                 "podeEditar": self._pode_editar(),
                 "pinConfigurado": bool(_pin_remoto()),
@@ -255,17 +317,16 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/dados":
             self._responder_csv()
         elif url.path == "/ao-vivo":
-            self._responder_json({"rodando": esta_rodando(), "maquinas": banco.obter_estado_ao_vivo(setor)})
+            rodando = nuvem.status_nuvem(dir_dados_usuario())["rodando"] if MODO_NUVEM else esta_rodando()
+            self._responder_json({"rodando": rodando, "maquinas": banco.obter_estado_ao_vivo(setor)})
         elif url.path == "/esp/diagnostico":
-            self._responder_json(monitor_wifi.diagnostico_esp(status_sincronizacao()))
+            if MODO_NUVEM:
+                self._responder_json({"ok": False, "status": status_sincronizacao(),
+                                      "erro": "O diagnóstico do controlador só está disponível no computador do painel, na rede da empresa."})
+            else:
+                self._responder_json(monitor_wifi.diagnostico_esp(status_sincronizacao()))
         elif url.path == "/config":
-            self._responder_json({
-                "maquinas": banco.obter_maquinas(setor),
-                "metaHorasDia": banco.obter_meta_horas_dia(setor),
-                "metaPctDia": banco.obter_meta_pct_dia(setor),
-                "turnos": banco.obter_turnos(setor),
-                "extras": banco.obter_extras(setor),
-            })
+            self._responder_json(nuvem.config_do_setor(banco, setor))
         else:
             self._responder_estatico(url.path)
 
@@ -342,6 +403,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post(self):
         rota = urlparse(self.path).path
+        if MODO_NUVEM and rota.startswith("/api/nuvem/"):
+            self._post_nuvem(rota)
+            return
+        if not self._autorizar_visitante():
+            return
         if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -367,55 +433,42 @@ class Handler(BaseHTTPRequestHandler):
         elif rota == "/conexao":
             self._salvar_conexao()
 
+    def _post_nuvem(self, rota):
+        """VPS: recebe do ESP32 (/api/nuvem/enviar) e do notebook
+        (/api/nuvem/config). Chave errada -> 403 (o ESP32 e o notebook
+        mostram "chave recusada")."""
+        if rota not in ("/api/nuvem/enviar", "/api/nuvem/config"):
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        ip = self._ip_cliente()
+        if autenticador.bloqueado(ip):
+            self._responder_json({"ok": False, "erro": "muitas tentativas"}, status=429)
+            return
+        if not nuvem.chave_confere(NUVEM_CHAVE, self.headers.get("X-Chave-Nuvem", "")):
+            with autenticador._trava:
+                autenticador._falhas.setdefault(ip, []).append(time.monotonic())
+            self._responder_json({"ok": False, "erro": "chave invalida"}, status=403)
+            return
+        try:
+            corpo = self._corpo_json()
+            if rota == "/api/nuvem/enviar":
+                resposta = nuvem.receber_do_esp(banco, dir_dados_usuario(), SETOR_PADRAO, corpo, ip)
+            else:
+                resposta = nuvem.receber_config(banco, dir_dados_usuario(), corpo, SETOR_PADRAO)
+        except (ValueError, UnicodeDecodeError) as erro:
+            self._responder_json({"ok": False, "erro": str(erro)}, status=400)
+            return
+        self._responder_json(resposta)
+
     def _salvar_config(self):
         try:
             corpo = self._corpo_json()
         except (ValueError, UnicodeDecodeError):
             self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
             return
-
-        setor = str(corpo.get("setor", SETOR_PADRAO))[:40]
-        maquinas = corpo.get("maquinas")
-        for maquina_id, item in (maquinas.items() if isinstance(maquinas, dict) else []):
-            if not isinstance(item, dict):
-                continue
-            try:
-                numero = int(maquina_id)
-            except (TypeError, ValueError):
-                continue
-            if not 1 <= numero <= 64:
-                continue
-            nome = str(item.get("nome", "")).strip()[:40] or f"Máquina {numero}"
-            try:
-                taxa = float(item.get("metrosPorMin", 0))
-            except (TypeError, ValueError):
-                taxa = 0
-            banco.salvar_maquina(setor, numero, nome, max(0.0, min(taxa, 100000.0)))
-
-        if "metaHorasDia" in corpo:
-            try:
-                meta = float(corpo["metaHorasDia"])
-                if 0 < meta <= 24:
-                    banco.salvar_meta_horas_dia(setor, meta)
-            except (TypeError, ValueError):
-                pass
-
-        if "metaPctDia" in corpo:
-            try:
-                meta_pct = float(corpo["metaPctDia"])
-                if 0 < meta_pct <= 100:
-                    banco.salvar_meta_pct_dia(setor, round(meta_pct, 1))
-            except (TypeError, ValueError):
-                pass
-
-        if "turnos" in corpo:
-            turnos = normalizar_turnos(corpo["turnos"])
-            if turnos:
-                banco.salvar_turnos(setor, turnos)
-
-        if "extras" in corpo:
-            banco.salvar_extras(setor, normalizar_extras(corpo["extras"]))
-
+        nuvem.aplicar_config(banco, corpo, SETOR_PADRAO)
         self._responder_json({"ok": True})
 
     def _salvar_conexao(self):
@@ -455,14 +508,16 @@ class _ServidorExclusivo(ThreadingHTTPServer):
     allow_reuse_port = False
     # IPv6 + IPv4 no mesmo socket ("dual-stack"): o Windows traduz nomes
     # (painel.local, nome do PC) primeiro para IPv6 - so IPv4 dava timeout.
-    address_family = socket.AF_INET6
+    address_family = socket.AF_INET6 if ":" in ENDERECO_ESCUTA else socket.AF_INET
     anuncio = None  # AnuncioRede (painel.local), encerrado junto com o servidor
     parar_backup = None
+    parar_nuvem = None
 
     def server_bind(self):
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):  # so existe no Windows
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        if self.address_family == socket.AF_INET6:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         super().server_bind()
 
     def server_close(self):
@@ -472,6 +527,9 @@ class _ServidorExclusivo(ThreadingHTTPServer):
         if self.parar_backup is not None:
             self.parar_backup.set()
             self.parar_backup = None
+        if self.parar_nuvem is not None:
+            self.parar_nuvem.set()
+            self.parar_nuvem = None
         super().server_close()
 
 
@@ -482,13 +540,22 @@ def iniciar_servidor_em_thread():
     # (http://localhost) e em outros computadores/celulares da mesma rede
     # (http://painel.local ou http://<IP-deste-PC>) - somente leitura para
     # eles, a menos que informem o PIN (ver docstring do modulo).
-    monitor_wifi.definir_chave_api(dir_dados_usuario())  # acoes do diagnostico mesmo com a leitura pausada
+    global enviador_nuvem
+    if not MODO_NUVEM:
+        monitor_wifi.definir_chave_api(dir_dados_usuario())  # acoes do diagnostico mesmo com a leitura pausada
     servidor = _ServidorExclusivo((ENDERECO_ESCUTA, PORTA_SERVIDOR), Handler)
     thread = threading.Thread(target=servidor.serve_forever, name="servidor-http", daemon=True)
     thread.start()
+    servidor.parar_backup = backup_banco.iniciar(banco, dir_dados_usuario(), pasta=dir_backup())
+    if MODO_NUVEM:
+        return servidor  # VPS: o ESP32 envia sozinho; nada de leitura nem anuncio local
+    from anuncio_rede import AnuncioRede
+
     servidor.anuncio = AnuncioRede(PORTA_SERVIDOR)
     servidor.anuncio.iniciar()
-    servidor.parar_backup = backup_banco.iniciar(banco, dir_dados_usuario(), pasta=dir_backup())
+    # acesso remoto: a configuracao editada aqui vai para a VPS
+    enviador_nuvem = nuvem.EnviadorConfig(banco, dir_dados_usuario(), SETOR_PADRAO)
+    servidor.parar_nuvem = enviador_nuvem.iniciar()
     # No Wi-Fi a sincronizacao comeca sozinha ao abrir o app - e so conectar
     # o notebook na rede do ESP32 (ou da empresa). Pela USB continua manual.
     if monitor_wifi.modo_conexao(dir_dados_usuario()) == "wifi":

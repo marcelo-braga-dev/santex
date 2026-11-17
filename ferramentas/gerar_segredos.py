@@ -37,6 +37,13 @@ CHAVES = {
     "API_CHAVE": "Chave exigida pelo ESP32 em /limpar, /hora e /acao (o app envia no cabecalho X-Chave)",
 }
 
+# Acesso remoto (firmware 3.0 / app 1.1.0) - opcionais: NUVEM_URL vazia =
+# ESP32 e notebook nao enviam nada para a VPS.
+CHAVES_NUVEM = {
+    "NUVEM_URL": "Endereco da VPS (acesso de fora da rede), ex. https://santex.rexar.com.br - vazio = desligado",
+    "NUVEM_CHAVE": "Chave que o ESP32 e o notebook enviam para a VPS (cabecalho X-Chave-Nuvem)",
+}
+
 
 def ler_env(caminho):
     valores = {}
@@ -70,6 +77,17 @@ def main():
                           "# Gerada automaticamente - o firmware e o .exe precisam da mesma.\n"
                           f"API_CHAVE={valores['API_CHAVE']}\n")
         print("API_CHAVE criada e acrescentada ao .env.")
+    if not valores.get("NUVEM_CHAVE"):
+        valores["NUVEM_CHAVE"] = secrets.token_hex(24)
+        with open(ARQ_ENV, "a", encoding="utf-8") as arquivo:
+            arquivo.write("\n# Chave do acesso remoto: ESP32 e notebook -> VPS. Gerada automaticamente;\n"
+                          "# a VPS precisa da mesma (NUVEM_CHAVE em /etc/painel-nuvem.env).\n"
+                          f"NUVEM_CHAVE={valores['NUVEM_CHAVE']}\n")
+        print("NUVEM_CHAVE criada e acrescentada ao .env.")
+    url = valores.get("NUVEM_URL", "").strip().rstrip("/")
+    if url and not url.startswith("https://"):
+        sys.exit("ERRO: NUVEM_URL precisa comecar com https:// (o ESP32 so envia por HTTPS).")
+    valores["NUVEM_URL"] = url
     faltando = [c for c in CHAVES if not valores.get(c)]
     if faltando:
         sys.exit("ERRO: faltam no .env: " + ", ".join(faltando))
@@ -81,14 +99,16 @@ def main():
         "// (altere o .env e rode o script de novo). Fora do git (.gitignore).",
         "",
     ]
-    for chave, comentario in CHAVES.items():
+    for chave, comentario in {**CHAVES, **CHAVES_NUVEM}.items():
         linhas += [f"// {comentario}", f"const char *{chave} = {literal_c(valores[chave])};", ""]
     with open(ARQ_SAIDA, "w", encoding="utf-8", newline="\n") as arquivo:
         arquivo.write("\n".join(linhas))
     with open(ARQ_SAIDA_APP, "w", encoding="utf-8") as arquivo:
-        json.dump({"api_chave": valores["API_CHAVE"]}, arquivo)
+        json.dump({"api_chave": valores["API_CHAVE"], "nuvem_url": valores["NUVEM_URL"],
+                   "nuvem_chave": valores["NUVEM_CHAVE"]}, arquivo)
     print(f"OK: {os.path.relpath(ARQ_SAIDA, RAIZ)} e {os.path.relpath(ARQ_SAIDA_APP, RAIZ)} atualizados a partir do .env.")
-    print("Grave o firmware E gere o .exe de novo (app/gerar_executavel.bat) - os dois usam a mesma chave.")
+    print("Grave o firmware E gere o .exe de novo (app/gerar_executavel.bat) - os dois usam as mesmas chaves.")
+    print(f"Acesso remoto: {'ligado -> ' + valores['NUVEM_URL'] if valores['NUVEM_URL'] else 'desligado (NUVEM_URL vazia)'}")
 
 
 if __name__ == "__main__":

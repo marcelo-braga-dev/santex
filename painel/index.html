@@ -1309,6 +1309,7 @@
     #machine-selector .segmented-btn { flex: 1 1 calc(50% - 2px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   .foot-versao { color: var(--ink-400); font-variant-numeric: tabular-nums; }
+  body.modo-nuvem [data-abrir="esp"] { display: none; }
   .ro-note { border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .ro-note:hover { border-color: var(--border-strong); color: var(--ink-900); }
   @media (prefers-reduced-motion: reduce) {
@@ -5356,6 +5357,7 @@
   let podeEditar = true;
   let pinConfigurado = false;
   let versaoApp = "";
+  let modoNuvem = false; // painel aberto pela VPS (acesso de fora da rede): so visualiza
   function pinSalvo() {
     try { return sessionStorage.getItem(PIN_KEY) || ""; } catch (e) { return ""; }
   }
@@ -5367,7 +5369,10 @@
   }
   function renderSomenteLeitura() {
     const nota = $("#ro-note");
-    if (nota) nota.hidden = podeEditar || !servidorOnline;
+    if (nota) {
+      nota.hidden = podeEditar || !servidorOnline;
+      nota.textContent = modoNuvem ? "🔒 Acesso remoto · somente leitura" : "🔒 Somente leitura";
+    }
     const v = $("#foot-versao");
     if (v) v.textContent = versaoApp ? `· v${versaoApp}` : "";
   }
@@ -5401,6 +5406,10 @@
     return res;
   }
   $("#ro-note").addEventListener("click", async () => {
+    if (modoNuvem) {
+      alert("Acesso remoto: este painel só visualiza os dados.\n\nAs alterações (máquinas, metas, turnos) são feitas no computador do painel, na empresa, e chegam aqui sozinhas.");
+      return;
+    }
     if (!pinConfigurado) {
       alert("Este aparelho só visualiza o painel.\n\nAs alterações são feitas no computador onde o aplicativo está aberto. Para liberar outros aparelhos, crie o arquivo seguranca.json com um PIN na pasta de dados do aplicativo (ver docs/aplicativo-desktop.md).");
       return;
@@ -5511,6 +5520,16 @@
       return;
     }
 
+    if (modoNuvem) {
+      btn.hidden = true;
+      chip.className = leituraAtiva ? "status-chip is-on" : "status-chip is-offline";
+      label.textContent = leituraAtiva ? "Ao vivo" : "Sem envio";
+      chip.title = leituraAtiva
+        ? "Acesso remoto: o controlador está enviando os dados"
+        : "Acesso remoto: o controlador não envia dados há mais de 1 minuto";
+      return;
+    }
+    btn.hidden = false;
     btn.disabled = false;
     const termo = sincronizacao && sincronizacao.modo === "wifi" ? "Sincronização automática" : "Atualização automática";
     if (leituraAtiva) {
@@ -5535,6 +5554,8 @@
       podeEditar = dados.podeEditar !== false; // servidor antigo nao informa: pode
       pinConfigurado = !!dados.pinConfigurado;
       versaoApp = dados.versao || "";
+      modoNuvem = dados.modoServidor === "nuvem";
+      document.body.classList.toggle("modo-nuvem", modoNuvem);
     } catch (e) {
       servidorOnline = false;
     }
@@ -5611,13 +5632,34 @@
     const select = $("#origem-select");
     if (!select.disabled) select.value = s.modo;
     link.hidden = true;
-    $("#esp-conexao-panel").hidden = false;
+    $("#esp-conexao-panel").hidden = s.modo === "nuvem"; // na nuvem nao ha origem para trocar
 
     const partes = [];
     const avisos = []; // [classe, texto]
     const ultima = fmtQuando(s.ultima_sincronizacao);
 
-    if (s.modo !== "wifi") {
+    if (s.modo === "nuvem") {
+      // Painel aberto pela VPS: o ESP32 envia direto para ela
+      const enviando = s.estado === "conectado";
+      chip.className = enviando ? "status-chip is-on" : "status-chip is-offline";
+      label.textContent = enviando ? "Controlador enviando" : (s.estado === "procurando" ? "Aguardando o controlador" : "Controlador sem enviar");
+      partes.push("Acesso remoto (servidor na nuvem) — somente visualização");
+      partes.push(ultima
+        ? `último envio do controlador <strong>${ultima}</strong>${enviando ? "" : ` (${fmtHaQuantoLongo(s.ultima_sincronizacao)})`}`
+        : "o controlador ainda não enviou dados para cá");
+      if (s.pendentes_esp > 0) partes.push(`${Number(s.pendentes_esp).toLocaleString("pt-BR")} ciclo(s) ainda a chegar`);
+      if (s.estado === "sem_resposta") {
+        avisos.push(["sync-warn", "⚠ O controlador não envia dados há mais de 1 minuto (sem energia, sem internet na empresa ou fora do ar). Os ciclos ficam guardados nele e chegam quando ele voltar."]);
+      }
+      const cfg = fmtQuando(s.config_recebida_em);
+      avisos.push(cfg
+        ? ["sync-info", `Configuração (máquinas, metas, turnos) recebida do computador do painel ${cfg}.`]
+        : ["sync-warn", "⚠ A configuração ainda não chegou do computador do painel — abra o aplicativo nele, com internet, uma vez."]);
+      if (s.ciclos_perdidos && recente(s.perdidos_em, 24 * 7)) {
+        avisos.push(["sync-warn", `⚠ ${s.ciclos_perdidos} ciclo(s) foram sobrescritos no controlador antes de chegar aqui (${fmtQuando(s.perdidos_em)}).`]);
+      }
+      if (s.hora_esp_valida === false) avisos.push(["sync-warn", "⚠ O relógio do controlador está sem hora — os ciclos novos chegam sem data/hora."]);
+    } else if (s.modo !== "wifi") {
       chip.className = s.rodando ? "status-chip is-on" : "status-chip";
       label.textContent = "Cabo USB";
       partes.push(s.rodando ? "Lendo o controlador pela porta USB em tempo real." : "Leitura pela porta USB pausada.");
@@ -5669,6 +5711,18 @@
     }
 
     if (s.modo === "wifi" && s.aviso_chave) avisos.push(["sync-warn", `⚠ ${escaparHtml(s.aviso_chave)}`]);
+    if (s.modo !== "nuvem" && s.nuvem && s.nuvem.ativo) {
+      const n = s.nuvem;
+      if (n.erro) avisos.push(["sync-warn", `⚠ Acesso remoto: a configuração não chegou à nuvem (${escaparHtml(n.url)}) — ${escaparHtml(n.erro)}. Tenta de novo sozinho.`]);
+      else if (n.ultimo_envio) avisos.push(["sync-info", `Acesso remoto: configuração enviada para a nuvem ${fmtQuando(n.ultimo_envio)}.`]);
+    }
+    if (s.modo === "wifi" && s.nuvem_esp && s.nuvem_esp.ativa) {
+      const ne = s.nuvem_esp;
+      const fila = ne.pendentes ? `${Number(ne.pendentes).toLocaleString("pt-BR")} ciclo(s) aguardando envio` : "em dia";
+      avisos.push(ne.erro
+        ? ["sync-warn", `⚠ Controlador → nuvem: ${escaparHtml(ne.erro)} (${fila}). Os ciclos ficam guardados no controlador.`]
+        : ["sync-info", `Controlador → nuvem: ${fila}.`]);
+    }
     const bk = s.backup || {};
     if (bk.erro) {
       avisos.push(["sync-warn", `⚠ Backup automático do banco falhou: ${escaparHtml(bk.erro)}`]);

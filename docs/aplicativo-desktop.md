@@ -269,6 +269,14 @@ http://painel.local
   até fechar a aba. Para trocar o PIN, edite o arquivo (não precisa
   reiniciar o app).
 
+### Acesso de fora da rede (VPS)
+
+Para quem não está na rede da empresa: **https://santex.rexar.com.br**, com
+login, somente leitura. O ESP32 (firmware 3.0) envia os dados direto para lá
+e o app envia a configuração editada aqui sempre que ela muda (status em
+**Controlador**, na barra inferior). Instalação e logins:
+[nuvem-vps.md](nuvem-vps.md).
+
 ## Backup automático do banco
 
 O app faz **uma cópia por dia** do `painel.db`, sozinho, ao abrir e depois

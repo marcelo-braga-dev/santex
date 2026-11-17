@@ -20,7 +20,8 @@ controle_producao_horimetro/
 ├── docs/                                 # Documentação completa (ver abaixo)
 ├── firmware/
 │   └── controle_producao_horimetro/
-│       └── controle_producao_horimetro.ino   # Firmware ESP32 2.2 (Arduino IDE)
+│       ├── controle_producao_horimetro.ino   # Firmware ESP32 3.0 (Arduino IDE)
+│       └── certificados.h                    # Certificado raiz da VPS (público)
 ├── app/                                  # Aplicativo desktop (forma de uso em produção)
 │   ├── main.py                          # Janela nativa (WebView2) + tela de carregando
 │   ├── servidor.py                      # Servidor embutido: painel + API + leitura + backup
@@ -30,6 +31,8 @@ controle_producao_horimetro/
 ├── ferramentas/
 │   ├── banco_dados.py               # Banco SQLite (ciclos, máquinas, turnos, metas)
 │   ├── backup_banco.py              # Backup diário automático do banco
+│   ├── nuvem.py                     # Acesso remoto: VPS (modo nuvem) + envio da configuração
+│   ├── usuarios_nuvem.py            # Logins de quem acessa pela VPS
 │   ├── monitor_wifi.py              # Busca os ciclos do ESP32 pelo Wi-Fi
 │   ├── monitor_serial.py            # Leitura pelo cabo USB (alternativa)
 │   ├── gerar_segredos.py            # .env -> segredos.h (firmware) + segredos_app.json (app)
@@ -40,6 +43,7 @@ controle_producao_horimetro/
 ├── painel/
 │   ├── index.html                   # Painel web (servido pelo app)
 │   └── assets/                      # Logo da empresa
+├── deploy/                          # Instalação na VPS (systemd, Caddy, script)
 ├── testes/
 │   └── test_backend.py              # python -m unittest discover -s testes -v
 ├── dados/                           # Banco/configuração em desenvolvimento (fora do git)
@@ -55,6 +59,7 @@ fora do git e do `.exe`.
 
 | Documento | Conteúdo |
 |---|---|
+| [`docs/nuvem-vps.md`](docs/nuvem-vps.md) | **Acesso remoto** pela VPS (https://santex.rexar.com.br): instalação, logins, firmware 3.0 |
 | [`docs/aplicativo-desktop.md`](docs/aplicativo-desktop.md) | Gerar e instalar o `.exe`, acesso pela rede, **somente leitura/PIN**, **backup automático**, **produção permanente**, como atualizar |
 | [`docs/firmware.md`](docs/firmware.md) | Pinagem, lógica, flash/NVS, RTC, Wi-Fi e API, **chave da API**, recomendações de hardware |
 | [`docs/painel.md`](docs/painel.md) | Todas as seções e funcionalidades do painel |

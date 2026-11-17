@@ -43,6 +43,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+import time
 from datetime import datetime, timedelta
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -244,6 +245,30 @@ def _gravar_estado_ao_vivo(banco, setor, info):
         banco.atualizar_estado_ao_vivo(setor, int(m["maquina"]), bool(m["ligado"]), desde.isoformat(timespec="seconds"))
 
 
+def gravar_linhas_ciclos(banco, setor, dispositivo, linhas, log=print):
+    """Grava linhas "id,maquina,ciclo,inicio,fim,duracao_s,obs" vindas do
+    ESP32 - as de GET /ciclos (notebook) e as que o firmware 3.0 envia para
+    a VPS (POST /api/nuvem/enviar): o MESMO formato, gravado do mesmo jeito,
+    com a mesma deduplicacao (serie do ESP32 + id). Devolve quantos eram
+    novos."""
+    novos = 0
+    for linha in linhas:
+        partes = linha.strip().split(",")
+        if len(partes) != 7 or not partes[0].isdigit():
+            _log_seguro(log, f"[aviso] linha ignorada: {linha}")
+            continue
+        origem_id, maquina, ciclo, inicio, fim, duracao_s, obs = partes
+        try:
+            if banco.gravar_ciclo_remoto(
+                setor, dispositivo, int(origem_id), int(maquina), int(ciclo),
+                inicio, fim, float(duracao_s), obs, _hora_para_banco(fim),
+            ):
+                novos += 1
+        except ValueError:
+            _log_seguro(log, f"[aviso] linha ignorada (campo invalido): {linha}")
+    return novos
+
+
 def _baixar_ciclos(cliente, banco, setor, info, log):
     """Baixa tudo o que o banco ainda nao tem. Devolve (ultimo id examinado
     - tudo ate ele esta seguro no banco -, ciclos novos, ciclos perdidos)."""
@@ -258,20 +283,7 @@ def _baixar_ciclos(cliente, banco, setor, info, log):
     novos = 0
     while True:
         linhas, lido_ate = cliente.ciclos(desde)
-        for linha in linhas:
-            partes = linha.split(",")
-            if len(partes) != 7 or not partes[0].isdigit():
-                _log_seguro(log, f"[aviso] linha ignorada: {linha}")
-                continue
-            origem_id, maquina, ciclo, inicio, fim, duracao_s, obs = partes
-            try:
-                if banco.gravar_ciclo_remoto(
-                    setor, dispositivo, int(origem_id), int(maquina), int(ciclo),
-                    inicio, fim, float(duracao_s), obs, _hora_para_banco(fim),
-                ):
-                    novos += 1
-            except ValueError:
-                _log_seguro(log, f"[aviso] linha ignorada (campo invalido): {linha}")
+        novos += gravar_linhas_ciclos(banco, setor, dispositivo, linhas, log)
         if lido_ate <= desde:
             break
         desde = lido_ate
@@ -347,6 +359,7 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
 
     conectado = None
     base_atual = None
+    limpeza = {"alvo": 0, "em": 0.0}  # ultima limpeza pedida ao ESP32
     while not parar_evento.is_set():
         try:
             achado = candidatos.procurar(parar_evento)
@@ -387,9 +400,12 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
             status["hora_esp_valida"] = True
             _gravar_estado_ao_vivo(banco, setor, info)
 
-            if int(info["ultimo_id"]) > int(info.get("apagado_ate", 0)):
+            ultimo_id = int(info["ultimo_id"])
+            apagado_ate = int(info.get("apagado_ate", 0))
+            ja_tem = banco.ultimo_id_origem(info["dispositivo"])
+            if ultimo_id > ja_tem:
                 status["estado"] = "baixando"
-                status["pendentes_esp"] = int(info["ultimo_id"]) - int(info.get("apagado_ate", 0))
+                status["pendentes_esp"] = ultimo_id - ja_tem
                 _gravar_json(caminho_status, status)
                 extraido_ate, novos, perdidos = _baixar_ciclos(cliente, banco, setor, info, log)
                 if novos:
@@ -398,18 +414,32 @@ def monitorar(enderecos=(), banco=None, setor=SETOR_PADRAO, parar_evento=None, l
                 if perdidos:
                     status["perdidos_em"] = _agora_iso()
                     status["ciclos_perdidos"] = perdidos
-                # Tudo ate extraido_ate ja esta no banco (ou nem existia mais no
-                # ESP32) - so entao o armazenamento dele e zerado.
-                if LIMPAR_APOS_EXTRAIR and extraido_ate > int(info.get("apagado_ate", 0)):
-                    try:
-                        restante = cliente.limpar(extraido_ate)
-                        _log_seguro(log, f"Armazenamento do ESP32 limpo - pendentes nele: {restante.get('pendentes', '?')}.")
-                        status["pendentes_esp"] = int(restante.get("pendentes", 0))
-                    except ChaveRecusada:
-                        chave_recusada = True
                 status["estado"] = "conectado"
             else:
-                status["pendentes_esp"] = 0
+                extraido_ate = ja_tem
+            status["pendentes_esp"] = max(0, ultimo_id - extraido_ate)
+            # Tudo ate extraido_ate ja esta no banco - so entao o armazenamento
+            # do ESP32 e liberado. No firmware 3.0 ele so libera ate o que a VPS
+            # tambem ja recebeu: a limpeza e repetida no maximo a cada 60 s
+            # enquanto a VPS nao alcanca.
+            alvo_limpeza = min(extraido_ate, ultimo_id)
+            if LIMPAR_APOS_EXTRAIR and alvo_limpeza > apagado_ate and (
+                    alvo_limpeza != limpeza["alvo"] or time.monotonic() - limpeza["em"] > 60):
+                limpeza.update({"alvo": alvo_limpeza, "em": time.monotonic()})
+                try:
+                    restante = cliente.limpar(alvo_limpeza)
+                    _log_seguro(log, f"Armazenamento do ESP32 liberado - guardados nele: {restante.get('pendentes', '?')}.")
+                except ChaveRecusada:
+                    chave_recusada = True
+            # firmware 3.0: situacao do envio do ESP32 para a VPS (acesso remoto)
+            if "nuvem_ativa" in info:
+                status["nuvem_esp"] = {
+                    "ativa": bool(info.get("nuvem_ativa")),
+                    "ate": int(info.get("nuvem_ate", 0)),
+                    "pendentes": max(0, ultimo_id - int(info.get("nuvem_ate", 0))),
+                    "ultimo_envio_s": info.get("nuvem_ultimo_envio_s"),
+                    "erro": str(info.get("nuvem_erro", "")),
+                }
             status["ultima_sincronizacao"] = _agora_iso()
             if chave_recusada and not status.get("aviso_chave"):
                 _log_seguro(log, f"[aviso] {MSG_CHAVE_RECUSADA}")

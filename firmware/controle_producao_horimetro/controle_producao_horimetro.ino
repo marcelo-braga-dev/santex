@@ -108,6 +108,9 @@
 #include <esp_system.h>
 #include <esp_timer.h>
 #include <time.h>
+#include <sys/time.h>
+#include <NetworkClientSecure.h>
+#include <HTTPClient.h>
 
 // ---------------------------------------------------------------------
 // Configuracao da rede (valores de fabrica - depois, tudo pela pagina
@@ -124,6 +127,7 @@ const uint8_t MODO_WIFI_PADRAO = MODO_AMBAS;
 // gera o segredos.h desta pasta a partir dele (rode antes de compilar).
 // Sem segredos.h o Arduino IDE para com "segredos.h: No such file".
 #include "segredos.h"
+#include "certificados.h" // certificado raiz da VPS (publico, versionado)
 const IPAddress AP_IP(192, 168, 4, 1);
 const uint8_t AP_CANAL = 6; // com a rede da empresa ligada, o ESP32 usa o canal do roteador
 const uint8_t AP_MAX_CONEXOES = 3;
@@ -238,6 +242,29 @@ long ultimaCorrecaoS = 0;        // quanto o ultimo acerto mudou a hora (s, + = 
 uint32_t falhasLeituraRtc = 0;   // releituras periodicas do RTC que falharam desde o boot
 
 bool armazenamentoOk = false;
+
+// ---------------------------------------------------------------------
+// ACESSO REMOTO (firmware 3.0): alem de responder ao notebook na rede local
+// (que continua sendo o fornecedor principal), o ESP32 ENVIA os ciclos e o
+// estado das maquinas para a VPS (NUVEM_URL, por HTTPS) - quem esta fora da
+// rede da empresa ve o painel por la, mesmo com o notebook desligado.
+//  - Uma tarefa propria (tarefaNuvem, nucleo 0) faz o envio: uma VPS lenta
+//    ou fora do ar nunca atrasa a leitura dos reles (loop, nucleo 1).
+//  - nuvemAte (NVS) = ultimo ciclo que a VPS confirmou. Os ciclos so saem da
+//    memoria (apagarCiclosAte) depois que a VPS e o notebook os tiverem.
+//  - A VPS e conferida pelo certificado raiz (certificados.h) - nunca em
+//    modo inseguro. NUVEM_URL vazia (.env) = envio desligado.
+// ---------------------------------------------------------------------
+const unsigned long NUVEM_INTERVALO_MS = 10000UL;   // com tudo enviado, confere a cada 10 s
+const unsigned long NUVEM_ESPERA_MAX_MS = 300000UL; // VPS fora do ar: espera dobra ate 5 min
+const uint32_t NUVEM_MAX_CICLOS_POR_ENVIO = 50;
+volatile uint32_t nuvemAte = 0;              // ultimo id confirmado pela VPS
+volatile unsigned long nuvemUltimoOkMs = 0;  // ultimo envio confirmado (0 = nenhum desde o boot)
+volatile uint32_t nuvemEnviosOk = 0;
+char nuvemErro[72] = "";                     // ultimo erro ("" = ultimo envio deu certo)
+TaskHandle_t tarefaNuvemHandle = nullptr;
+
+bool nuvemAtiva() { return NUVEM_URL[0] != '\0'; }
 uint32_t ciclosSemHoraNesteBoot = 0; // gravados com hora relativa, ainda nao corrigidos
 uint32_t ultimoIdCiclo = 0;
 uint32_t apagadoAte = 0; // ciclos com id <= apagadoAte ja foram extraidos e "apagados"
@@ -278,7 +305,7 @@ uint32_t contagemBoots = 0;
 //  - reinicio seguro se a memoria livre ficar perigosamente baixa
 //  - registro dos ultimos eventos na flash (sobrevive a reinicios)
 // ---------------------------------------------------------------------
-const char *FIRMWARE_VERSAO = "2.2";
+const char *FIRMWARE_VERSAO = "3.0";
 const unsigned long INTERVALO_REDETECTAR_RTC_MS = 30000UL;   // testa o RTC a cada 30 s
 const uint8_t FALHAS_PARA_RTC_AUSENTE = 3;                   // 3 falhas seguidas = RTC sumiu
 const unsigned long SEM_PC_PARA_RECONECTAR_MS = 15UL * 60UL * 1000UL; // 15 min sem o PC alcancar
@@ -456,6 +483,13 @@ void sincronizarComRtc() {
   ultimoResyncRtcMs = millis();
 }
 
+// O relogio do sistema (time()) e o que o HTTPS usa para conferir a validade
+// do certificado da VPS - fica sempre igual a hora do controlador (em UTC).
+void ajustarRelogioSistema(uint32_t epochLocal) {
+  struct timeval tv = {(time_t)((int64_t)epochLocal - FUSO_HORARIO_S), 0};
+  settimeofday(&tv, nullptr);
+}
+
 void definirHora(uint32_t epoch, const char *origem) {
   correcaoConhecida = horaValida;
   if (horaValida) ultimaCorrecaoS = (long)epoch - (long)agoraEpoch();
@@ -468,6 +502,7 @@ void definirHora(uint32_t epoch, const char *origem) {
   millisBase = millis();
   ultimoResyncRtcMs = millis();
   horaValida = true;
+  ajustarRelogioSistema(epoch);
   char texto[20];
   formatarEpoch(epoch, texto);
   Serial.print(F("# Relogio acertado: "));
@@ -589,6 +624,7 @@ bool redetectarRtc(bool manual) {
     millisBase = millis();
     ultimoResyncRtcMs = millis();
     horaValida = true;
+    ajustarRelogioSistema(epoch);
     horaAcertadaEm = epoch;
     origemAcerto = "RTC (redetectado)";
     correcaoConhecida = false;
@@ -715,6 +751,7 @@ void iniciarRelogio() {
   millisBase = millis();
   ultimoResyncRtcMs = millis();
   horaValida = true;
+  ajustarRelogioSistema(epoch);
   char texto[20];
   formatarEpoch(epoch, texto);
   Serial.print(F("# RTC: "));
@@ -753,6 +790,8 @@ uint32_t primeiroIdDisponivel() {
 // onde ja foi apagado, e os slots desses ciclos passam a ser reaproveitados.
 void apagarCiclosAte(uint32_t id) {
   if (id > ultimoIdCiclo) id = ultimoIdCiclo;
+  // Acesso remoto: o que a VPS ainda nao recebeu continua guardado
+  if (nuvemAtiva() && id > nuvemAte) id = nuvemAte;
   if (id <= apagadoAte) return;
   apagadoAte = id;
   prefs.putUInt("apagado", apagadoAte);
@@ -838,6 +877,11 @@ void iniciarArmazenamento() {
   }
   ultimoIdCiclo = prefs.getUInt("seq", 0);
   apagadoAte = prefs.getUInt("apagado", 0);
+  nuvemAte = prefs.getUInt("nuvem", 0);
+  if (nuvemAte > ultimoIdCiclo) nuvemAte = ultimoIdCiclo;
+  // Firmware 2.x nao enviava para a VPS: na primeira vez com o 3.0, o que ja
+  // foi liberado da memoria nao existe mais - comeca dali.
+  if (nuvemAte < apagadoAte) nuvemAte = apagadoAte;
 
   // Identifica este ESP32 + esta "vida" da flash: se a NVS for apagada, a
   // serie muda e o PC recomeca a contagem de ids do zero para ele.
@@ -1188,7 +1232,16 @@ void responderInfo() {
   j += resetPreocupante(esp_reset_reason()) ? F("true") : F("false");
   j += F(",\"eventos\":");
   j += qtdEventos;
-  j += F(",\"maquinas\":[");
+  j += F(",\"nuvem_ativa\":");
+  j += nuvemAtiva() ? F("true") : F("false");
+  j += F(",\"nuvem_ate\":");
+  j += nuvemAte;
+  j += F(",\"nuvem_ultimo_envio_s\":");
+  if (nuvemUltimoOkMs) j += (uint32_t)((millis() - nuvemUltimoOkMs) / 1000UL);
+  else j += F("null");
+  j += F(",\"nuvem_erro\":\"");
+  j += escaparJson(String(nuvemErro));
+  j += F("\",\"maquinas\":[");
   for (uint8_t m = 0; m < NUM_MAQUINAS; m++) {
     if (m) j += ',';
     j += F("{\"maquina\":");
@@ -1822,6 +1875,15 @@ String montarSituacao() {
     linhaTabela(h, "Autocorreções de Wi-Fi", String(radioReiniciado) + F(" reinício(s) do rádio &middot; ") + String(reconexoesForcadas) + F(" reconexão(ões) preventiva(s)"));
   }
   linhaTabela(h, "Dispositivo", idDispositivo);
+  if (nuvemAtiva()) {
+    String sit = nuvemErro[0] ? spanCor("ruim", escaparHtml(String(nuvemErro)))
+               : nuvemUltimoOkMs ? spanCor("bom", String(F("enviando - último envio há ")) + formatarDuracao((millis() - nuvemUltimoOkMs) / 1000UL))
+               : String(F("aguardando o primeiro envio"));
+    sit += String(F(" &middot; ")) + String(ultimoIdCiclo - nuvemAte) + F(" ciclo(s) na fila");
+    linhaTabela(h, "Acesso remoto (nuvem)", sit);
+  } else {
+    linhaTabela(h, "Acesso remoto (nuvem)", F("desligado (NUVEM_URL vazia no .env)"));
+  }
   h += F("</table></section>");
   return h;
 }
@@ -2055,6 +2117,158 @@ void tratarComandosSerial() {
   }
 }
 
+// ---------------------------------------------------------------------
+// Envio para a VPS (tarefa propria, nucleo 0)
+// ---------------------------------------------------------------------
+// Monta o lote: {"dispositivo", "firmware", "hora", "hora_valida",
+// "ultimo_id", "lido_ate", "perdidos", "maquinas": [...], "ciclos": "csv"}
+// - o mesmo formato que a VPS espera (ferramentas/nuvem.py,
+// testes/test_nuvem.py). Devolve o ultimo id examinado (lidoAte).
+uint32_t montarEnvioNuvem(String &corpo, uint32_t &perdidos) {
+  uint32_t ultimo = ultimoIdCiclo;
+  uint32_t primeiroNoBuffer = ultimo <= CAPACIDADE_REGISTROS ? 1 : ultimo - CAPACIDADE_REGISTROS + 1;
+  uint32_t inicio = nuvemAte + 1;
+  perdidos = 0;
+  if (inicio < primeiroNoBuffer) { // a memoria circular passou por cima antes do envio
+    perdidos = primeiroNoBuffer - inicio;
+    inicio = primeiroNoBuffer;
+  }
+  uint32_t lidoAte = inicio - 1;
+
+  char hora[20];
+  formatarEpoch(agoraEpoch(), hora);
+  corpo = F("{\"dispositivo\":\"");
+  corpo += idDispositivo;
+  corpo += F("\",\"firmware\":\"");
+  corpo += FIRMWARE_VERSAO;
+  corpo += F("\",\"hora\":\"");
+  corpo += hora;
+  corpo += F("\",\"hora_valida\":");
+  corpo += horaValida ? F("true") : F("false");
+  corpo += F(",\"ultimo_id\":");
+  corpo += ultimo;
+  corpo += F(",\"maquinas\":[");
+  for (uint8_t m = 0; m < NUM_MAQUINAS; m++) {
+    if (m) corpo += ',';
+    corpo += F("{\"maquina\":");
+    corpo += m + 1;
+    corpo += F(",\"ligado\":");
+    corpo += estadoAtual[m] == EstadoEquipamento::LIGADO ? F("true") : F("false");
+    corpo += F(",\"segundos\":");
+    corpo += (millis() - instanteEstado[m]) / 1000UL;
+    corpo += '}';
+  }
+  corpo += F("],\"ciclos\":\"id,maquina,ciclo,inicio,fim,duracao_s,obs\\n");
+  File f = LittleFS.open(ARQUIVO_CICLOS, "r");
+  if (f) {
+    uint32_t enviados = 0;
+    for (uint32_t id = inicio; id <= ultimo && enviados < NUVEM_MAX_CICLOS_POR_ENVIO; id++) {
+      lidoAte = id;
+      RegistroCiclo r;
+      if (!lerRegistroDaFlash(f, id, r)) continue; // slot vazio/sobrescrito: so avanca
+      bool relativa = r.flags & FLAG_HORA_RELATIVA;
+      char ini[20], fim[20], obs[64], linha[160];
+      formatarEpoch(relativa ? 0 : r.inicioEpoch, ini);
+      formatarEpoch(relativa ? 0 : r.fimEpoch, fim);
+      montarObs(r.flags, obs, sizeof(obs));
+      snprintf(linha, sizeof(linha), "%lu,%u,%lu,%s,%s,%lu.%lu,%s\\n", (unsigned long)r.id, (unsigned)r.maquina,
+               (unsigned long)r.ciclo, ini, fim, (unsigned long)(r.duracaoDecimos / 10),
+               (unsigned long)(r.duracaoDecimos % 10), obs);
+      corpo += linha;
+      enviados++;
+    }
+    f.close();
+  }
+  corpo += F("\",\"lido_ate\":");
+  corpo += lidoAte;
+  corpo += F(",\"perdidos\":");
+  corpo += perdidos;
+  corpo += '}';
+  return lidoAte;
+}
+
+// Um envio. Devolve 1 = enviado e ainda ha fila, 0 = enviado e em dia,
+// -1 = falhou (nada muda: o mesmo lote vai de novo depois).
+int enviarLoteNuvem(Preferences &p) {
+  String corpo;
+  uint32_t perdidos = 0;
+  uint32_t lidoAte = montarEnvioNuvem(corpo, perdidos);
+
+  NetworkClientSecure cliente;
+  cliente.setCACert(NUVEM_CA);
+  cliente.setTimeout(15); // segundos
+  HTTPClient http;
+  http.setConnectTimeout(10000);
+  http.setTimeout(15000);
+  if (!http.begin(cliente, String(NUVEM_URL) + F("/api/nuvem/enviar"))) {
+    strlcpy(nuvemErro, "endereco da VPS invalido (NUVEM_URL)", sizeof(nuvemErro));
+    return -1;
+  }
+  http.addHeader(F("Content-Type"), F("application/json"));
+  http.addHeader(F("X-Chave-Nuvem"), NUVEM_CHAVE);
+  int codigo = http.POST(corpo);
+  http.end();
+
+  if (codigo == 200) {
+    if (lidoAte > nuvemAte) {
+      nuvemAte = lidoAte;
+      p.putUInt("nuvem", lidoAte);
+    }
+    if (perdidos) {
+      registrarEvento(String(perdidos) + F(" ciclo(s) sobrescritos antes de chegar a nuvem"));
+    }
+    nuvemUltimoOkMs = millis();
+    nuvemEnviosOk = nuvemEnviosOk + 1;
+    nuvemErro[0] = '\0';
+    return lidoAte < ultimoIdCiclo ? 1 : 0;
+  }
+  if (codigo == 403) strlcpy(nuvemErro, "a VPS recusou a chave (NUVEM_CHAVE diferente)", sizeof(nuvemErro));
+  else if (codigo > 0) snprintf(nuvemErro, sizeof(nuvemErro), "a VPS respondeu HTTP %d", codigo);
+  else snprintf(nuvemErro, sizeof(nuvemErro), "sem conexao com a VPS (%s)", HTTPClient::errorToString(codigo).c_str());
+  return -1;
+}
+
+void tarefaNuvem(void *) {
+  Preferences p;
+  p.begin("horimetro", false); // handle proprio desta tarefa (a NVS e segura entre tarefas)
+  unsigned long espera = 5000UL, recuo = NUVEM_INTERVALO_MS;
+  bool avisouFalha = false;
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(espera));
+    if (!wifiConectado || !staAtivo || !armazenamentoOk) { // so a rede da empresa tem internet
+      espera = NUVEM_INTERVALO_MS;
+      continue;
+    }
+    int r = enviarLoteNuvem(p);
+    if (r >= 0) {
+      if (avisouFalha) {
+        registrarEvento(F("Envio para a nuvem voltou a funcionar"));
+        avisouFalha = false;
+      }
+      recuo = NUVEM_INTERVALO_MS;
+      espera = r > 0 ? 300UL : NUVEM_INTERVALO_MS; // fila: o proximo lote logo em seguida
+    } else {
+      if (!avisouFalha && recuo >= 4 * NUVEM_INTERVALO_MS) { // falhou varias vezes seguidas
+        registrarEvento(String(F("Envio para a nuvem falhando: ")) + nuvemErro);
+        avisouFalha = true;
+      }
+      espera = recuo;
+      recuo = min(recuo * 2, NUVEM_ESPERA_MAX_MS);
+    }
+  }
+}
+
+void iniciarNuvem() {
+  if (!nuvemAtiva()) {
+    Serial.println(F("# Acesso remoto desligado (NUVEM_URL vazia no .env)"));
+    return;
+  }
+  Serial.print(F("# Acesso remoto: enviando para "));
+  Serial.println(NUVEM_URL);
+  // 12 KB de pilha (HTTPS), prioridade baixa, nucleo 0 (o loop roda no 1)
+  xTaskCreatePinnedToCore(tarefaNuvem, "nuvem", 12288, nullptr, 1, &tarefaNuvemHandle, 0);
+}
+
 void setup() {
   Serial.begin(9600);
   delay(200); // da tempo do monitor serial conectar antes dos primeiros prints
@@ -2147,6 +2361,7 @@ void setup() {
 
   atualizarLed();
   iniciarWifi();
+  iniciarNuvem();
   emitirEstados();
   ultimoEstadoMs = millis();
 }

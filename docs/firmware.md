@@ -255,6 +255,34 @@ não conhece, então o app antigo continua funcionando com o firmware novo.
 Gravação: Arduino IDE, placa **ESP32 Dev Module**, esquema de partição padrão (o firmware usa
 ~84% da área de programa). A versão anterior fica em `firmware/_backup/controle_producao_horimetro_v1.ino`.
 
+## Firmware 3.0: envio para a VPS (acesso remoto)
+
+O ESP32 continua igual para o notebook (rede local) e **também envia** os
+ciclos e o estado das máquinas para a VPS — guia completo em
+[nuvem-vps.md](nuvem-vps.md).
+
+- **Tarefa própria** (`tarefaNuvem`, núcleo 0): o envio HTTPS nunca atrasa a
+  leitura dos relés, que roda no `loop()` (núcleo 1). A cada ~10 s manda o
+  estado das 4 máquinas e até 50 ciclos novos para `NUVEM_URL/api/nuvem/enviar`,
+  com a `NUVEM_CHAVE` no cabeçalho `X-Chave-Nuvem`. Com fila, manda o próximo
+  lote logo em seguida; com a VPS fora do ar, espera 10 s, 20 s, 40 s… até 5 min.
+- **Cursor `nuvemAte`** (NVS): último ciclo confirmado pela VPS. Um ciclo só
+  sai da memória quando a VPS **e** o notebook o têm (`apagarCiclosAte` nunca
+  passa de `nuvemAte`). Se a memória circular encher antes do envio, os
+  sobrescritos viram um evento e um aviso no painel remoto.
+- **HTTPS conferido**: certificado raiz em `certificados.h` (ISRG Root X1,
+  Let's Encrypt, válido até 2035) — nunca modo inseguro. O relógio do
+  sistema passa a seguir a hora do controlador (RTC, PC ou NTP), que o HTTPS
+  usa para validar o certificado.
+- **Só pela rede da empresa**: a rede própria `HORIMETRO_SANTEX` não tem
+  internet; no modo "só rede própria" o envio fica parado (os ciclos esperam).
+- **Situação**: `/info` ganhou `nuvem_ativa`, `nuvem_ate`,
+  `nuvem_ultimo_envio_s` e `nuvem_erro`; a página do ESP32 mostra a linha
+  "Acesso remoto (nuvem)".
+- `NUVEM_URL` vazia no `.env` = envio desligado (o firmware se comporta como o 2.2).
+- Na primeira gravação do 3.0, o envio começa do que ainda está na memória;
+  o histórico antigo fica só no notebook.
+
 ## Firmware 2.2: chave da API e hora recuperada
 
 - **Chave nas ações que alteram o ESP32**: `POST /limpar`, `POST /hora` e
@@ -365,7 +393,7 @@ para nunca serem confundidos com produção real.
 ## Senhas do firmware (`.env` → `segredos.h`)
 
 Nomes de rede e senhas (`EMPRESA_SSID_PADRAO`, `EMPRESA_SENHA_PADRAO`,
-`AP_SSID`, `AP_SENHA`, `API_CHAVE`) ficam no arquivo **`.env`** da raiz do projeto, que
+`AP_SSID`, `AP_SENHA`, `API_CHAVE`, `NUVEM_URL`, `NUVEM_CHAVE`) ficam no arquivo **`.env`** da raiz do projeto, que
 **não vai para o git** (`.gitignore`). O Arduino IDE não lê o `.env`; o
 script abaixo gera `firmware/controle_producao_horimetro/segredos.h` (também
 fora do git) a partir dele:

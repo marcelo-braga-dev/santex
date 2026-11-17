@@ -1,5 +1,28 @@
 # Histórico de versões
 
+## 1.1.0 — em desenvolvimento (app 1.1.0 · firmware 3.0)
+
+Acesso remoto: quem está fora da rede da empresa vê o painel em
+**https://santex.rexar.com.br**, com login e somente leitura. Ver
+`docs/nuvem-vps.md`.
+
+- **Firmware 3.0**: além de responder ao notebook, o ESP32 envia os ciclos e
+  o estado das máquinas para a VPS por HTTPS (tarefa própria, a cada ~10 s),
+  conferindo o certificado da Let's Encrypt. Só libera um ciclo da memória
+  depois que a VPS **e** o notebook o receberam. Funciona com o notebook
+  desligado; sem internet, guarda e envia depois.
+- **Notebook** continua o fornecedor principal na empresa e envia a
+  configuração (máquinas, metas, turnos, cores) para a VPS quando muda.
+- **VPS**: o mesmo servidor em `PAINEL_MODO=nuvem` — recebe do ESP32 e do
+  notebook com a `NUVEM_CHAVE`, login por pessoa (`usuarios_nuvem.py`),
+  sempre somente leitura, bloqueio após 10 senhas erradas. Arquivos de
+  instalação em `deploy/` (systemd + Caddy).
+- **Painel**: na VPS mostra "Controlador enviando / sem enviar", quando a
+  configuração chegou do notebook e esconde os controles da rede local; no
+  notebook mostra se a configuração e os ciclos estão chegando à VPS.
+- Notebook não baixa de novo o que já tem e pede a limpeza do ESP32 no
+  máximo a cada 60 s enquanto a VPS não alcança.
+
 ## 1.0.0 — 17/11/2026 (app 1.0.0 · firmware 2.2)
 
 Primeira versão para produção permanente.
