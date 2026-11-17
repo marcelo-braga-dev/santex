@@ -1590,7 +1590,7 @@
           </div>
         </div>
         <div class="base-calc" id="base-calculo" hidden></div>
-        <button class="panel-tag meta-display editable" type="button" data-abrir-popup="meta" title="Clique para editar a meta diária">Meta/dia <strong class="mono" id="meta-display">85%</strong><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+        <button class="panel-tag meta-display editable" type="button" data-abrir-popup="meta" title="Meta: % do tempo disponível de cada turno que a máquina deve ficar ligada. Clique para editar.">Meta por turno <strong class="mono" id="meta-display">85%</strong><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       </div>
       <div class="panel-body">
         <div class="machine-grid" id="machine-grid"></div>
@@ -1621,7 +1621,7 @@
         <div class="kpi-value" id="kpi-rendimento">—</div>
         <div class="kpi-bar"><span id="kpi-rendimento-bar"></span></div>
       </div>
-      <div class="kpi editable" style="--kpi-c: var(--good)" role="button" tabindex="0" data-abrir-popup="meta" title="Clique para editar a meta diária">
+      <div class="kpi editable" style="--kpi-c: var(--good)" role="button" tabindex="0" data-abrir-popup="meta" title="Clique para editar a meta (% do tempo de cada turno)">
         <span class="kpi-edit"><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> meta</span>
         <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="kpi-label">Progresso da meta</span></div>
         <div class="kpi-value" id="kpi-meta">—</div>
@@ -3622,7 +3622,7 @@
             <div class="mc-caption">Horímetro · tempo ligado</div>
             <div class="machine-hero-num" data-campo="ligado"></div>
           </div>
-          <div class="ring" title="Progresso da meta diária">
+          <div class="ring" title="Progresso da meta">
             <svg viewBox="0 0 66 66" aria-hidden="true"><circle class="ring-track" cx="33" cy="33" r="${RAIO_ANEL}"/><circle class="ring-fill" data-campo="anel" cx="33" cy="33" r="${RAIO_ANEL}" stroke-dasharray="${CIRC_ANEL}" stroke-dashoffset="${CIRC_ANEL}"/></svg>
             <div class="ring-text"><strong data-campo="meta-pct"></strong><span>meta</span></div>
           </div>
@@ -3755,7 +3755,7 @@
       definirTexto(card, "rendimento", stats && !stats.semJanela ? Math.round(stats.disponibilidadePct) + "%" : "—");
       definirTexto(card, "producao", metros !== null ? fmtMetros(metros) : "");
       card.querySelector('[data-campo="producao-box"]').hidden = metros === null;
-      // Sem linha "Meta do dia" no cartao: a meta fica no selo "Meta/dia" do
+      // Sem linha "Meta" no cartao: a meta fica no selo "Meta por turno" do
       // cabecalho do painel; o detalhe (ligado / meta) aparece ao passar o mouse no anel.
       card.querySelector(".ring").title = `Meta: ${fmtDuration(tempoLigadoS)} de ${fmtDuration(metaS)} ligada (${fmtPct(getMeta())} do tempo disponível)`;
       definirTexto(card, "meta-pct", `${metaPct}%`);
@@ -4125,7 +4125,7 @@
     const bw = iw / dados.length;
     const y = (pct) => pad.t + ih * (1 - pct / 100);
 
-    const svg = el("svg", { width: "100%", height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Rendimento comparado entre máquinas, com a meta diária como referência" });
+    const svg = el("svg", { width: "100%", height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Rendimento comparado entre máquinas, com a meta como referência" });
     [0.5, 1].forEach((f) => {
       const gy = pad.t + ih * (1 - f);
       svg.appendChild(el("line", { x1: pad.l, x2: W - pad.r, y1: gy, y2: gy, class: "grid-line" }));
@@ -4146,7 +4146,7 @@
       const rect = el("rect", { x: bx, y: by, width: bwReal, height: Math.max(0, barH), rx: 5, fill: cor, opacity: "0.92" });
       rect.addEventListener("mouseenter", () => {
         rect.setAttribute("opacity", "1");
-        tooltip.innerHTML = `<div class="tt-title">${escaparHtml(machineName(d.id))}</div><div class="tt-row"><span>Rendimento</span><strong class="mono">&nbsp;${Math.round(d.pct)}%</strong></div><div class="tt-row"><span>Meta do dia</span><strong class="mono">&nbsp;${Math.round(metaPct)}%</strong></div><div class="tt-row"><span style="color:${corDelta}">${bateuMeta ? "Acima da meta" : "Abaixo da meta"}</span><strong class="mono" style="color:${corDelta}">&nbsp;${d.deltaPct >= 0 ? "+" : ""}${Math.round(d.deltaPct)} pts</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(d.tempoLigadoS)}</strong></div>`;
+        tooltip.innerHTML = `<div class="tt-title">${escaparHtml(machineName(d.id))}</div><div class="tt-row"><span>Rendimento</span><strong class="mono">&nbsp;${Math.round(d.pct)}%</strong></div><div class="tt-row"><span>Meta</span><strong class="mono">&nbsp;${Math.round(metaPct)}%</strong></div><div class="tt-row"><span style="color:${corDelta}">${bateuMeta ? "Acima da meta" : "Abaixo da meta"}</span><strong class="mono" style="color:${corDelta}">&nbsp;${d.deltaPct >= 0 ? "+" : ""}${Math.round(d.deltaPct)} pts</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(d.tempoLigadoS)}</strong></div>`;
         tooltip.style.left = (bx + bwReal / 2) + "px";
         tooltip.style.top = (by - 8) + "px";
         tooltip.classList.add("visible");
@@ -4171,11 +4171,11 @@
 
     const metaY = y(metaPct);
     svg.appendChild(el("line", { x1: pad.l, x2: W - pad.r, y1: metaY, y2: metaY, stroke: "var(--ink-900)", "stroke-width": 2, "stroke-dasharray": "6,4" }));
-    const metaLblTxt = `Meta do dia: ${Math.round(metaPct)}%`;
+    const metaLblTxt = `Meta: ${Math.round(metaPct)}%`;
     const metaLblW = metaLblTxt.length * 6.2 + 14;
     const metaSelo = el("g", { class: "chart-edit", "data-abrir-popup": "meta", role: "button", tabindex: "0" });
     const metaTitulo = el("title");
-    metaTitulo.textContent = "Clique para editar a meta diária";
+    metaTitulo.textContent = "Clique para editar a meta (% do tempo de cada turno)";
     metaSelo.appendChild(metaTitulo);
     metaSelo.appendChild(el("rect", { x: pad.l, y: 6, width: metaLblW + 14, height: 18, rx: 9, fill: "var(--ink-900)" }));
     const metaLbl = el("text", { x: pad.l + (metaLblW + 14) / 2, y: 19, "text-anchor": "middle" });
@@ -4209,7 +4209,7 @@
           <span class="rank-bar"><span style="width:${Math.min(100, d.pct)}%"></span><i style="left:calc(${metaPct}% - 1px)"></i></span>
         </div>`;
     }).join("");
-    lista.innerHTML = linhas + `<div class="rank-legend"><i></i><button class="editable" type="button" data-abrir-popup="meta" title="Clique para editar a meta diária">Meta do dia: ${Math.round(metaPct)}%<svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button> · diferença em pontos percentuais</div>`;
+    lista.innerHTML = linhas + `<div class="rank-legend"><i></i><button class="editable" type="button" data-abrir-popup="meta" title="Clique para editar a meta (% do tempo de cada turno)">Meta: ${Math.round(metaPct)}%<svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button> · diferença em pontos percentuais</div>`;
   }
 
   // Linha do tempo. Com horario real e turnos, o eixo vai do INICIO do
@@ -4580,7 +4580,7 @@
     const metaItem = document.createElement("div");
     metaItem.className = "legend-item editable";
     metaItem.dataset.abrirPopup = "meta";
-    metaItem.title = "Clique para editar a meta diária";
+    metaItem.title = "Clique para editar a meta (% do tempo de cada turno)";
     metaItem.innerHTML = `<span class="legend-swatch" style="background:var(--ink-600)"></span>Meta: ${fmtPct(getMeta())} de cada hora<svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`;
     legend.appendChild(metaItem);
     wrap.appendChild(legend);

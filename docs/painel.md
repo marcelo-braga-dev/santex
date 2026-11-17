@@ -81,7 +81,7 @@ estiver correndo. Horas que ainda não passaram nunca entram.
   para ver a lista de turnos considerados.
 - **Meta em %** (antes era "horas ligada por dia"): a meta é a porcentagem
   do tempo disponível do turno em que cada máquina deve ficar ligada — o
-  mesmo número aparece no selo "Meta/dia", na linha tracejada do
+  mesmo número aparece no selo "Meta por turno", na linha tracejada do
   comparativo, no ranking e (como % de cada hora) no gráfico por hora. Na
   atualização, a meta em horas foi convertida uma vez sem mudar a meta
   efetiva de um dia completo (8 h ÷ 14 h de turno = 57,1%); a antiga fica
@@ -197,7 +197,7 @@ neles mesmos. Ao passar o mouse aparece um lápis ✎ e um destaque:
 |---|---|
 | **Nome da máquina** (cartão) | Vira um campo de texto ali mesmo — Enter ou clicar fora salva, Esc cancela |
 | **Pill da taxa** ("7,5 m/min" / "definir taxa") | Vira um campo numérico ali mesmo (aceita vírgula) — Enter/clicar fora salva, Esc cancela |
-| **Pill "Meta/dia"** (cabeçalho de "Rendimento por máquina"), KPI **Progresso da meta**, selo **"Meta do dia"** do comparativo, legenda da meta no **ranking** e no gráfico **por hora** | Abre o popup da meta diária |
+| **Selo "Meta por turno"** (cabeçalho de "Rendimento por máquina"), KPI **Progresso da meta**, selo **"Meta"** do comparativo, legenda da meta no **ranking** e no gráfico **por hora** | Abre o popup da meta diária |
 | KPI **Produção estimada** | Abre o popup de configuração das máquinas |
 
 Salvar pela edição direta grava igual ao popup (navegador + banco do
@@ -363,7 +363,7 @@ daltonismo, atribuída pela posição da máquina na lista do setor — nunca
 pelo número bruto do id), com: nome configurável, horímetro (tempo ligado,
 mostrado em gradiente de cor), tempo parado, rendimento (%), produção
 estimada (se a taxa m/min estiver configurada), e uma barra de progresso
-contra a **meta de rendimento em %** (selo "Meta/dia" no cabeçalho da
+contra a **meta de rendimento em %** (selo "Meta por turno" no cabeçalho da
 seção — clique para editar). Nome e produção por
 minuto de cada máquina: **⚙ Configurações → Máquinas**. A grade se ajusta sozinha à quantidade de máquinas do
 setor (não é mais fixa em 4 colunas).
