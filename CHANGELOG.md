@@ -35,6 +35,7 @@ Primeira versão para produção permanente.
   convertida sem mudar a meta efetiva (8 h ÷ 14 h = 57,1%). Selo
   renomeado de "Meta/dia" para "Meta por turno".
 - Faixa e linhas tracejadas dos **turnos** na Linha do tempo.
+- Removido o gráfico "Tendência diária de rendimento" da página Desempenho.
 - Versão no rodapé; aviso de backup e de chave no popover do controlador.
 - Excel funciona **sem internet**: biblioteca SheetJS 0.18.5 incluída em
   `painel/assets/xlsx.full.min.js` (a internet fica só como reserva).

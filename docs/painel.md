@@ -52,7 +52,7 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
 | Seção (aba) | Conteúdo |
 |---|---|
 | **Visão geral** | Primeiro, os cartões **Rendimento por máquina**; logo abaixo, a **Linha do tempo por máquina**; depois 6 KPIs (tempo ligado, rendimento médio, progresso da meta, produção estimada, ciclos/alertas, máquinas ligadas agora); depois comparativo de rendimento + ranking |
-| **Desempenho** | Tendência diária, tempo ligado por hora, análise de paradas + maiores paradas, **produção por turno** (gráfico + tabela), comparativo entre turnos, mapa de calor e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
+| **Desempenho** | Tempo ligado por hora, análise de paradas + maiores paradas, **produção por turno** (gráfico + tabela), comparativo entre turnos, mapa de calor e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
 | **Turnos** (⚙ Configurações → Turnos, primeira opção do menu) | Cards de configuração: **Turnos cadastrados** (edição direta — ver abaixo), **Intervalo de refeição**, **Calendário e paradas programadas** e **Histórico de configurações** |
 | **Identidade visual** (⚙ → Aparência) | Editor da paleta da marca — ver abaixo |
 
@@ -156,7 +156,6 @@ e elas ficam só no navegador.
 
 | Onde | Gráfico |
 |---|---|
-| **Desempenho** → Tendência diária | Rendimento de cada máquina dia a dia (no ano, por semana) contra a meta |
 | Desempenho → Análise de paradas | Nº de paradas (≥ 1 min, sem pausas), tempo parado, duração média, maior parada, tempo médio ligado entre paradas; barras por faixa (até 5 min / 5–30 / > 30) e as 8 maiores paradas |
 | Desempenho → Mapa de calor | Ocupação média por dia da semana × hora de turno |
 | Desempenho → Comparativo entre turnos | Rendimento de cada turno ao longo do período |

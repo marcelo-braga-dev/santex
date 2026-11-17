@@ -1674,23 +1674,10 @@
   </section>
 
   <!-- ===================================================================
-       VIEW: DESEMPENHO (tendencia, paradas, mapa de calor e comparativo
+       VIEW: DESEMPENHO (paradas, mapa de calor e comparativo
        entre turnos) - mesma base dos cartoes
        =================================================================== -->
-  <section class="view" id="view-desempenho" data-titulo="Desempenho" data-desc="Tendência, tempo ligado por hora, paradas, produção e comparativo por turno, mapa de calor e ciclos registrados">
-
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title-wrap">
-          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 17l5-5 4 4 8-8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-          <div>
-            <div class="panel-title">Tendência diária de rendimento</div>
-            <div class="panel-hint">Rendimento de cada máquina dia a dia (ano: por semana) contra a meta — escolha Semana, Mês ou Ano</div>
-          </div>
-        </div>
-      </div>
-      <div class="panel-body"><div class="chart-wrap" id="tendencia-wrap"></div></div>
-    </section>
+  <section class="view" id="view-desempenho" data-titulo="Desempenho" data-desc="Tempo ligado por hora, paradas, produção e comparativo por turno, mapa de calor e ciclos registrados">
 
     <section class="panel">
       <div class="panel-head">
@@ -4735,7 +4722,7 @@
   // =====================================================================
   function renderDesempenho() {
     const R = resumoJanelas();
-    const wraps = ["tendencia-wrap", "paradas-wrap", "heatmap-wrap", "comp-turnos-wrap"].map((id) => $("#" + id));
+    const wraps = ["paradas-wrap", "heatmap-wrap", "comp-turnos-wrap"].map((id) => $("#" + id));
     if (!R) {
       wraps.forEach((wr) => vazio(wr, "Precisa do horário real dos ciclos (servidor local ativo ou CSV com data/hora) e de um período (Dia/Semana/Mês/Ano)."));
       $("#paradas-kpis").innerHTML = ""; $("#paradas-top").innerHTML = "";
@@ -4746,10 +4733,9 @@
       $("#paradas-kpis").innerHTML = ""; $("#paradas-top").innerHTML = "";
       return;
     }
-    renderTendencia(R, wraps[0]);
-    renderParadas(R, wraps[1]);
-    renderHeatmap(R, wraps[2]);
-    renderComparativoTurnos(wraps[3]);
+    renderParadas(R, wraps[0]);
+    renderHeatmap(R, wraps[1]);
+    renderComparativoTurnos(wraps[2]);
   }
 
   // Agrupa as linhas do resumo em "baldes" de tempo (dia; no ano, semana).
@@ -4795,32 +4781,6 @@
     const itens = series.map((sr) => ({ cor: sr.cor, texto: sr.nome }));
     if (metaPct !== null) itens.push({ cor: "var(--ink-600)", texto: `Meta ${Math.round(metaPct)}%`, tracejado: true });
     wrap.appendChild(legenda(itens));
-  }
-
-  function renderTendencia(R, wrap) {
-    const porSemana = periodoSelecionado === "ano";
-    const baldes = new Map();
-    R.linhas.forEach((ln) => {
-      const k = chaveBalde(ln.dia, porSemana);
-      if (!baldes.has(k)) baldes.set(k, {});
-      const b = baldes.get(k);
-      MACHINE_IDS.forEach((id) => {
-        const m = ln.maquinas[id];
-        if (!b[id]) b[id] = { lig: 0, disp: 0 };
-        b[id].lig += m.ligadoS; b[id].disp += m.dispS;
-      });
-    });
-    const chaves = [...baldes.keys()].sort((a, b) => a - b);
-    if (chaves.length < 2) {
-      vazio(wrap, periodoSelecionado === "dia" ? "A tendência compara dias — escolha Semana, Mês ou Ano no filtro de período." : "Ainda há só um dia com turno neste período.");
-      return;
-    }
-    const series = MACHINE_IDS.map((id) => ({
-      nome: machineName(id), cor: `var(${MACHINE_META[id].colorVar})`,
-      valores: chaves.map((k) => { const v = baldes.get(k)[id]; return v && v.disp > 0 ? (v.lig / v.disp) * 100 : null; }),
-      detalhe: (i) => { const v = baldes.get(chaves[i])[id]; return `<div class="tt-row"><span>Ligado</span><strong class="mono">&nbsp;${fmtDuration(v.lig)}</strong></div><div class="tt-row"><span>Disponível</span><strong class="mono">&nbsp;${fmtDuration(v.disp)}</strong></div>`; }
-    }));
-    graficoLinhas(wrap, chaves, series, metaRendimentoPct(), (k) => (porSemana ? "sem " : "") + ddmmDe(k), "Tendência diária de rendimento por máquina");
   }
 
   function renderParadas(R, wrap) {
