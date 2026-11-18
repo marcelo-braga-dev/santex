@@ -249,6 +249,14 @@ class TesteServidor(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, e.headers, e.read()
 
+    def test_head_igual_ao_get_sem_corpo(self):
+        """Monitores de disponibilidade usam HEAD (antes: 501)."""
+        st_get, cab_get, corpo_get = self.pedir("/index.html")
+        st, cab, corpo = self.pedir("/index.html", metodo="HEAD")
+        self.assertEqual((st, corpo), (st_get, b""))
+        self.assertEqual(cab["Content-Length"], str(len(corpo_get)))
+        self.assertEqual(cab["Content-Type"], cab_get["Content-Type"])
+
     def test_dados_responde_304_sem_mudanca(self):
         st, cab, corpo = self.pedir("/dados")
         self.assertEqual(st, 200)

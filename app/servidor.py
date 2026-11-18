@@ -35,6 +35,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, unquote, urlparse
@@ -201,6 +202,21 @@ def _csv_atual():
         return dict(_cache_csv)
 
 
+class _SemCorpo:
+    """Saida que descarta o corpo da resposta (requisicoes HEAD)."""
+
+    closed = False
+
+    def write(self, dados):
+        return len(dados)
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+
 class Handler(BaseHTTPRequestHandler):
     timeout = TIMEOUT_CONEXAO_S
     protocol_version = "HTTP/1.0"
@@ -226,6 +242,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Referrer-Policy", "same-origin")
             self.send_header("Strict-Transport-Security", "max-age=31536000")
         super().end_headers()
+        if self.command == "HEAD" and not hasattr(self, "_wfile_real"):
+            # HEAD: mesmos cabecalhos do GET, corpo descartado
+            self._wfile_real, self.wfile = self.wfile, _SemCorpo()
+
+    def finish(self):
+        if hasattr(self, "_wfile_real"):
+            self.wfile = self._wfile_real
+        super().finish()
 
     @staticmethod
     def _hashes_papeis():
@@ -264,11 +288,11 @@ class Handler(BaseHTTPRequestHandler):
         if not MODO_NUVEM:
             return True
         caminho = urlparse(self.path).path
-        if self.command == "GET" and caminho == "/assets/logo.png":
+        if self.command in ("GET", "HEAD") and caminho == "/assets/logo.png":
             return True  # o logo aparece na propria tela de login
         if self._sessao_valida():
             return True
-        if self.command == "GET" and caminho in ("/", "/index.html"):
+        if self.command in ("GET", "HEAD") and caminho in ("/", "/index.html"):
             self._responder_html(nuvem.pagina_login(senha_definida=any(self._hashes_papeis().values())))
         else:
             self._responder_json({"ok": False, "erro": "login"}, status=401)
@@ -396,6 +420,11 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as erro:  # noqa: BLE001 - nunca derruba o servidor
             self._erro_interno(erro)
 
+    def do_HEAD(self):
+        """Monitores de disponibilidade (UptimeRobot etc.) usam HEAD - antes
+        respondia 501 e o site parecia fora do ar."""
+        self.do_GET()
+
     def do_POST(self):
         try:
             self._post()
@@ -405,8 +434,12 @@ class Handler(BaseHTTPRequestHandler):
             self._erro_interno(erro)
 
     def _erro_interno(self, erro):
+        # detalhe completo no log (journalctl -u painel-nuvem na VPS); na
+        # internet o visitante so ve uma mensagem generica
+        traceback.print_exc()
+        mensagem = "erro interno" if MODO_NUVEM else f"{type(erro).__name__}: {erro}"
         try:
-            self._responder_json({"ok": False, "erro": f"{type(erro).__name__}: {erro}"}, status=500)
+            self._responder_json({"ok": False, "erro": mensagem}, status=500)
         except Exception:  # noqa: BLE001 - conexao ja fechada
             pass
 
