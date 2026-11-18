@@ -81,6 +81,27 @@ edição já recebidas, edição remota testada em produção.
 **Não refaça os Passos 0–3 nem mexa no LiteSpeed** num deploy comum: só
 atualize o código e verifique.
 
+**Proxy do LiteSpeed (aaPanel, ajustado em 18/11/2026)** — as regras ficam em
+`/www/server/panel/vhost/openlitespeed/proxy/santex.rexar.com.br/urlrewrite/*.conf`
+(a pasta do site no aaPanel é `/www/wwwroot/santex/painel`):
+```
+RewriteCond %{SERVER_PORT} !^443$
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+RewriteRule ^/(.*)$ https://santex.rexar.com.br/$1 [R=301,L]
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+RewriteRule ^/(.*)$ http://proxy_42fc7/$1 [P,E=Proxy-Host:$host]
+```
+Sem a exceção do `acme-challenge`, a renovação automática do certificado
+Let's Encrypt (cron do aaPanel, 16:11, a partir de 31 dias do vencimento)
+cai no Python e falha — o certificado vence e o **ESP32 para de enviar**.
+O "Force HTTPS" do aaPanel sozinho não funciona aqui (a regra do proxy roda
+antes dele). **Se alguém editar o proxy pela tela do aaPanel, ele regrava esse
+arquivo: confira e reponha as regras.** Teste rápido:
+`curl -s -o /dev/null -w '%{http_code}\n' http://santex.rexar.com.br/` → `301`;
+um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
+abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
+(suave, não derruba os outros sites).
+
 **Revisão final da 1.2.0** (deploy seguinte ao `3d3166f`): a VPS passa a
 enviar cabeçalhos de proteção (`X-Frame-Options: DENY`, `nosniff`,
 `Referrer-Policy`, HSTS) e o bloqueio por senhas erradas usa o **último**

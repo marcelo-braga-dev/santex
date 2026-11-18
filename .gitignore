@@ -45,3 +45,9 @@ desktop.ini
 .vscode/
 .idea/
 
+# ---- Arquivos do painel do servidor na VPS (pasta /www/wwwroot/santex) ----
+# criados pelo painel de hospedagem e pela renovacao do certificado HTTPS
+/.htaccess
+/.user.ini
+/.well-known/
+/painel/.well-known/
