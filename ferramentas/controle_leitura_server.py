@@ -28,7 +28,7 @@ def main():
     except OSError as erro:
         print(f"Nao foi possivel abrir a porta {servidor.PORTA_SERVIDOR}: {erro}")
         print("O aplicativo do painel (ou outro servidor) ja esta aberto neste computador?")
-        return
+        return 1  # falha: o systemd registra o erro (antes saia com 0)
     print(f"Painel em http://localhost (versao {servidor.APP_VERSAO})")
     print(f"Banco de dados: {servidor.banco.caminho}")
     print("Deixe esta janela aberta. Ctrl+C para encerrar.")
@@ -44,4 +44,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

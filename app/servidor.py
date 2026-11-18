@@ -583,7 +583,13 @@ class _ServidorExclusivo(ThreadingHTTPServer):
     """
 
     daemon_threads = True
-    allow_reuse_address = False
+    # Linux: SO_REUSEADDR NAO deixa dois processos escutarem a mesma porta
+    # (o segundo bind falha do mesmo jeito); so permite reabrir a porta logo
+    # apos um reinicio. Sem ele, as conexoes em TIME-WAIT bloqueiam a porta
+    # por ~60 s e o painel da VPS fica fora do ar a cada deploy/reinicio.
+    # No Windows continua desligado (la ele divide a porta; vale o
+    # SO_EXCLUSIVEADDRUSE de server_bind).
+    allow_reuse_address = not hasattr(socket, "SO_EXCLUSIVEADDRUSE")
     allow_reuse_port = False
     # IPv6 + IPv4 no mesmo socket ("dual-stack"): o Windows traduz nomes
     # (painel.local, nome do PC) primeiro para IPv6 - so IPv4 dava timeout.
