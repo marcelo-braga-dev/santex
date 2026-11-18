@@ -457,7 +457,9 @@ def sincronizar_config(banco, dir_dados, corpo, setor_padrao):
             banco.marcar_rev(chave, banco.max_rev() + 1, editado, "notebook", "notebook", False)
             valor_depois = ler_item(banco, setor, chave)
             if not _igual(valor_antes, valor_depois):
-                banco.registrar_alteracao(editado, "notebook", "notebook", chave, f"{nome_item(chave)}: {resumo_item(chave, valor_depois)}")
+                # auditoria com a hora real (a da semente e "muito antiga" de proposito)
+                quando = editado if editado != SEMENTE_EM else _agora_utc()
+                banco.registrar_alteracao(quando, "notebook", "notebook", chave, f"{nome_item(chave)}: {resumo_item(chave, valor_depois)}")
             aceitos.append(chave)
         else:
             rejeitados.append({"chave": chave, "venceu_em": atual["editado_em"],
@@ -613,8 +615,11 @@ class LimiteTentativas:
             return len(recentes) >= self.MAX_FALHAS
 
     def falhou(self, ip):
+        agora = time.monotonic()
         with self._trava:
-            self._falhas.setdefault(ip, []).append(time.monotonic())
+            self._falhas.setdefault(ip, []).append(agora)
+            if len(self._falhas) > 5000:  # robos de varredura: esquece os IPs sem erro recente
+                self._falhas = {k: v for k, v in self._falhas.items() if v and agora - v[-1] < self.JANELA_S}
 
 
 class Sessoes:
@@ -837,13 +842,16 @@ class EnviadorConfig:
         url = cfg["url"]
         atuais = itens_atuais(self.banco, self.setor)
         if self._rev_conhecida(url) == 0:
-            # primeira troca com esta VPS: a configuracao daqui e a semente. Com
-            # data antiga: se a VPS ja tiver revisoes (edicoes remotas), elas
-            # vencem; VPS vazia aceita tudo. Edicoes reais pendentes ficam como estao.
-            pendentes = {p["chave"] for p in self.banco.pendentes()}
+            # primeira troca com esta VPS (ou ela foi reinstalada/restaurada): a
+            # configuracao daqui e a semente, cada item com a data da sua ultima
+            # alteracao conhecida (sem data = muito antiga). VPS vazia aceita
+            # tudo; VPS restaurada de backup fica com o que for mais recente.
+            revs = self.banco.listar_revs()
             for chave in atuais:
-                if chave not in pendentes:
-                    self.banco.marcar_rev(chave, 0, SEMENTE_EM, "notebook", "notebook", True)
+                r = revs.get(chave)
+                if not (r and r["pendente"]):
+                    self.banco.marcar_rev(chave, 0, (r or {}).get("editado_em") or SEMENTE_EM,
+                                          (r or {}).get("origem") or "notebook", (r or {}).get("autor") or "notebook", True)
         enviados = {}
         for p in self.banco.pendentes():
             if p["chave"] in atuais:
@@ -864,6 +872,10 @@ class EnviadorConfig:
         if resposta.get("versao") != 2:  # VPS ainda na 1.1.0: so o envio antigo funciona
             return self._enviar_legado(cfg)
         self._aplicar_resposta(url, enviados, resposta)
+        if int(resposta.get("rev_atual") or 0) < corpo["rev_conhecida"]:
+            # a VPS "voltou no tempo" (reinstalada ou restaurada de backup):
+            # na proxima rodada reenvia toda a configuracao como semente
+            self.banco.salvar_segredo(SEGREDO_SYNC_CONFIG, json.dumps({"url": url, "rev": 0}))
         self._atualizar(ultimo_envio=_agora_iso(), erro="", modo="duas-maos")
         return True
 
@@ -890,7 +902,8 @@ class EnviadorConfig:
             if not _igual(ler_item(self.banco, self.setor, chave), r["valor"]):
                 gravar_item(self.banco, self.setor, chave, r["valor"])
                 quem = "nuvem" if r.get("origem") == "nuvem" else r.get("origem", "")
-                self.banco.registrar_alteracao(r.get("editado_em", ""), quem, r.get("autor", ""), chave,
+                quando = r.get("editado_em", "") if r.get("editado_em") != SEMENTE_EM else _agora_utc()
+                self.banco.registrar_alteracao(quando, quem, r.get("autor", ""), chave,
                                                f"{nome_item(chave)}: {resumo_item(chave, r['valor'])} (recebido da nuvem)")
                 if chave in rejeitados and (local or {}).get("editado_em") != SEMENTE_EM:
                     self._avisar(f"Sua alteração em {nome_item(chave)} foi substituída por uma mais recente "

@@ -214,6 +214,69 @@ class TesteEdicaoRemota(unittest.TestCase):
         self.assertEqual(maquinas["3"]["nome"], "Leste remota")
         self.assertEqual(maquinas["9"]["nome"], "Nova do 1.1.0")
 
+    def test_8_bloqueio_nao_burlavel_e_cabecalhos_de_protecao(self):
+        # o atacante inventa o 1o item do X-Forwarded-For a cada tentativa; o
+        # proxy acrescenta o IP real no fim - e esse que conta
+        codigos = []
+        for i in range(12):
+            con = http.client.HTTPConnection("127.0.0.1", self.porta, timeout=10)
+            con.request("POST", "/login", urllib.parse.urlencode({"senha": "chute"}),
+                        {"Content-Type": "application/x-www-form-urlencoded",
+                         "X-Forwarded-For": f"10.0.0.{i}, 198.51.100.77"})
+            r = con.getresponse()
+            r.read()
+            con.close()
+            codigos.append(r.status)
+        self.assertEqual(codigos[-1], 429)
+        st, _, cab = self.pedir("/status", cab=self.editor())
+        self.assertEqual(cab.get("X-Frame-Options"), "DENY")
+        self.assertIn("frame-ancestors 'none'", cab.get("Content-Security-Policy", ""))
+        self.assertEqual(cab.get("X-Content-Type-Options"), "nosniff")
+
+    def test_9_vps_reinstalada_recebe_a_configuracao_de_novo(self):
+        dados = tempfile.mkdtemp(prefix="painel_vps_reset_")
+        porta = porta_livre()
+        env = {**os.environ, "PAINEL_MODO": "nuvem", "PAINEL_DADOS": dados, "PAINEL_PORTA": str(porta),
+               "NUVEM_CHAVE": CHAVE, "PYTHONIOENCODING": "utf-8"}
+        script = os.path.join(RAIZ, "ferramentas", "controle_leitura_server.py")
+
+        def subir():
+            proc = subprocess.Popen([sys.executable, script], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(100):
+                try:
+                    urllib.request.urlopen(f"http://127.0.0.1:{porta}/assets/logo.png", timeout=1).close()
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            return proc
+
+        dir_nb = tempfile.mkdtemp(prefix="painel_nb_reset_")
+        with open(os.path.join(dir_nb, "nuvem.json"), "w", encoding="utf-8") as f:
+            json.dump({"url": f"http://127.0.0.1:{porta}", "chave": CHAVE}, f)
+        nb = BancoDados(os.path.join(dir_nb, "painel.db"))
+        nuvem.aplicar_config(nb, {"metaPctDia": 66, "maquinas": {"1": {"nome": "Antes", "metrosPorMin": 2}}},
+                             SETOR, origem="notebook", autor="notebook")
+        enviador = nuvem.EnviadorConfig(nb, dir_nb, SETOR)
+        proc = subir()
+        try:
+            self.assertTrue(enviador.enviar_agora())
+            proc.terminate()
+            proc.wait(timeout=10)
+            for nome in os.listdir(dados):  # "reinstalada": banco da VPS perdido (pasta temporaria do teste)
+                if nome.startswith("painel.db"):
+                    os.remove(os.path.join(dados, nome))
+            proc = subir()
+            self.assertTrue(enviador.enviar_agora())  # percebe que a VPS voltou no tempo
+            self.assertTrue(enviador.enviar_agora())  # e reenvia tudo
+            vps = BancoDados(os.path.join(dados, "painel.db"))
+            self.assertEqual(vps.obter_meta_pct_dia(SETOR), 66)
+            self.assertEqual(vps.obter_maquinas(SETOR)["1"]["nome"], "Antes")
+            vps._conn.close()
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+            nb._conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

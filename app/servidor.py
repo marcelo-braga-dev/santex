@@ -208,12 +208,24 @@ class Handler(BaseHTTPRequestHandler):
     # -- autorizacao -----------------------------------------------------
 
     def _ip_cliente(self):
-        """IP de quem pediu: atras do Caddy (VPS) vem no X-Forwarded-For."""
+        """IP de quem pediu: atras do proxy da VPS (LiteSpeed/Caddy) vem no
+        X-Forwarded-For. Vale o ULTIMO item - o que o proxy acrescentou; os
+        anteriores vem do proprio cliente e podem ser inventados (trocar de
+        "IP" a cada tentativa burlaria o bloqueio por senhas erradas)."""
         ip = self.client_address[0]
         encaminhado = self.headers.get("X-Forwarded-For", "")
         if encaminhado and _eh_loopback(ip):
-            return encaminhado.split(",")[0].strip()
+            return encaminhado.split(",")[-1].strip() or ip
         return ip
+
+    def end_headers(self):
+        if MODO_NUVEM:  # painel publico na internet: protecoes do navegador
+            self.send_header("X-Frame-Options", "DENY")  # nenhum site embute o painel (clickjacking)
+            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "same-origin")
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
+        super().end_headers()
 
     @staticmethod
     def _hashes_papeis():
@@ -610,7 +622,10 @@ class Handler(BaseHTTPRequestHandler):
             self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
             return
         origem = "nuvem" if MODO_NUVEM else "notebook"
-        autor = f"edição remota ({self._ip_cliente()})" if MODO_NUVEM else "notebook"
+        if MODO_NUVEM:
+            autor = f"edição remota ({self._ip_cliente()})"
+        else:  # o proprio computador da fabrica, ou um aparelho da rede com o PIN
+            autor = "notebook" if _eh_este_computador(self.client_address[0]) else f"rede local ({self.client_address[0]})"
         senhas = {papel: corpo[campo] for campo, papel in (("senhaRemota", "leitura"), ("senhaEdicao", "edicao"))
                   if campo in corpo}
         cabecalhos = {}
