@@ -502,16 +502,18 @@ class Handler(BaseHTTPRequestHandler):
         """VPS: recebe do ESP32 (/api/nuvem/enviar) e do notebook
         (/api/nuvem/config). Chave errada -> 403 (o ESP32 e o notebook
         mostram "chave recusada")."""
-        if rota not in ("/api/nuvem/enviar", "/api/nuvem/config", "/api/nuvem/ping"):
+        if rota not in ("/api/nuvem/enviar", "/api/nuvem/config", "/api/nuvem/historico", "/api/nuvem/ping"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
         ip = self._ip_cliente()
-        if limite.bloqueado(ip):
-            self._responder_json({"ok": False, "erro": "muitas tentativas"}, status=429)
-            return
+        # Chave certa passa sempre: tentativas erradas de terceiros (no mesmo
+        # IP ou com o IP mascarado pelo proxy) nunca travam o ESP32/notebook.
         if not nuvem.chave_confere(NUVEM_CHAVE, self.headers.get("X-Chave-Nuvem", "")):
+            if limite.bloqueado(ip):
+                self._responder_json({"ok": False, "erro": "muitas tentativas"}, status=429)
+                return
             limite.falhou(ip)
             self._responder_json({"ok": False, "erro": "chave invalida"}, status=403)
             return
@@ -522,6 +524,8 @@ class Handler(BaseHTTPRequestHandler):
             corpo = self._corpo_json()
             if rota == "/api/nuvem/enviar":
                 resposta = nuvem.receber_do_esp(banco, dir_dados_usuario(), SETOR_PADRAO, corpo, ip)
+            elif rota == "/api/nuvem/historico":
+                resposta = nuvem.receber_historico(banco, dir_dados_usuario(), corpo, SETOR_PADRAO)
             else:
                 resposta = nuvem.receber_config(banco, dir_dados_usuario(), corpo, SETOR_PADRAO)
         except (ValueError, UnicodeDecodeError) as erro:

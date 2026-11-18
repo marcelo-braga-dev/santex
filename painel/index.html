@@ -5753,6 +5753,14 @@
       const n = s.nuvem;
       if (n.erro) avisos.push(["sync-warn", `⚠ Acesso remoto: a configuração não chegou à nuvem (${escaparHtml(n.url)}) — ${escaparHtml(n.erro)}. Tenta de novo sozinho.`]);
       else if (n.ultimo_envio) avisos.push(["sync-info", `Acesso remoto: configuração enviada para a nuvem ${fmtQuando(n.ultimo_envio)}.`]);
+      const h = n.historico || {};
+      if (h.erro) {
+        avisos.push(["sync-warn", `⚠ Histórico na nuvem: ${escaparHtml(h.erro)}.${h.pendentes ? ` ${Number(h.pendentes).toLocaleString("pt-BR")} ciclo(s) aguardando.` : ""} Tenta de novo sozinho.`]);
+      } else if (h.pendentes > 0) {
+        avisos.push(["sync-info", `Histórico na nuvem: enviando — ${Number(h.pendentes).toLocaleString("pt-BR")} ciclo(s) ainda a enviar.`]);
+      } else if (h.pendentes === 0) {
+        avisos.push(["sync-info", `Histórico na nuvem: em dia${h.total_nuvem ? ` (${Number(h.total_nuvem).toLocaleString("pt-BR")} ciclos na nuvem)` : ""}.`]);
+      }
     }
     if (s.modo === "wifi" && s.nuvem_esp && s.nuvem_esp.ativa) {
       const ne = s.nuvem_esp;

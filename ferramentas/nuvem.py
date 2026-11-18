@@ -11,11 +11,19 @@ Quem faz o que:
   - A VPS roda este mesmo servidor com PAINEL_MODO=nuvem: guarda uma copia e
     serve o painel SOMENTE LEITURA, com login, para quem esta fora da rede.
 
+Historico: o notebook tambem envia para a VPS TODOS os ciclos que ela ainda
+nao tem (em lotes, depois os novos a cada 30 s) - a VPS fica com o mesmo
+historico do notebook, alem do que o ESP32 manda direto. Deduplicacao pela
+serie do ESP32 + id do ciclo: o que chega pelos dois caminhos nao repete.
+
 Rotas da VPS (POST, com o cabecalho X-Chave-Nuvem = NUVEM_CHAVE do .env):
   /api/nuvem/enviar  <- ESP32: {"dispositivo", "firmware", "hora", "hora_valida",
                        "ultimo_id", "lido_ate", "perdidos", "maquinas": [...],
                        "ciclos": "id,maquina,ciclo,inicio,fim,duracao_s,obs\\n..."}
   /api/nuvem/config  <- notebook: o mesmo formato de GET /config
+  /api/nuvem/historico <- notebook: {"setor", "ciclos": [[id, maquina, ciclo,
+                       inicio, fim, duracao_s, obs, gravado_em, dispositivo,
+                       origem_id], ...]} -> {"ok", "gravados", "total"}
 
 Pessoas: UMA senha de acesso, definida e trocada no painel do NOTEBOOK
 (menu Configuracoes -> Acesso remoto). O notebook guarda so o hash (PBKDF2) e
@@ -48,6 +56,9 @@ SENHA_MIN, SENHA_MAX = 8, 128
 ARQUIVO_CONFIG_NUVEM = "nuvem.json"  # no notebook: {"url": "...", "chave": "..."} (opcional)
 ESP_SEM_ENVIAR_S = 60  # sem envio do ESP32 ha mais que isso = "controlador sem enviar"
 MAX_CICLOS_POR_ENVIO = 500
+MAX_HISTORICO_POR_ENVIO = 500
+DISPOSITIVO_SERIAL = "NOTEBOOK-SERIAL"  # ciclos lidos pela USB (sem serie do ESP32)
+CURSOR_HISTORICO = "cursor_historico_nuvem"  # notebook: ate qual id local a VPS confirmou
 
 
 def _agora_iso():
@@ -192,6 +203,33 @@ def receber_config(banco, dir_dados, corpo, setor_padrao):
             {"hash": acesso["hash"], "alterado_em": str(acesso.get("alteradoEm", ""))[:25]}))
     _atualizar_status(dir_dados, config_recebida_em=_agora_iso())
     return {"ok": True}
+
+
+def receber_historico(banco, dir_dados, corpo, setor_padrao):
+    """VPS: grava um lote do historico enviado pelo notebook. Lote vazio so
+    devolve o total (o notebook usa para conferir se falta algo)."""
+    setor = str(corpo.get("setor", setor_padrao))[:40]
+    linhas = corpo.get("ciclos") or []
+    if not isinstance(linhas, list) or len(linhas) > MAX_HISTORICO_POR_ENVIO:
+        raise ValueError("lote invalido ou grande demais")
+    gravados = 0
+    for item in linhas:
+        try:
+            id_local, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em, dispositivo, origem_id = item
+            if not dispositivo or origem_id is None:  # lido pela USB: o id local do notebook identifica
+                dispositivo, origem_id = DISPOSITIVO_SERIAL, id_local
+            if banco.gravar_ciclo_remoto(
+                setor, str(dispositivo)[:64], int(origem_id), int(maquina), int(ciclo),
+                str(inicio)[:25], str(fim)[:25], float(duracao_s), str(obs or "")[:80],
+                str(gravado_em)[:19] if gravado_em else None,
+            ):
+                gravados += 1
+        except (TypeError, ValueError):
+            continue
+    total = banco.total_ciclos(setor)
+    if linhas:
+        _atualizar_status(dir_dados, historico_recebido_em=_agora_iso(), ciclos_total=total)
+    return {"ok": True, "gravados": gravados, "total": total}
 
 
 def status_nuvem(dir_dados):
@@ -379,24 +417,102 @@ def config_nuvem_app(dir_dados):
 
 
 class EnviadorConfig:
-    """Thread do notebook: manda a configuracao para a VPS quando ela muda
-    (conferido a cada 30 s) e, mesmo sem mudanca, a cada 30 min. Sem
-    internet, so tenta de novo depois - nunca atrapalha o painel local."""
+    """Thread do notebook (a cada 30 s): manda para a VPS a configuracao
+    quando ela muda (e a cada 30 min) e o HISTORICO de ciclos que ela ainda
+    nao tem - primeiro tudo, em lotes, depois so os novos. De hora em hora
+    confere os totais: se a VPS tiver menos ciclos (reinstalada, banco
+    perdido), reenvia tudo - sem duplicar. Sem internet, so tenta de novo
+    depois - nunca atrapalha o painel local."""
 
     VERIFICAR_S = 30
     REENVIAR_S = 1800
-    TIMEOUT_S = 10
+    CONFERIR_TOTAIS_S = 3600
+    LOTES_POR_RODADA = 20  # ate 10.000 ciclos por rodada (o resto na proxima)
+    TIMEOUT_S = 20
 
     def __init__(self, banco, dir_dados, setor):
         self.banco, self.dir_dados, self.setor = banco, dir_dados, setor
         self.parar_evento = threading.Event()
-        self._status = {"ativo": False, "url": "", "ultimo_envio": "", "erro": ""}
+        self._status = {"ativo": False, "url": "", "ultimo_envio": "", "erro": "",
+                        "historico": {"ate": 0, "pendentes": None, "total_nuvem": None, "ultimo_envio": "", "erro": ""}}
         self._ultimo_hash, self._ultimo_ok = None, 0.0
+        self._ultima_conferencia = 0.0
         self._trava = threading.Lock()
 
     def status(self):
         with self._trava:
-            return dict(self._status)
+            return {**self._status, "historico": dict(self._status["historico"])}
+
+    def _atualizar_historico(self, **campos):
+        with self._trava:
+            self._status["historico"].update(campos)
+
+    # -- historico de ciclos -> VPS ---------------------------------------
+    def _cursor(self, url):
+        """Ate qual id local a VPS confirmou (por URL: trocar a VPS recomeca)."""
+        try:
+            dados = json.loads(self.banco.obter_segredo(CURSOR_HISTORICO) or "{}")
+        except ValueError:
+            dados = {}
+        return int(dados.get("ate", 0)) if dados.get("url") == url else 0
+
+    def _salvar_cursor(self, url, ate):
+        self.banco.salvar_segredo(CURSOR_HISTORICO, json.dumps({"url": url, "ate": int(ate)}))
+
+    def _post_historico(self, cfg, linhas):
+        corpo = json.dumps({"setor": self.setor, "ciclos": linhas}, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(cfg["url"] + "/api/nuvem/historico", data=corpo, method="POST",
+                                     headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
+        with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def enviar_historico(self, conferir=None):
+        """Envia o que falta do historico. Devolve quantos ciclos foram
+        gravados na VPS nesta rodada (None = nada a fazer / falhou)."""
+        cfg = config_nuvem_app(self.dir_dados)
+        if not cfg["url"]:
+            return None
+        url = cfg["url"]
+        try:
+            ate = self._cursor(url)
+            total_local = self.banco.total_ciclos(self.setor)
+            if conferir is None:
+                conferir = time.monotonic() - self._ultima_conferencia > self.CONFERIR_TOTAIS_S
+            if conferir and ate > 0:
+                # a VPS ainda tem tudo o que ja foi enviado? (lote vazio = so o total)
+                total_nuvem = self._post_historico(cfg, [])["total"]
+                self._ultima_conferencia = time.monotonic()
+                self._atualizar_historico(total_nuvem=total_nuvem)
+                if total_nuvem < self.banco.total_ciclos(self.setor) - self.banco.total_ciclos(self.setor, ate):
+                    ate = 0  # faltam ciclos que ja tinham ido: reenvia tudo (a VPS nao duplica)
+                    self._salvar_cursor(url, 0)
+            gravados = 0
+            for _ in range(self.LOTES_POR_RODADA):
+                lote = self.banco.ciclos_para_nuvem(self.setor, ate, MAX_HISTORICO_POR_ENVIO)
+                if not lote:
+                    break
+                linhas = [[c["id"], c["maquina"], c["ciclo"], c["inicio_ms"], c["fim_ms"], c["duracao_s"],
+                           c["obs"], c["gravado_em"], c["dispositivo"], c["origem_id"]] for c in lote]
+                resposta = self._post_historico(cfg, linhas)
+                gravados += int(resposta.get("gravados", 0))
+                ate = lote[-1]["id"]
+                self._salvar_cursor(url, ate)
+                self._atualizar_historico(total_nuvem=resposta.get("total"), ultimo_envio=_agora_iso())
+                if self.parar_evento.is_set():
+                    break
+            self._atualizar_historico(ate=ate, pendentes=self.banco.total_ciclos(self.setor, ate), erro="")
+            return gravados
+        except HTTPError as erro:
+            if erro.code == 404:
+                motivo = "a VPS ainda não recebe o histórico — atualize o servidor da VPS (pacote mais novo)"
+            elif erro.code == 403:
+                motivo = "chave recusada pela VPS (NUVEM_CHAVE diferente)"
+            else:
+                motivo = f"HTTP {erro.code}"
+        except (OSError, ValueError, KeyError) as erro:
+            motivo = f"sem conexão com a VPS ({erro})"
+        self._atualizar_historico(erro=motivo, pendentes=self.banco.total_ciclos(self.setor, self._cursor(url)))
+        return None
 
     def _atualizar(self, **campos):
         with self._trava:
@@ -441,6 +557,10 @@ class EnviadorConfig:
                     self.enviar_agora()
                 except Exception as erro:  # noqa: BLE001 - nunca derruba o app
                     self._atualizar(erro=f"{type(erro).__name__}: {erro}")
+                try:
+                    self.enviar_historico()
+                except Exception as erro:  # noqa: BLE001
+                    self._atualizar_historico(erro=f"{type(erro).__name__}: {erro}")
                 self.parar_evento.wait(self.VERIFICAR_S)
 
         threading.Thread(target=laco, name="nuvem-config", daemon=True).start()

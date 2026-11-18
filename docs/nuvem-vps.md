@@ -24,8 +24,8 @@ visualizar. A senha é definida e trocada no notebook da fábrica, em
 | Quem | Faz o quê |
 |---|---|
 | **ESP32** | Continua respondendo ao notebook na rede local e **também envia** os ciclos e o estado das máquinas para a VPS, sozinho, a cada ~10 s. Funciona com o notebook desligado. |
-| **Notebook (app)** | Continua sendo o **fornecedor principal** na empresa (lê o ESP32 pela rede local, painel completo, edição). Quando ligado com internet, envia a **configuração** (máquinas, metas, turnos, cores) para a VPS. |
-| **VPS** | Guarda uma cópia e serve o painel para quem está fora, **sempre somente leitura**, com login. |
+| **Notebook (app)** | Continua sendo o **fornecedor principal** na empresa (lê o ESP32 pela rede local, painel completo, edição). Quando ligado com internet, envia para a VPS a **configuração** (máquinas, metas, turnos, cores, hash da senha) e **todo o histórico de ciclos** que ela ainda não tem — a VPS fica com o mesmo histórico do notebook. |
+| **VPS** | Tem **banco próprio** com o histórico completo (o que o notebook enviou + o que o ESP32 manda direto, sem duplicar) e serve o painel para quem está fora, **sempre somente leitura**, com a senha. |
 
 Se a internet da empresa ou a VPS cair, o ESP32 guarda os ciclos (até ~20.000)
 e envia o que faltou quando a conexão voltar. Ele só libera um ciclo da
@@ -170,9 +170,23 @@ Logs na VPS: `journalctl -u painel-nuvem -f`. Backups diários do banco da
 VPS: `/var/lib/painel-nuvem/backups/` (o notebook continua sendo a cópia
 principal).
 
-## Atualizar a VPS depois
+## Atualizar a VPS depois (deploy)
 
-Gere e copie o pacote de novo (passo 2.2), extraia por cima e rode
+**Pelo git (caminho usado hoje):** na VPS, dentro do clone do repositório
+(`git clone https://github.com/marcelo-braga-dev/santex.git ~/santex` na
+primeira vez — o repositório é público, não pede login):
+
+```bash
+cd ~/santex
+git pull --ff-only
+sudo bash deploy/instalar_vps.sh      # mantém dados, senha e chave; reinicia o serviço
+```
+
+Ou peça ao Claude Code, na pasta do clone: *"faça o deploy"* — o `CLAUDE.md`
+da raiz manda seguir `deploy/CLAUDE_VPS.md`, seção "Deploy de uma
+atualização (git pull)", que inclui as verificações.
+
+**Pelo pacote:** gere e copie de novo (passo 2.2), extraia por cima e rode
 `sudo bash deploy/instalar_vps.sh` — mantém dados, senha e chave. Para
 conferir a chave sem gravar nada: `POST /api/nuvem/ping` com o cabeçalho
 `X-Chave-Nuvem` (responde `{"ok": true}` ou 403).

@@ -218,5 +218,111 @@ class TesteModoNuvem(unittest.TestCase):
         self.assertEqual(self.entrar(ip="198.51.100.7")[0], 303)  # outro IP segue normal
 
 
+class TesteHistoricoNaNuvem(unittest.TestCase):
+    """O notebook envia TODO o historico para a VPS (servidor proprio,
+    banco vazio), sem duplicar o que o ESP32 ja mandou direto."""
+
+    SERIE = "AABBCCDD"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dados = tempfile.mkdtemp(prefix="painel_nuvem_hist_")
+        cls.porta = porta_livre()
+        env = {**os.environ, "PAINEL_MODO": "nuvem", "PAINEL_DADOS": cls.dados,
+               "PAINEL_PORTA": str(cls.porta), "NUVEM_CHAVE": CHAVE, "PYTHONIOENCODING": "utf-8"}
+        cls.proc = subprocess.Popen([sys.executable, os.path.join(RAIZ, "ferramentas", "controle_leitura_server.py")],
+                                    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        cls.base = f"http://127.0.0.1:{cls.porta}"
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(cls.base + "/assets/logo.png", timeout=1).close()
+                break
+            except OSError:
+                time.sleep(0.1)
+        # notebook com 1.230 ciclos do ESP32 (3 lotes) + 2 lidos pela USB
+        cls.local = tempfile.mkdtemp(prefix="painel_notebook_hist_")
+        with open(os.path.join(cls.local, "nuvem.json"), "w", encoding="utf-8") as f:
+            json.dump({"url": cls.base, "chave": CHAVE}, f)
+        cls.b = BancoDados(os.path.join(cls.local, "painel.db"))
+        for i in range(1, 1231):
+            mac = "403FA83CFC3F" if i < 600 else "704BCA02D640"  # o MAC mudou no meio, a serie nao
+            cls.b.gravar_ciclo_remoto("enfestadeiras", f"{mac}-{cls.SERIE}", i, 1 + i % 4, i, "?", "?",
+                                      10.0 + i % 7, "", f"2026-11-{1 + i // 100:02d} 08:00:{i % 60:02d}")
+        cls.b.gravar_ciclo("enfestadeiras", 2, 9001, "?", "?", 33.0, "")
+        cls.b.gravar_ciclo("enfestadeiras", 3, 9002, "?", "?", 44.0, "SEM_HORA")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.proc.terminate()
+        cls.proc.wait(timeout=10)
+        cls.proc.stderr.close()
+
+    def total_na_vps(self):
+        req = urllib.request.Request(self.base + "/api/nuvem/historico", method="POST",
+                                     data=json.dumps({"ciclos": []}).encode(),
+                                     headers={"Content-Type": "application/json", "X-Chave-Nuvem": CHAVE})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())["total"]
+
+    def test_historico_completo_sem_duplicar(self):
+        # o ESP32 (firmware 3.0) ja mandou direto os ciclos 1200..1230
+        lote = {"dispositivo": f"704BCA02D640-{self.SERIE}", "firmware": "3.0", "hora": "", "hora_valida": True,
+                "ultimo_id": 1230, "lido_ate": 1230, "perdidos": 0, "maquinas": [],
+                "ciclos": "id,maquina,ciclo,inicio,fim,duracao_s,obs\n" + "".join(
+                    f"{i},{1 + i % 4},{i},?,?,{10.0 + i % 7},\n" for i in range(1200, 1231))}
+        req = urllib.request.Request(self.base + "/api/nuvem/enviar", data=json.dumps(lote).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "X-Chave-Nuvem": CHAVE})
+        urllib.request.urlopen(req, timeout=5).close()
+        self.assertEqual(self.total_na_vps(), 31)
+
+        enviador = nuvem.EnviadorConfig(self.b, self.local, "enfestadeiras")
+        gravados = enviador.enviar_historico(conferir=False)
+        self.assertEqual(gravados, 1232 - 31)                # so o que faltava
+        self.assertEqual(self.total_na_vps(), 1232)          # = o notebook, sem duplicar
+        h = enviador.status()["historico"]
+        self.assertEqual((h["pendentes"], h["erro"]), (0, ""))
+        self.assertEqual(enviador.enviar_historico(conferir=False), 0)  # nada novo: nada enviado
+
+        # ciclo novo no notebook: vai na rodada seguinte
+        self.b.gravar_ciclo("enfestadeiras", 1, 9003, "?", "?", 12.0, "")
+        self.assertEqual(enviador.enviar_historico(conferir=False), 1)
+        self.assertEqual(self.total_na_vps(), 1233)
+
+        # a VPS "perdeu" os dados (reinstalada): a conferencia percebe e reenvia tudo
+        con = __import__("sqlite3").connect(os.path.join(self.dados, "painel.db"))
+        con.execute("DELETE FROM ciclos WHERE id % 2 = 0")
+        con.commit()
+        con.close()
+        self.assertLess(self.total_na_vps(), 1233)
+        enviador.enviar_historico(conferir=True)
+        self.assertEqual(self.total_na_vps(), 1233)
+
+    def test_vps_antiga_sem_rota_mostra_motivo(self):
+        import http.server
+        import threading
+
+        class VpsAntiga(http.server.BaseHTTPRequestHandler):  # a 1.1.0 anterior: rota desconhecida = 404
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+        antiga = http.server.ThreadingHTTPServer(("127.0.0.1", 0), VpsAntiga)
+        threading.Thread(target=antiga.serve_forever, daemon=True).start()
+        self.addCleanup(antiga.shutdown)
+        local = tempfile.mkdtemp(prefix="painel_notebook_hist_antiga_")
+        with open(os.path.join(local, "nuvem.json"), "w", encoding="utf-8") as f:
+            json.dump({"url": f"http://127.0.0.1:{antiga.server_address[1]}", "chave": CHAVE}, f)
+        b = BancoDados(os.path.join(local, "painel.db"))
+        b.gravar_ciclo("enfestadeiras", 1, 1, "?", "?", 5.0, "")
+        enviador = nuvem.EnviadorConfig(b, local, "enfestadeiras")
+        self.assertIsNone(enviador.enviar_historico(conferir=False))
+        self.assertIn("atualize o servidor da VPS", enviador.status()["historico"]["erro"])
+        self.assertEqual(enviador.status()["historico"]["pendentes"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

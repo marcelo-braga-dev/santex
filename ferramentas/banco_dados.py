@@ -239,6 +239,22 @@ class BancoDados:
             ).fetchone()
         return linha["ultimo"] or 0
 
+    def ciclos_para_nuvem(self, setor, apos_id, limite):
+        """Ciclos com id local > apos_id, em ordem - o historico que o
+        notebook envia para a VPS (nuvem.EnviadorConfig)."""
+        with self._lock:
+            return [dict(l) for l in self._conn.execute(
+                "SELECT id, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo, origem_id "
+                "FROM ciclos WHERE setor = ? AND id > ? ORDER BY id LIMIT ?",
+                (setor, apos_id, limite),
+            )]
+
+    def total_ciclos(self, setor, apos_id=0):
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM ciclos WHERE setor = ? AND id > ?", (setor, apos_id)
+            ).fetchone()[0]
+
     def versao_ciclos(self, setor):
         """Identifica o conteudo atual dos ciclos do setor (muda a cada ciclo
         gravado) - usado pelo servidor para responder "nada mudou" (304) sem
@@ -294,7 +310,10 @@ class BancoDados:
             ).fetchall()
         saida = ["maquina,ciclo,inicio_ms,fim_ms,duracao_s,obs,registrado_em"]
         for l in linhas:
-            sem_hora_real = l["dispositivo"] is not None and "SEM_HORA" in (l["obs"] or "")
+            # (ciclos da Serial enviados pelo notebook a VPS ficam com dispositivo
+            # "NOTEBOOK-SERIAL": a hora de chegada deles e real, como no notebook)
+            sem_hora_real = (l["dispositivo"] is not None and not l["dispositivo"].startswith("NOTEBOOK-SERIAL")
+                             and "SEM_HORA" in (l["obs"] or ""))
             registrado_em = "" if sem_hora_real else (l["gravado_em"] or "").replace(" ", "T")
             saida.append(
                 f"{l['maquina']},{l['ciclo']},{l['inicio_ms']},{l['fim_ms']},{l['duracao_s']},{l['obs']},{registrado_em}"

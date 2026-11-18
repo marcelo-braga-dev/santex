@@ -5,17 +5,23 @@ Você está numa **VPS de produção** que pode hospedar outros sites. Sua taref
 (app 1.1.0) em **https://santex.rexar.com.br**. Responda sempre em
 **português do Brasil**, com comandos e resultados claros.
 
-Este arquivo vem como `CLAUDE.md` na raiz do pacote `painel-nuvem-<versão>.tar.gz`,
-gerado no notebook da fábrica por `deploy/empacotar_vps.ps1` (no repositório ele
-se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
-`docs/nuvem-vps.md`.
+O código chega à VPS de dois jeitos: **clone do repositório**
+(`https://github.com/marcelo-braga-dev/santex`, atualizado com `git pull` —
+o caminho usado hoje; este arquivo é `deploy/CLAUDE_VPS.md`, e o `CLAUDE.md`
+da raiz aponta para cá) ou o pacote `painel-nuvem-<versão>.tar.gz` (este
+arquivo vira o `CLAUDE.md` dele). Guia humano equivalente: `docs/nuvem-vps.md`.
+
+**Pedido mais comum: "faça o deploy" depois de um `git pull`** → vá direto
+para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das regras.
 
 ## O que é o sistema (para entender antes de mexer)
 
 - Na fábrica, um **ESP32 (firmware 3.0)** lê 4 máquinas e **envia** ciclos e
   estado por HTTPS para `POST https://santex.rexar.com.br/api/nuvem/enviar`.
 - O **notebook da fábrica** (app 1.1.0) é a fonte principal e envia a
-  configuração (máquinas, metas, turnos) para `POST /api/nuvem/config`.
+  configuração (máquinas, metas, turnos, hash da senha) para
+  `POST /api/nuvem/config` e **todo o histórico de ciclos** que a VPS ainda
+  não tem para `POST /api/nuvem/historico` (lotes de 500, sem duplicar).
 - Os dois enviam o cabeçalho `X-Chave-Nuvem` com a **NUVEM_CHAVE**.
 - Nesta VPS roda o **mesmo servidor Python do app** em `PAINEL_MODO=nuvem`
   (`ferramentas/controle_leitura_server.py` → `app/servidor.py` +
@@ -32,7 +38,7 @@ se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
 | Dados (banco, hash da senha, backups) | `/var/lib/painel-nuvem` (dono `painel`) — **nunca apagar** |
 | Chave | `/etc/painel-nuvem.env` (`NUVEM_CHAVE=...`, root, 600) |
 | Serviço | `painel-nuvem` (systemd), escuta só em `127.0.0.1:8080` |
-| HTTPS | Caddy → `127.0.0.1:8080` (`deploy/Caddyfile`) |
+| HTTPS | **LiteSpeed** desta VPS (proxy no vhost de `santex.rexar.com.br`, certificado Let's Encrypt dele) → `127.0.0.1:8080`. Caddy/nginx só numa VPS sem LiteSpeed |
 | Logs | `journalctl -u painel-nuvem` |
 
 ## Regras que você NUNCA quebra
@@ -60,7 +66,64 @@ se chama `deploy/CLAUDE_VPS.md`). Guia humano equivalente:
 7. Não rode o servidor fora do systemd sem `PAINEL_MODO=nuvem` — sem ele o
    código tenta o modo da fábrica (porta 80, rede local).
 
+## Deploy de uma atualização (git pull) — o caso mais comum
+
+**Estado em 18/11/2026:** já instalado e funcionando — serviço
+`painel-nuvem` ativo, LiteSpeed fazendo o proxy de `santex.rexar.com.br`
+para `127.0.0.1:8080`, `NUVEM_CHAVE` em `/etc/painel-nuvem.env`, ESP32
+(firmware 3.0) e notebook (app 1.1.0) já enviando, senha de acesso já
+recebida. **Não refaça os Passos 0–3 nem mexa no LiteSpeed** num deploy
+comum: só atualize o código e verifique.
+
+Mudança que este deploy leva (commit seguinte ao `02b7412`): a rota
+`POST /api/nuvem/historico`, que recebe do notebook todo o histórico de
+ciclos (a VPS passa a ter o mesmo histórico do notebook), e a chave certa
+deixa de ser afetada pelo bloqueio por tentativas.
+
+1. **Conferir o clone** (na pasta do repositório, ex. `~/santex`):
+   ```bash
+   git status --short            # precisa estar vazio; se não, MOSTRE e pergunte antes de seguir
+   git log --oneline -1          # anote o commit atual (para desfazer, se preciso)
+   git pull --ff-only
+   git log --oneline -5
+   grep -m1 '^APP_VERSAO' app/servidor.py
+   ```
+   `git pull` recusado (histórico divergente)? Pare e pergunte — nunca use `--force` nem `reset --hard` sem confirmação.
+2. **Instalar o código novo** (mantém `/etc/painel-nuvem.env`, `/var/lib/painel-nuvem` e a senha; reinicia o serviço):
+   ```bash
+   sudo bash deploy/instalar_vps.sh
+   ```
+3. **Verificar** (todos precisam bater):
+   ```bash
+   systemctl is-active painel-nuvem                                                       # active
+   sudo journalctl -u painel-nuvem -n 20 --no-pager                                       # sem Traceback
+   curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/status                  # 401
+   curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
+   curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
+   sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
+   #   -> {"ok": true, "versao": "1.1.0"}
+   sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
+   #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
+   ```
+   A chave não aparece na tela em nenhum desses comandos — mantenha assim.
+4. **Histórico chegando** (depois que o notebook estiver com o `.exe` novo,
+   que o usuário instala na fábrica): repita o último comando do passo 3 —
+   o `total` sobe até o total do notebook (≈ 4.200+ ciclos em 18/11/2026) em
+   poucos minutos. Para acompanhar sem expor nada:
+   ```bash
+   sudo python3 -c "import sqlite3; c=sqlite3.connect('file:/var/lib/painel-nuvem/painel.db?mode=ro', uri=True); print('ciclos na VPS:', c.execute('select count(*) from ciclos').fetchone()[0])"
+   ```
+5. **Se algo falhar**: veja `journalctl -u painel-nuvem -n 50`. Para voltar
+   ao código anterior: `git checkout <commit anotado no passo 1>` e
+   `sudo bash deploy/instalar_vps.sh` (os dados não são afetados); depois
+   `git checkout main` quando corrigido.
+6. **Relate ao usuário**: commit instalado, resultado de cada verificação e
+   o `total` de ciclos na VPS.
+
 ## Passo 0 — Levantamento (só leitura, sempre primeiro)
+
+Para uma **instalação do zero** (os Passos 0–4). Num deploy comum, use a
+seção acima.
 
 ```bash
 cat /etc/os-release | head -3

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Instala/atualiza o servidor do acesso remoto na VPS (Ubuntu/Debian).
 #
-# Uso, NA VPS, com os arquivos do projeto copiados para uma pasta
-# (ver docs/nuvem-vps.md):
-#     sudo bash deploy/instalar_vps.sh "<NUVEM_CHAVE do .env>"
+# Uso, NA VPS, de dentro do clone do repositorio (ou do pacote extraido):
+#     git pull --ff-only && sudo bash deploy/instalar_vps.sh
+# Na primeira instalacao o script pede a NUVEM_CHAVE (sem mostrar na tela).
 #
-# Pode rodar de novo para atualizar: copia o codigo novo, mantem dados,
-# usuarios e chave, e reinicia o servico. Nunca apaga /var/lib/painel-nuvem.
+# Pode rodar de novo para atualizar: copia o codigo novo para /opt, mantem
+# dados, senha e chave, e reinicia o servico. Nunca apaga /var/lib/painel-nuvem.
 set -euo pipefail
 
 ORIGEM="$(cd "$(dirname "$0")/.." && pwd)"

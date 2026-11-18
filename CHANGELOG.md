@@ -16,6 +16,17 @@ Acesso remoto: quem está fora da rede da empresa vê o painel em
 - **VPS**: o mesmo servidor em `PAINEL_MODO=nuvem` — recebe do ESP32 e do
   notebook com a `NUVEM_CHAVE`, sempre somente leitura, bloqueio após 10
   senhas erradas.
+- **Histórico completo na VPS**: o notebook envia todos os ciclos que a VPS
+  ainda não tem (lotes de 500; depois os novos a cada 30 s), sem duplicar o
+  que o ESP32 manda direto (mesma chave: série + id). De hora em hora
+  confere os totais e, se a VPS tiver perdido algo, reenvia tudo. Provado
+  com a cópia do banco de produção: 4.215 ciclos em ~12 s, histórico da VPS
+  idêntico ao do notebook. Rota `POST /api/nuvem/historico`.
+- **Deploy pelo git na VPS**: `git pull --ff-only && sudo bash deploy/instalar_vps.sh`.
+  `CLAUDE.md` na raiz (projeto + aponta para `deploy/CLAUDE_VPS.md` na VPS),
+  com a seção "Deploy de uma atualização (git pull)" e as verificações.
+- Chave certa nunca é bloqueada pelo limite de tentativas (erros de terceiros
+  não travam o ESP32 nem o notebook).
 - **Senha única do acesso remoto**, definida e trocada no notebook
   (⚙ Configurações → Acesso remoto). O notebook guarda só o hash (PBKDF2) e
   o envia para a VPS com a configuração; a VPS mostra uma tela de login só
