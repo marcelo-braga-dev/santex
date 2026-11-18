@@ -41,7 +41,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.1.0"
+APP_VERSAO = "1.2.0"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -51,6 +51,7 @@ NUVEM_CHAVE = os.environ.get("NUVEM_CHAVE", "").strip()  # VPS: a mesma do .env 
 TIMEOUT_CONEXAO_S = 30  # cliente parado no meio da requisicao nao prende uma thread para sempre
 MAX_CORPO_BYTES = 1_000_000
 ARQUIVO_SEGURANCA = "seguranca.json"
+ROTAS_HARDWARE = ("/iniciar", "/parar", "/esp/acao", "/conexao")  # nunca pela VPS
 
 _BASE = dir_base_bundle()
 PAINEL_DIR = os.path.normpath(os.path.join(_BASE, "painel"))
@@ -214,15 +215,34 @@ class Handler(BaseHTTPRequestHandler):
             return encaminhado.split(",")[0].strip()
         return ip
 
-    def _sessao_valida(self):
-        """Modo nuvem: cookie de sessao valido para a senha ATUAL."""
+    @staticmethod
+    def _hashes_papeis():
+        """Senha atual de cada papel; edicao so vale se o notebook deixar."""
+        edicao = nuvem.dados_senha_edicao(banco).get("hash") if nuvem.edicao_remota_ativa(banco) else None
+        return {"leitura": nuvem.dados_senha_remota(banco).get("hash"), "edicao": edicao}
+
+    def _papel(self):
+        """"local" fora da VPS; na VPS "leitura"/"edicao" pela sessao, ou None."""
+        if not MODO_NUVEM:
+            return "local"
+        if hasattr(self, "_papel_cache"):
+            return self._papel_cache
         cookie = SimpleCookie()
         try:
             cookie.load(self.headers.get("Cookie", ""))
         except Exception:  # noqa: BLE001 - cookie malformado = sem sessao
-            return False
+            cookie = SimpleCookie()
         token = cookie[nuvem.COOKIE_SESSAO].value if nuvem.COOKIE_SESSAO in cookie else ""
-        return sessoes.valida(token, nuvem.dados_senha_remota(banco).get("hash"))
+        self._papel_cache = sessoes.papel(token, self._hashes_papeis())
+        return self._papel_cache
+
+    def _sessao_valida(self):
+        return self._papel() is not None
+
+    @staticmethod
+    def _cookie_sessao(token):
+        return (f"{nuvem.COOKIE_SESSAO}={token}; Path=/; Max-Age={nuvem.DIAS_SESSAO * 86400}; "
+                "HttpOnly; Secure; SameSite=Lax")
 
     def _autorizar_visitante(self):
         """Modo nuvem: o painel e os dados so depois do login (senha unica).
@@ -237,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         if self._sessao_valida():
             return True
         if self.command == "GET" and caminho in ("/", "/index.html"):
-            self._responder_html(nuvem.pagina_login(senha_definida=bool(nuvem.dados_senha_remota(banco))))
+            self._responder_html(nuvem.pagina_login(senha_definida=any(self._hashes_papeis().values())))
         else:
             self._responder_json({"ok": False, "erro": "login"}, status=401)
         return False
@@ -277,27 +297,51 @@ class Handler(BaseHTTPRequestHandler):
                 senha = ""
         else:
             senha = parse_qs(bruto).get("senha", [""])[0]
-        guardado = nuvem.dados_senha_remota(banco).get("hash")
-        if guardado and nuvem.verificar_senha(senha, guardado):
-            token = sessoes.criar(guardado)
-            self._redirecionar("/", f"{nuvem.COOKIE_SESSAO}={token}; Path=/; Max-Age={nuvem.DIAS_SESSAO * 86400}; "
-                                    "HttpOnly; Secure; SameSite=Lax")
+        hashes = self._hashes_papeis()
+        for papel in ("edicao", "leitura"):  # edicao primeiro: as duas senhas sao diferentes
+            if hashes[papel] and nuvem.verificar_senha(senha, hashes[papel]):
+                self._redirecionar("/", self._cookie_sessao(sessoes.criar(hashes[papel], papel)))
+                return
+        edicao = nuvem.dados_senha_edicao(banco).get("hash")
+        if not hashes["edicao"] and edicao and nuvem.verificar_senha(senha, edicao):
+            self._responder_html(nuvem.pagina_login(
+                "A edição remota está desligada no computador da fábrica. Use a senha de visualização."), status=403)
             return
         limite.falhou(ip)
-        self._responder_html(nuvem.pagina_login("Senha incorreta.", senha_definida=bool(guardado)), status=401)
+        self._responder_html(nuvem.pagina_login("Senha incorreta.", senha_definida=any(hashes.values())), status=401)
 
     def _pode_editar(self):
-        """Este computador sempre pode; os outros so com o PIN correto. Na
-        VPS ninguem edita: a configuracao vem do notebook."""
+        """Este computador (o mestre) sempre pode; os outros da rede local so
+        com o PIN correto. Na VPS, so quem entrou com a senha de edicao."""
         if MODO_NUVEM:
-            return False
+            return self._papel() == "edicao"
         if _eh_este_computador(self.client_address[0]):
             return True
         pin = _pin_remoto()
         enviado = self.headers.get("X-Pin", "")
         return bool(pin) and hmac.compare_digest(pin.encode("utf-8"), enviado.encode("utf-8"))
 
+    def _origem_confere(self):
+        """Contra CSRF na VPS: edicao exige o cabecalho X-Painel-Edicao (um
+        formulario de outro site nao consegue enviar) e, se o navegador mandar
+        Origin, ele precisa ser este mesmo site."""
+        if self.headers.get("X-Painel-Edicao", "") != "1":
+            return False
+        origem = self.headers.get("Origin", "")
+        if not origem:
+            return True
+        hosts = {self.headers.get("Host", "")}
+        if _eh_loopback(self.client_address[0]):  # atras do proxy
+            hosts.add(self.headers.get("X-Forwarded-Host", "").split(",")[0].strip())
+        return urlparse(origem).netloc in {h for h in hosts if h}
+
     def _negar_edicao(self):
+        if MODO_NUVEM:
+            self._responder_json({
+                "ok": False, "erro": "somente_leitura", "pinConfigurado": False,
+                "mensagem": "Seu acesso é só de visualização. Entre com a senha de edição para alterar.",
+            }, status=403)
+            return
         self._responder_json({
             "ok": False,
             "erro": "somente_leitura",
@@ -307,21 +351,28 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- respostas -------------------------------------------------------
 
-    def _responder_json(self, corpo, status=200):
+    def _responder_json(self, corpo, status=200, cabecalhos=None):
         dados = json.dumps(corpo).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        if not MODO_NUVEM:  # na VPS o painel e do mesmo site: nada de CORS
+            self.send_header("Access-Control-Allow-Origin", "*")
+        for nome, valor in (cabecalhos or {}).items():
+            self.send_header(nome, valor)
         self.send_header("Content-Length", str(len(dados)))
         self.end_headers()
         self.wfile.write(dados)
 
     def do_OPTIONS(self):
         self.send_response(204)
+        if MODO_NUVEM:  # outro site nunca e liberado a chamar a VPS
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Pin, If-None-Match, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Pin, X-Painel-Edicao, If-None-Match, Authorization")
         self.send_header("Access-Control-Expose-Headers", "ETag")
         self.end_headers()
 
@@ -357,7 +408,8 @@ class Handler(BaseHTTPRequestHandler):
             if MODO_NUVEM:
                 s = nuvem.status_nuvem(dir_dados_usuario())
                 self._responder_json({"rodando": s["rodando"], "modo": "nuvem", "modoServidor": "nuvem",
-                                      "versao": APP_VERSAO, "podeEditar": False, "pinConfigurado": False})
+                                      "versao": APP_VERSAO, "podeEditar": self._pode_editar(), "pinConfigurado": False,
+                                      "papel": self._papel(), "configRev": nuvem.versao_config()})
                 return
             self._responder_json({
                 "rodando": esta_rodando(),
@@ -366,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
                 "versao": APP_VERSAO,
                 "podeEditar": self._pode_editar(),
                 "pinConfigurado": bool(_pin_remoto()),
+                "papel": "local" if _eh_este_computador(self.client_address[0]) else "rede",
+                "configRev": nuvem.versao_config(),
             })
         elif url.path == "/sincronizacao":
             self._responder_json(status_sincronizacao())
@@ -382,10 +436,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._responder_json(monitor_wifi.diagnostico_esp(status_sincronizacao()))
         elif url.path == "/config":
             config = nuvem.config_do_setor(banco, setor)
-            if not MODO_NUVEM:  # notebook: situacao da senha do acesso remoto (nunca o hash)
+            if not MODO_NUVEM and self._pode_editar():  # notebook: situacao das senhas remotas (nunca o hash)
                 config["acessoRemoto"] = {**nuvem.status_senha_remota(banco),
                                           "url": nuvem.config_nuvem_app(dir_dados_usuario())["url"]}
+            elif MODO_NUVEM and self._papel() == "edicao":
+                config["acessoRemoto"] = {**nuvem.status_senha_remota(banco), "url": ""}
+            config["configRev"] = nuvem.versao_config()
             self._responder_json(config)
+        elif url.path == "/alteracoes":
+            if not self._pode_editar():
+                self._negar_edicao()
+                return
+            avisos = enviador_nuvem.avisos() if enviador_nuvem is not None else []
+            self._responder_json({"alteracoes": banco.ultimas_alteracoes(50), "avisos": avisos})
         else:
             self._responder_estatico(url.path)
 
@@ -478,8 +541,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if MODO_NUVEM and rota in ROTAS_HARDWARE:
+            self._responder_json({"ok": False, "erro": "so_no_computador_do_painel",
+                                  "mensagem": "Leitura e controlador só pelo computador da fábrica."}, status=403)
+            return
         if not self._pode_editar():
             self._negar_edicao()
+            return
+        if MODO_NUVEM and not self._origem_confere():
+            self._responder_json({"ok": False, "erro": "origem"}, status=403)
             return
         if rota == "/iniciar":
             iniciar()
@@ -539,16 +609,41 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
             return
-        if "senhaRemota" in corpo:  # senha do acesso pela VPS (so o hash e guardado)
+        origem = "nuvem" if MODO_NUVEM else "notebook"
+        autor = f"edição remota ({self._ip_cliente()})" if MODO_NUVEM else "notebook"
+        senhas = {papel: corpo[campo] for campo, papel in (("senhaRemota", "leitura"), ("senhaEdicao", "edicao"))
+                  if campo in corpo}
+        cabecalhos = {}
+        if senhas:  # so o hash e guardado
+            if MODO_NUVEM:  # pela VPS: so redigitando a senha de edicao atual (sessao roubada nao basta)
+                atual = nuvem.dados_senha_edicao(banco).get("hash")
+                ip = self._ip_cliente()
+                if limite.bloqueado(ip):
+                    self._responder_json({"ok": False, "erro": "Muitas tentativas erradas. Aguarde 10 minutos."}, status=429)
+                    return
+                if not (atual and nuvem.verificar_senha(str(corpo.get("senhaAtual", "")), atual)):
+                    limite.falhou(ip)
+                    self._responder_json({"ok": False, "erro": "Senha de edição atual incorreta."}, status=403)
+                    return
             try:
-                nuvem.definir_senha_remota(banco, corpo["senhaRemota"])
+                for papel, senha in senhas.items():
+                    nuvem.definir_senha(banco, papel, senha, origem, autor)
             except ValueError as erro:
                 self._responder_json({"ok": False, "erro": str(erro)}, status=400)
                 return
-            if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima conferencia
-                threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
-        nuvem.aplicar_config(banco, corpo, SETOR_PADRAO)
-        self._responder_json({"ok": True, "acessoRemoto": nuvem.status_senha_remota(banco)})
+            if MODO_NUVEM and "edicao" in senhas:  # quem trocou continua conectado com a senha nova
+                cabecalhos["Set-Cookie"] = self._cookie_sessao(
+                    sessoes.criar(nuvem.dados_senha_edicao(banco)["hash"], "edicao"))
+        if "edicaoRemota" in corpo:
+            if MODO_NUVEM:  # so o notebook (mestre) liga/desliga
+                self._responder_json({"ok": False, "erro": "Só o computador da fábrica liga ou desliga a edição remota."}, status=403)
+                return
+            nuvem.definir_edicao_remota(banco, bool(corpo["edicaoRemota"]))
+        nuvem.aplicar_config(banco, corpo, SETOR_PADRAO, origem=origem, autor=autor)
+        if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima troca
+            threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
+        self._responder_json({"ok": True, "acessoRemoto": nuvem.status_senha_remota(banco),
+                              "configRev": nuvem.versao_config()}, cabecalhos=cabecalhos)
 
     def _salvar_conexao(self):
         """Troca a origem dos dados (Wi-Fi do ESP32 ou cabo USB) pelo

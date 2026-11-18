@@ -169,9 +169,12 @@ class TesteModoNuvem(unittest.TestCase):
     def test_3_nuvem_nunca_edita_nem_mostra_o_hash(self):
         # atras do proxy toda visita vem de 127.0.0.1 - mesmo assim, somente leitura
         cab = {**self.sessao(), "Content-Type": "application/json"}
-        for rota in ("/config", "/iniciar", "/parar", "/conexao", "/esp/acao"):
-            st, corpo = self.pedir(rota, "POST", {"metaPctDia": 10, "senhaRemota": "trocada-na-vps"}, cab)
-            self.assertEqual((st, json.loads(corpo)["erro"]), (403, "somente_leitura"), rota)
+        st, corpo = self.pedir("/config", "POST", {"metaPctDia": 10, "senhaRemota": "trocada-na-vps"},
+                               {**cab, "X-Painel-Edicao": "1"})
+        self.assertEqual((st, json.loads(corpo)["erro"]), (403, "somente_leitura"))
+        for rota in ("/iniciar", "/parar", "/conexao", "/esp/acao"):  # hardware: nunca pela VPS
+            st, corpo = self.pedir(rota, "POST", {}, cab)
+            self.assertEqual((st, json.loads(corpo)["erro"]), (403, "so_no_computador_do_painel"), rota)
         st, corpo = self.pedir("/config", cabecalhos=cab)
         self.assertNotIn("pbkdf2", corpo.decode())
         self.assertNotIn("acessoRemoto", json.loads(corpo))
@@ -189,7 +192,7 @@ class TesteModoNuvem(unittest.TestCase):
         nuvem.definir_senha_remota(b, "nova-senha-2026")
         enviador = nuvem.EnviadorConfig(b, local, "enfestadeiras")
         self.assertTrue(enviador.enviar_agora())
-        self.assertFalse(enviador.enviar_agora())  # sem mudanca: nao reenvia
+        self.assertEqual(b.pendentes(), [])  # tudo confirmado pela VPS
         self.assertEqual(enviador.status()["erro"], "")
         # a sessao aberta com a senha antiga caiu; a antiga nao entra mais
         self.assertEqual(self.pedir("/status", cabecalhos=sessao_antiga)[0], 401)

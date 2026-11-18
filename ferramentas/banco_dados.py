@@ -167,6 +167,28 @@ CREATE TABLE IF NOT EXISTS segredos (
     atualizado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
+-- revisao de cada item de configuracao (sincronizacao notebook <-> VPS, 1.2.0):
+-- rev = ordem global dada pela VPS; pendente = alterado aqui e ainda nao
+-- confirmado pela VPS (so no notebook)
+CREATE TABLE IF NOT EXISTS config_rev (
+    chave TEXT PRIMARY KEY,
+    rev INTEGER NOT NULL DEFAULT 0,
+    editado_em TEXT NOT NULL DEFAULT '',
+    origem TEXT NOT NULL DEFAULT '',
+    autor TEXT NOT NULL DEFAULT '',
+    pendente INTEGER NOT NULL DEFAULT 0
+);
+
+-- auditoria: quem alterou o que, quando e de onde
+CREATE TABLE IF NOT EXISTS alteracoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quando TEXT NOT NULL,
+    origem TEXT NOT NULL,
+    autor TEXT NOT NULL DEFAULT '',
+    chave TEXT NOT NULL,
+    resumo TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS turnos (
     setor TEXT NOT NULL,
     ordem INTEGER NOT NULL,
@@ -487,6 +509,48 @@ class BancoDados:
                 "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, atualizado_em = excluded.atualizado_em",
                 (chave, valor),
             )
+
+    # -- revisoes da configuracao e auditoria (1.2.0) --------------------------
+
+    def listar_revs(self):
+        with self._lock:
+            return {l["chave"]: dict(l) for l in self._conn.execute("SELECT * FROM config_rev")}
+
+    def obter_rev(self, chave):
+        with self._lock:
+            linha = self._conn.execute("SELECT * FROM config_rev WHERE chave = ?", (chave,)).fetchone()
+        return dict(linha) if linha else None
+
+    def marcar_rev(self, chave, rev, editado_em, origem, autor, pendente):
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO config_rev (chave, rev, editado_em, origem, autor, pendente) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(chave) DO UPDATE SET rev = excluded.rev, editado_em = excluded.editado_em, "
+                "origem = excluded.origem, autor = excluded.autor, pendente = excluded.pendente",
+                (chave, int(rev), editado_em, origem, autor[:80], 1 if pendente else 0),
+            )
+
+    def max_rev(self):
+        with self._lock:
+            return self._conn.execute("SELECT COALESCE(MAX(rev), 0) FROM config_rev").fetchone()[0]
+
+    def pendentes(self):
+        with self._lock:
+            return [dict(l) for l in self._conn.execute("SELECT * FROM config_rev WHERE pendente = 1 ORDER BY chave")]
+
+    def registrar_alteracao(self, quando, origem, autor, chave, resumo):
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO alteracoes (quando, origem, autor, chave, resumo) VALUES (?, ?, ?, ?, ?)",
+                (quando, origem, autor[:80], chave[:60], resumo[:200]),
+            )
+            # mantem so as 2000 mais recentes
+            self._conn.execute("DELETE FROM alteracoes WHERE id <= (SELECT MAX(id) FROM alteracoes) - 2000")
+
+    def ultimas_alteracoes(self, limite=50):
+        with self._lock:
+            return [dict(l) for l in self._conn.execute(
+                "SELECT quando, origem, autor, chave, resumo FROM alteracoes ORDER BY id DESC LIMIT ?", (limite,))]
 
     # -- migracao do formato antigo ---------------------------------------
 

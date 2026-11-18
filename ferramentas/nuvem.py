@@ -25,11 +25,19 @@ Rotas da VPS (POST, com o cabecalho X-Chave-Nuvem = NUVEM_CHAVE do .env):
                        inicio, fim, duracao_s, obs, gravado_em, dispositivo,
                        origem_id], ...]} -> {"ok", "gravados", "total"}
 
-Pessoas: UMA senha de acesso, definida e trocada no painel do NOTEBOOK
-(menu Configuracoes -> Acesso remoto). O notebook guarda so o hash (PBKDF2) e
-o envia para a VPS junto com a configuracao; a VPS mostra uma tela de login
-so com senha e mantem a pessoa conectada por 30 dias naquele navegador.
-Trocar a senha no notebook desconecta todo mundo.
+Pessoas (1.2.0): o NOTEBOOK e o mestre - nunca pede senha e pode tudo. Quem
+entra pela VPS usa uma de duas senhas: VISUALIZACAO (so ve) ou EDICAO (ve e
+altera a configuracao: maquinas, metas, turnos, pausas, calendario,
+vigencias, cores, e as proprias senhas redigitando a de edicao atual). As
+senhas ficam so como hash (PBKDF2); a sessao dura 30 dias (cookie assinado com
+o papel). O notebook pode desligar a edicao remota a qualquer momento.
+
+Configuracao nas duas maos (1.2.0): cada item (maquina:N, meta_pct, turnos,
+extras:*, senhas, edicao_remota) tem revisao (tabela config_rev). A VPS e o hub
+e da a ordem global; o notebook troca com ela a cada 15 s
+(POST /api/nuvem/config, "versao": 2): manda o que mudou aqui, recebe o que
+mudou la. Mesmo item alterado nos dois lados = vale o mais recente (UTC).
+Tudo vai para a auditoria (tabela alteracoes).
 """
 
 import base64
@@ -41,15 +49,24 @@ import secrets
 import threading
 import time
 import urllib.request
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 
 from banco_dados import normalizar_extras, normalizar_turnos
+from monitor_serial import SETOR_PADRAO
 from monitor_wifi import ARQUIVO_CHAVE_APP, _gravar_json, gravar_linhas_ciclos
 
 ARQUIVO_STATUS_NUVEM = "nuvem_status.json"
 ARQUIVO_CHAVE_SESSAO = "sessao.key"  # VPS: assina os cookies de sessao (gerado uma vez)
-SEGREDO_SENHA_REMOTA = "acesso_remoto"  # tabela segredos: {"hash", "alterado_em"}
+SEGREDO_SENHA_REMOTA = "acesso_remoto"  # senha de VISUALIZACAO: {"hash", "alterado_em"}
+SEGREDO_SENHA_EDICAO = "acesso_edicao"  # senha de EDICAO: {"hash", "alterado_em"}
+SEGREDO_EDICAO_REMOTA = "edicao_remota"  # {"ativa": bool} - so o notebook muda
+SEGREDO_SYNC_CONFIG = "sync_config_nuvem"  # notebook: {"url", "rev"} ultima revisao conhecida da VPS
+SEGREDO_AUDITORIA_NUVEM = "auditoria_nuvem"  # notebook: copia das ultimas alteracoes da VPS
+SEGREDO_AVISOS_SYNC = "avisos_sync_config"  # notebook: avisos de mudancas recebidas/conflitos
+SENHA_EDICAO_MIN = 10
+SEMENTE_EM = "1970-01-01T00:00:00.000+00:00"  # data das sementes (perdem para qualquer edicao real)
 COOKIE_SESSAO = "painel_sessao"
 DIAS_SESSAO = 30
 SENHA_MIN, SENHA_MAX = 8, 128
@@ -85,10 +102,32 @@ def config_do_setor(banco, setor):
     }
 
 
-def aplicar_config(banco, corpo, setor_padrao):
-    """Grava no banco a configuracao recebida (POST /config do painel ou
-    POST /api/nuvem/config do notebook), validando cada campo."""
+_trava_config = threading.RLock()  # revisoes em ordem: uma gravacao de configuracao por vez
+
+
+def _em_ordem(funcao):
+    def envolvida(*args, **kwargs):
+        with _trava_config:
+            return funcao(*args, **kwargs)
+    envolvida.__name__, envolvida.__doc__ = funcao.__name__, funcao.__doc__
+    return envolvida
+
+
+@_em_ordem
+def aplicar_config(banco, corpo, setor_padrao, origem=None, autor=""):
+    """Grava no banco a configuracao recebida (POST /config do painel),
+    validando cada campo. Com origem ("notebook" ou "nuvem"), marca a revisao
+    dos itens que mudaram e registra a auditoria. Devolve os itens alterados."""
     setor = str(corpo.get("setor", setor_padrao))[:40]
+    antes = itens_atuais(banco, setor) if origem else None
+    _aplicar_campos(banco, corpo, setor)
+    if origem:
+        return registrar_mudancas(banco, antes, itens_atuais(banco, setor), origem, autor)
+    _tocar_config()
+    return []
+
+
+def _aplicar_campos(banco, corpo, setor):
     maquinas = corpo.get("maquinas")
     for maquina_id, item in (maquinas.items() if isinstance(maquinas, dict) else []):
         if not isinstance(item, dict):
@@ -129,6 +168,173 @@ def aplicar_config(banco, corpo, setor_padrao):
 
     if "extras" in corpo:
         banco.salvar_extras(setor, normalizar_extras(corpo["extras"]))
+
+
+# ---------------------------------------------------------------------
+# Itens versionados da configuracao (sincronizacao nas duas maos, 1.2.0)
+# ---------------------------------------------------------------------
+EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual")
+_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual)"
+                            r"|senha_leitura|senha_edicao|edicao_remota)$")
+_NOMES_ITEM = {
+    "meta_pct": "Meta", "turnos": "Turnos", "extras:pausas": "Intervalos de refeição",
+    "extras:calendario": "Calendário", "extras:historico": "Histórico de configurações",
+    "extras:avisos": "Avisos", "extras:visual": "Identidade visual",
+    "senha_leitura": "Senha de visualização", "senha_edicao": "Senha de edição", "edicao_remota": "Edição remota",
+}
+_versao_config = {"v": time.time_ns()}
+
+
+def versao_config():
+    """Muda a cada gravacao de configuracao: os paineis comparam em /status e
+    recarregam sozinhos quando outra pessoa (ou o outro lado) alterou."""
+    return str(_versao_config["v"])
+
+
+def _tocar_config():
+    _versao_config["v"] = time.time_ns()
+
+
+def _agora_utc():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def chave_item_valida(chave):
+    return bool(_RE_CHAVE_ITEM.match(str(chave or "")))
+
+
+def nome_item(chave):
+    return f"Máquina {chave.split(':', 1)[1]}" if chave.startswith("maquina:") else _NOMES_ITEM.get(chave, chave)
+
+
+def _segredo_json(banco, chave):
+    try:
+        dados = json.loads(banco.obter_segredo(chave) or "{}")
+    except ValueError:
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def _dados_hash(banco, chave):
+    dados = _segredo_json(banco, chave)
+    return dados if _hash_valido(dados.get("hash")) else {}
+
+
+def itens_atuais(banco, setor):
+    """{chave: valor} de toda a configuracao versionada."""
+    itens = {}
+    for n, m in banco.obter_maquinas(setor).items():
+        itens[f"maquina:{n}"] = {"nome": m["nome"], "metrosPorMin": m["metrosPorMin"]}
+    meta = banco.obter_meta_pct_dia(setor)
+    if meta is not None:
+        itens["meta_pct"] = meta
+    turnos = banco.obter_turnos(setor)
+    if turnos:
+        itens["turnos"] = turnos
+    extras = banco.obter_extras(setor)
+    for k in EXTRAS_SINCRONIZADOS:
+        if k in extras:
+            itens[f"extras:{k}"] = extras[k]
+    for chave, segredo in (("senha_leitura", SEGREDO_SENHA_REMOTA), ("senha_edicao", SEGREDO_SENHA_EDICAO)):
+        dados = _dados_hash(banco, segredo)
+        if dados:
+            itens[chave] = {"hash": dados["hash"], "alterado_em": dados.get("alterado_em", "")}
+    er = _segredo_json(banco, SEGREDO_EDICAO_REMOTA)
+    if er:
+        itens["edicao_remota"] = {"ativa": bool(er.get("ativa", True))}
+    return itens
+
+
+def ler_item(banco, setor, chave):
+    return itens_atuais(banco, setor).get(chave)
+
+
+def gravar_item(banco, setor, chave, valor):
+    """Grava um item vindo da sincronizacao nas tabelas de sempre."""
+    if chave.startswith("maquina:") and isinstance(valor, dict):
+        n = int(chave.split(":", 1)[1])
+        try:
+            taxa = max(0.0, min(float(valor.get("metrosPorMin", 0)), 100000.0))
+        except (TypeError, ValueError):
+            taxa = 0.0
+        banco.salvar_maquina(setor, n, str(valor.get("nome", "")).strip()[:40] or f"Máquina {n}", taxa)
+    elif chave == "meta_pct":
+        meta = float(valor)
+        if 0 < meta <= 100:
+            banco.salvar_meta_pct_dia(setor, round(meta, 1))
+    elif chave == "turnos":
+        turnos = normalizar_turnos(valor)
+        if turnos:
+            banco.salvar_turnos(setor, turnos)
+    elif chave.startswith("extras:"):
+        banco.salvar_extras(setor, normalizar_extras({chave.split(":", 1)[1]: valor}))
+    elif chave in ("senha_leitura", "senha_edicao") and isinstance(valor, dict) and _hash_valido(valor.get("hash")):
+        segredo = SEGREDO_SENHA_REMOTA if chave == "senha_leitura" else SEGREDO_SENHA_EDICAO
+        banco.salvar_segredo(segredo, json.dumps({"hash": valor["hash"], "alterado_em": str(valor.get("alterado_em", ""))[:40]}))
+    elif chave == "edicao_remota":
+        ativa = bool(valor.get("ativa", True)) if isinstance(valor, dict) else bool(valor)
+        banco.salvar_segredo(SEGREDO_EDICAO_REMOTA, json.dumps({"ativa": ativa}))
+    _tocar_config()
+
+
+def _igual(a, b):
+    return json.dumps(a, sort_keys=True, ensure_ascii=False) == json.dumps(b, sort_keys=True, ensure_ascii=False)
+
+
+def resumo_item(chave, valor):
+    try:
+        if chave.startswith("maquina:"):
+            return f"{valor['nome']} · {valor['metrosPorMin']:g} m/min"
+        if chave == "meta_pct":
+            return f"{float(valor):g}%"
+        if chave == "turnos":
+            return ", ".join(f"{t['nome']} {t['inicio']}–{t['fim']}" for t in valor)
+        if chave in ("senha_leitura", "senha_edicao"):
+            return "alterada"
+        if chave == "edicao_remota":
+            return "ligada" if valor.get("ativa", True) else "desligada"
+    except (KeyError, TypeError, ValueError, AttributeError):
+        pass
+    return "alterado"
+
+
+@_em_ordem
+def registrar_mudancas(banco, antes, depois, origem, autor):
+    """Marca a revisao dos itens que mudaram e registra a auditoria. No
+    notebook o item fica pendente (base = revisao conhecida) ate a VPS
+    confirmar; na VPS recebe a proxima revisao global na hora."""
+    mudou = sorted(c for c in depois if not _igual(antes.get(c), depois.get(c)))
+    agora = _agora_utc()
+    for c in mudou:
+        if origem == "nuvem":
+            banco.marcar_rev(c, banco.max_rev() + 1, agora, "nuvem", autor, False)
+        else:
+            atual = banco.obter_rev(c)
+            banco.marcar_rev(c, atual["rev"] if atual else 0, agora, "notebook", autor, True)
+        banco.registrar_alteracao(agora, origem, autor, c, f"{nome_item(c)}: {resumo_item(c, depois[c])}")
+    _tocar_config()
+    return mudou
+
+
+def itens_de_corpo_legado(corpo):
+    """Formato antigo (app 1.1.0) -> itens."""
+    itens = {}
+    maquinas = corpo.get("maquinas")
+    for n, m in (maquinas.items() if isinstance(maquinas, dict) else []):
+        if isinstance(m, dict) and str(n).isdigit():
+            itens[f"maquina:{int(n)}"] = {"nome": m.get("nome", ""), "metrosPorMin": m.get("metrosPorMin", 0)}
+    if corpo.get("metaPctDia") is not None:
+        itens["meta_pct"] = corpo["metaPctDia"]
+    turnos = normalizar_turnos(corpo.get("turnos"))
+    if turnos:
+        itens["turnos"] = turnos
+    for k, texto in normalizar_extras(corpo.get("extras")).items():
+        if k in EXTRAS_SINCRONIZADOS:
+            itens[f"extras:{k}"] = json.loads(texto)
+    acesso = corpo.get("acessoRemoto") if isinstance(corpo.get("acessoRemoto"), dict) else {}
+    if _hash_valido(acesso.get("hash")):
+        itens["senha_leitura"] = {"hash": acesso["hash"], "alterado_em": str(acesso.get("alteradoEm", ""))[:25]}
+    return itens
 
 
 # ---------------------------------------------------------------------
@@ -195,14 +401,74 @@ def receber_do_esp(banco, dir_dados, setor, corpo, ip=""):
     return {"ok": True, "gravados": novos}
 
 
+@_em_ordem
 def receber_config(banco, dir_dados, corpo, setor_padrao):
-    aplicar_config(banco, corpo, setor_padrao)
-    acesso = corpo.get("acessoRemoto") if isinstance(corpo.get("acessoRemoto"), dict) else {}
-    if _hash_valido(acesso.get("hash")):  # a senha unica, definida no notebook (so o hash)
-        banco.salvar_segredo(SEGREDO_SENHA_REMOTA, json.dumps(
-            {"hash": acesso["hash"], "alterado_em": str(acesso.get("alteradoEm", ""))[:25]}))
+    """VPS: POST /api/nuvem/config. "versao": 2 = sincronizacao nas duas
+    maos; sem versao = app 1.1.0 (envia a configuracao inteira) - aplica so o
+    que nunca foi editado pela VPS, para nao desfazer edicoes remotas."""
+    if corpo.get("versao") == 2:
+        return sincronizar_config(banco, dir_dados, corpo, setor_padrao)
+    setor = str(corpo.get("setor", setor_padrao))[:40]
+    antes = itens_atuais(banco, setor)
+    for chave, valor in itens_de_corpo_legado(corpo).items():
+        rev = banco.obter_rev(chave)
+        if (rev and rev["origem"] == "nuvem") or _igual(antes.get(chave), valor):
+            continue
+        gravar_item(banco, setor, chave, valor)
+        agora = _agora_utc()
+        banco.marcar_rev(chave, banco.max_rev() + 1, agora, "notebook", "notebook (1.1.0)", False)
+        banco.registrar_alteracao(agora, "notebook", "notebook (1.1.0)", chave, f"{nome_item(chave)}: {resumo_item(chave, valor)}")
+    try:
+        meta_h = float(corpo.get("metaHorasDia") or 0)
+        if 0 < meta_h <= 24:
+            banco.salvar_meta_horas_dia(setor, meta_h)  # campo antigo, sem versao
+    except (TypeError, ValueError):
+        pass
     _atualizar_status(dir_dados, config_recebida_em=_agora_iso())
     return {"ok": True}
+
+
+def sincronizar_config(banco, dir_dados, corpo, setor_padrao):
+    """VPS (hub): aplica os itens alterados no notebook - aceita se a base
+    for a revisao atual ou, em conflito, se for o mais recente (UTC) - e
+    devolve tudo o que mudou aqui desde a ultima revisao que o notebook conhece."""
+    setor = str(corpo.get("setor", setor_padrao))[:40]
+    try:
+        rev_conhecida = int(corpo.get("rev_conhecida") or 0)
+    except (TypeError, ValueError):
+        rev_conhecida = 0
+    itens = corpo.get("itens") if isinstance(corpo.get("itens"), dict) else {}
+    aceitos, rejeitados = [], []
+    for chave, info in itens.items():
+        if not chave_item_valida(chave) or not isinstance(info, dict):
+            continue
+        atual = banco.obter_rev(chave)
+        editado = str(info.get("editado_em") or "")[:40] or _agora_utc()
+        try:
+            base = int(info.get("base_rev") or 0)
+        except (TypeError, ValueError):
+            base = -1
+        if atual is None or base == atual["rev"] or editado > atual["editado_em"]:
+            valor_antes = ler_item(banco, setor, chave)
+            try:
+                gravar_item(banco, setor, chave, info.get("valor"))
+            except (TypeError, ValueError, KeyError):
+                continue
+            banco.marcar_rev(chave, banco.max_rev() + 1, editado, "notebook", "notebook", False)
+            valor_depois = ler_item(banco, setor, chave)
+            if not _igual(valor_antes, valor_depois):
+                banco.registrar_alteracao(editado, "notebook", "notebook", chave, f"{nome_item(chave)}: {resumo_item(chave, valor_depois)}")
+            aceitos.append(chave)
+        else:
+            rejeitados.append({"chave": chave, "venceu_em": atual["editado_em"],
+                               "venceu_origem": atual["origem"], "venceu_autor": atual["autor"]})
+    atuais = itens_atuais(banco, setor)
+    revs = banco.listar_revs()
+    novos = {c: {"valor": atuais[c], "rev": r["rev"], "editado_em": r["editado_em"], "origem": r["origem"], "autor": r["autor"]}
+             for c, r in revs.items() if r["rev"] > rev_conhecida and c in atuais}
+    _atualizar_status(dir_dados, config_recebida_em=_agora_iso())
+    return {"ok": True, "versao": 2, "rev_atual": banco.max_rev(), "itens": novos,
+            "aceitos": aceitos, "rejeitados": rejeitados, "auditoria": banco.ultimas_alteracoes(50)}
 
 
 def receber_historico(banco, dir_dados, corpo, setor_padrao):
@@ -283,18 +549,51 @@ def dados_senha_remota(banco):
     return dados if isinstance(dados, dict) and _hash_valido(dados.get("hash")) else {}
 
 
+def dados_senha_edicao(banco):
+    return _dados_hash(banco, SEGREDO_SENHA_EDICAO)
+
+
+def edicao_remota_ativa(banco):
+    """Interruptor do notebook (padrao: ligada - vale se houver senha de edicao)."""
+    return bool(_segredo_json(banco, SEGREDO_EDICAO_REMOTA).get("ativa", True))
+
+
 def status_senha_remota(banco):
-    """Para o painel do notebook - nunca inclui o hash."""
-    dados = dados_senha_remota(banco)
-    return {"definida": bool(dados), "alteradaEm": dados.get("alterado_em", "")}
+    """Para os paineis - nunca inclui hash."""
+    leitura, edicao = dados_senha_remota(banco), dados_senha_edicao(banco)
+    return {"definida": bool(leitura), "alteradaEm": leitura.get("alterado_em", ""),
+            "edicaoDefinida": bool(edicao), "edicaoAlteradaEm": edicao.get("alterado_em", ""),
+            "edicaoRemotaAtiva": edicao_remota_ativa(banco)}
 
 
-def definir_senha_remota(banco, senha):
-    """Notebook: grava o hash da nova senha. ValueError se for invalida."""
+@_em_ordem
+def definir_senha(banco, papel, senha, origem="notebook", autor="notebook", setor=SETOR_PADRAO):
+    """Grava o hash da senha de "leitura" (visualizacao) ou "edicao".
+    ValueError se for invalida ou igual a do outro papel."""
     senha = str(senha or "")
-    if not SENHA_MIN <= len(senha) <= SENHA_MAX:
-        raise ValueError(f"A senha precisa ter de {SENHA_MIN} a {SENHA_MAX} caracteres.")
-    banco.salvar_segredo(SEGREDO_SENHA_REMOTA, json.dumps({"hash": hash_senha(senha), "alterado_em": _agora_iso()}))
+    minimo = SENHA_EDICAO_MIN if papel == "edicao" else SENHA_MIN
+    if not minimo <= len(senha) <= SENHA_MAX:
+        raise ValueError(f"A senha de {'edição' if papel == 'edicao' else 'visualização'} precisa ter de {minimo} a {SENHA_MAX} caracteres.")
+    outra = dados_senha_remota(banco) if papel == "edicao" else dados_senha_edicao(banco)
+    if outra and verificar_senha(senha, outra["hash"]):
+        raise ValueError("As senhas de visualização e de edição precisam ser diferentes.")
+    antes = itens_atuais(banco, setor)
+    banco.salvar_segredo(SEGREDO_SENHA_EDICAO if papel == "edicao" else SEGREDO_SENHA_REMOTA,
+                         json.dumps({"hash": hash_senha(senha), "alterado_em": _agora_utc()}))
+    registrar_mudancas(banco, antes, itens_atuais(banco, setor), origem, autor)
+
+
+def definir_senha_remota(banco, senha, origem="notebook", autor="notebook"):
+    """Senha de visualizacao (compatibilidade com a 1.1.0)."""
+    definir_senha(banco, "leitura", senha, origem, autor)
+
+
+@_em_ordem
+def definir_edicao_remota(banco, ativa, autor="notebook", setor=SETOR_PADRAO):
+    """Notebook (mestre): liga/desliga a edicao pela VPS."""
+    antes = itens_atuais(banco, setor)
+    banco.salvar_segredo(SEGREDO_EDICAO_REMOTA, json.dumps({"ativa": bool(ativa)}))
+    registrar_mudancas(banco, antes, itens_atuais(banco, setor), "notebook", autor)
 
 
 class LimiteTentativas:
@@ -337,23 +636,23 @@ class Sessoes:
             except OSError:
                 pass
 
-    def _assinar(self, expira, hash_senha_atual):
-        return hmac.new(self._segredo, f"{expira}|{hash_senha_atual}".encode("utf-8"), hashlib.sha256).hexdigest()
+    def _assinar(self, expira, papel, hash_senha_atual):
+        return hmac.new(self._segredo, f"{expira}|{papel}|{hash_senha_atual}".encode("utf-8"), hashlib.sha256).hexdigest()
 
-    def criar(self, hash_senha_atual):
+    def criar(self, hash_senha_atual, papel="leitura"):
         expira = int(time.time()) + DIAS_SESSAO * 86400
-        return f"{expira}.{self._assinar(expira, hash_senha_atual)}"
+        return f"{expira}.{papel}.{self._assinar(expira, papel, hash_senha_atual)}"
 
-    def valida(self, token, hash_senha_atual):
-        if not token or not hash_senha_atual:
-            return False
+    def papel(self, token, hashes):
+        """"leitura"/"edicao" se o token for valido para a senha ATUAL daquele
+        papel (hashes = {papel: hash ou None}), senao None."""
         try:
-            expira, assinatura = str(token).split(".", 1)
-            if int(expira) < time.time():
-                return False
+            expira, papel, assinatura = str(token or "").split(".", 2)
+            if int(expira) < time.time() or not hashes.get(papel):
+                return None
         except ValueError:
-            return False
-        return hmac.compare_digest(assinatura, self._assinar(expira, hash_senha_atual))
+            return None
+        return papel if hmac.compare_digest(assinatura, self._assinar(expira, papel, hashes[papel])) else None
 
 
 def pagina_login(erro="", senha_definida=True):
@@ -424,7 +723,7 @@ class EnviadorConfig:
     perdido), reenvia tudo - sem duplicar. Sem internet, so tenta de novo
     depois - nunca atrapalha o painel local."""
 
-    VERIFICAR_S = 30
+    VERIFICAR_S = 15
     REENVIAR_S = 1800
     CONFERIR_TOTAIS_S = 3600
     LOTES_POR_RODADA = 20  # ate 10.000 ciclos por rodada (o resto na proxima)
@@ -518,12 +817,101 @@ class EnviadorConfig:
         with self._trava:
             self._status.update(campos)
 
+    # -- configuracao nas duas maos (1.2.0) ---------------------------------
+    def _rev_conhecida(self, url):
+        dados = _segredo_json(self.banco, SEGREDO_SYNC_CONFIG)
+        return int(dados.get("rev", 0)) if dados.get("url") == url else 0
+
+    def _avisar(self, texto):
+        avisos = _segredo_json(self.banco, SEGREDO_AVISOS_SYNC).get("lista", [])
+        avisos = ([{"quando": _agora_iso(), "texto": texto}] + avisos)[:20]
+        self.banco.salvar_segredo(SEGREDO_AVISOS_SYNC, json.dumps({"lista": avisos}, ensure_ascii=False))
+
     def enviar_agora(self):
-        """Uma rodada: envia se mudou ou se passou o tempo. Devolve True se enviou."""
+        """Uma rodada da sincronizacao: manda os itens alterados aqui e aplica
+        os alterados na VPS. Devolve True se a troca aconteceu."""
         cfg = config_nuvem_app(self.dir_dados)
         self._atualizar(ativo=bool(cfg["url"]), url=cfg["url"])
         if not cfg["url"]:
             return False
+        url = cfg["url"]
+        atuais = itens_atuais(self.banco, self.setor)
+        if self._rev_conhecida(url) == 0:
+            # primeira troca com esta VPS: a configuracao daqui e a semente. Com
+            # data antiga: se a VPS ja tiver revisoes (edicoes remotas), elas
+            # vencem; VPS vazia aceita tudo. Edicoes reais pendentes ficam como estao.
+            pendentes = {p["chave"] for p in self.banco.pendentes()}
+            for chave in atuais:
+                if chave not in pendentes:
+                    self.banco.marcar_rev(chave, 0, SEMENTE_EM, "notebook", "notebook", True)
+        enviados = {}
+        for p in self.banco.pendentes():
+            if p["chave"] in atuais:
+                enviados[p["chave"]] = {"valor": atuais[p["chave"]], "base_rev": p["rev"], "editado_em": p["editado_em"]}
+        corpo = {"versao": 2, "setor": self.setor, "rev_conhecida": self._rev_conhecida(url), "itens": enviados}
+        req = urllib.request.Request(url + "/api/nuvem/config", method="POST",
+                                     data=json.dumps(corpo, ensure_ascii=False).encode("utf-8"),
+                                     headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
+        try:
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
+                resposta = json.loads(resp.read().decode("utf-8"))
+        except HTTPError as erro:
+            self._atualizar(erro="chave recusada pela VPS (NUVEM_CHAVE diferente)" if erro.code == 403 else f"HTTP {erro.code}")
+            return False
+        except (OSError, ValueError) as erro:
+            self._atualizar(erro=f"sem conexão com a VPS ({erro})")
+            return False
+        if resposta.get("versao") != 2:  # VPS ainda na 1.1.0: so o envio antigo funciona
+            return self._enviar_legado(cfg)
+        self._aplicar_resposta(url, enviados, resposta)
+        self._atualizar(ultimo_envio=_agora_iso(), erro="", modo="duas-maos")
+        return True
+
+    @_em_ordem
+    def _aplicar_resposta(self, url, enviados, resposta):
+        itens = resposta.get("itens") or {}
+        aceitos = set(resposta.get("aceitos") or [])
+        rejeitados = {r["chave"]: r for r in (resposta.get("rejeitados") or []) if isinstance(r, dict)}
+        for chave in aceitos:  # confirmado pela VPS (se nao mudou de novo aqui durante o envio)
+            r = itens.get(chave)
+            if not r:
+                continue
+            if _igual(ler_item(self.banco, self.setor, chave), enviados.get(chave, {}).get("valor")):
+                self.banco.marcar_rev(chave, r["rev"], r["editado_em"], "notebook", "notebook", False)
+            else:  # mudou de novo aqui: continua pendente, agora sobre a revisao nova
+                local = self.banco.obter_rev(chave) or {}
+                self.banco.marcar_rev(chave, r["rev"], local.get("editado_em", _agora_utc()), "notebook", "notebook", True)
+        for chave, r in itens.items():
+            if chave in aceitos or not chave_item_valida(chave) or r.get("valor") is None:
+                continue
+            local = self.banco.obter_rev(chave)
+            if local and local["pendente"] and chave not in rejeitados:
+                continue  # alterado aqui de novo: decide na proxima rodada
+            if not _igual(ler_item(self.banco, self.setor, chave), r["valor"]):
+                gravar_item(self.banco, self.setor, chave, r["valor"])
+                quem = "nuvem" if r.get("origem") == "nuvem" else r.get("origem", "")
+                self.banco.registrar_alteracao(r.get("editado_em", ""), quem, r.get("autor", ""), chave,
+                                               f"{nome_item(chave)}: {resumo_item(chave, r['valor'])} (recebido da nuvem)")
+                if chave in rejeitados and (local or {}).get("editado_em") != SEMENTE_EM:
+                    self._avisar(f"Sua alteração em {nome_item(chave)} foi substituída por uma mais recente "
+                                 f"({r.get('autor') or r.get('origem')}).")
+            self.banco.marcar_rev(chave, r["rev"], r["editado_em"], r.get("origem", ""), r.get("autor", ""), False)
+        self.banco.salvar_segredo(SEGREDO_SYNC_CONFIG, json.dumps({"url": url, "rev": int(resposta.get("rev_atual", 0))}))
+        self.banco.salvar_segredo(SEGREDO_AUDITORIA_NUVEM, json.dumps(resposta.get("auditoria") or [], ensure_ascii=False))
+
+    def avisos(self):
+        return _segredo_json(self.banco, SEGREDO_AVISOS_SYNC).get("lista", [])
+
+    def auditoria(self):
+        """Ultimas alteracoes: a lista da VPS (completa) + o que esta pendente aqui."""
+        try:
+            nuvem = json.loads(self.banco.obter_segredo(SEGREDO_AUDITORIA_NUVEM) or "[]")
+        except ValueError:
+            nuvem = []
+        return nuvem if nuvem else self.banco.ultimas_alteracoes(50)
+
+    def _enviar_legado(self, cfg):
+        """Envio da 1.1.0 (configuracao inteira) - so para VPS desatualizada."""
         corpo = {"setor": self.setor, **config_do_setor(self.banco, self.setor)}
         senha = dados_senha_remota(self.banco)
         if senha:  # so o hash - a senha em si nunca sai do notebook

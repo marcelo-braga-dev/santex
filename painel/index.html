@@ -1309,7 +1309,19 @@
     #machine-selector .segmented-btn { flex: 1 1 calc(50% - 2px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   .foot-versao { color: var(--ink-400); font-variant-numeric: tabular-nums; }
-  body.modo-nuvem [data-abrir="esp"], body.modo-nuvem [data-abrir="acesso-remoto"] { display: none; }
+  body.modo-nuvem [data-abrir="esp"], body.modo-nuvem:not(.papel-edicao) [data-abrir="acesso-remoto"] { display: none; }
+  body.papel-edicao .ro-note { color: var(--accent); border-color: var(--accent); }
+  .acesso-secao { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .acesso-secao[hidden] { display: none; }
+  .acesso-secao h4 { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-900); }
+  .acesso-secao .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 560px) { .acesso-secao .duas { grid-template-columns: 1fr; } }
+  .acesso-lista { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 12.5px; line-height: 1.45; }
+  .acesso-lista li { padding: 6px 0; border-bottom: 1px dashed var(--border); color: var(--ink-600); }
+  .acesso-lista li strong { color: var(--ink-900); font-weight: 600; }
+  .acesso-lista li.aviso { color: var(--warning); }
+  .aviso-flutuante { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 9999; background: var(--ink-900); color: var(--surface, #fff); padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 24px rgba(0,0,0,.25); max-width: calc(100vw - 32px); opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .aviso-flutuante.visivel { opacity: 1; }
   .foot-sair { display: none; margin-left: 10px; border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 12px; font: inherit; font-size: 12px; cursor: pointer; }
   .foot-sair:hover { border-color: var(--border-strong); color: var(--ink-900); }
   body.modo-nuvem .foot-sair { display: inline-block; }
@@ -2144,21 +2156,51 @@
       <button class="modal-close" id="acesso-close" type="button" aria-label="Fechar">×</button>
     </div>
     <div class="modal-body">
-      <div class="settings-note" id="acesso-explica">Quem está fora da empresa abre o painel pela internet e entra com esta senha (somente visualização).</div>
+      <div class="settings-note" id="acesso-explica">Quem está fora da empresa abre o painel pela internet e entra com uma destas senhas.</div>
       <div class="acesso-status" id="acesso-status">Verificando…</div>
-      <label class="config-field">Nova senha
-        <input type="password" id="acesso-senha" class="input" autocomplete="new-password" minlength="8" maxlength="128" placeholder="mínimo 8 caracteres" />
-      </label>
-      <label class="config-field">Repita a nova senha
-        <input type="password" id="acesso-senha2" class="input" autocomplete="new-password" minlength="8" maxlength="128" />
-      </label>
-      <div class="settings-note">Trocar a senha desconecta todos que estiverem usando o acesso remoto — eles entram de novo com a senha nova. A senha é guardada só de forma cifrada (hash), aqui e no servidor.</div>
+      <div class="acesso-secao" id="acesso-mestre">
+        <h4>Edição pela internet</h4>
+        <label class="toggle-pill" id="acesso-edicao-wrap"><input type="checkbox" id="acesso-edicao-ativa" /> Permitir que quem tem a senha de edição altere a configuração</label>
+        <div class="settings-note">Só este computador liga ou desliga. Desligado: quem estiver editando pela internet é desconectado e só a senha de visualização entra.</div>
+      </div>
+      <div class="acesso-secao">
+        <h4>Senha de visualização <span class="settings-note">— só vê o painel</span></h4>
+        <div class="duas">
+          <label class="config-field">Nova senha
+            <input type="password" id="acesso-senha" class="input" autocomplete="new-password" minlength="8" maxlength="128" placeholder="mínimo 8 caracteres" />
+          </label>
+          <label class="config-field">Repita
+            <input type="password" id="acesso-senha2" class="input" autocomplete="new-password" minlength="8" maxlength="128" />
+          </label>
+        </div>
+      </div>
+      <div class="acesso-secao">
+        <h4>Senha de edição <span class="settings-note">— vê e altera máquinas, metas, turnos, calendário…</span></h4>
+        <div class="duas">
+          <label class="config-field">Nova senha
+            <input type="password" id="acesso-edicao" class="input" autocomplete="new-password" minlength="10" maxlength="128" placeholder="mínimo 10 caracteres" />
+          </label>
+          <label class="config-field">Repita
+            <input type="password" id="acesso-edicao2" class="input" autocomplete="new-password" minlength="10" maxlength="128" />
+          </label>
+        </div>
+      </div>
+      <div class="acesso-secao" id="acesso-atual-wrap" hidden>
+        <label class="config-field">Sua senha de edição atual (obrigatória para trocar senhas)
+          <input type="password" id="acesso-atual" class="input" autocomplete="current-password" maxlength="128" />
+        </label>
+      </div>
+      <div class="settings-note">Preencha só a senha que quiser trocar. Trocar uma senha desconecta quem entrou com ela. As senhas são guardadas só de forma cifrada (hash).</div>
       <div class="settings-error" id="acesso-erro"></div>
       <div class="acesso-ok" id="acesso-ok"></div>
+      <div class="acesso-secao">
+        <h4>Últimas alterações</h4>
+        <ul class="acesso-lista" id="acesso-alteracoes"><li>Carregando…</li></ul>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn" id="acesso-cancel" type="button">Fechar</button>
-      <button class="btn primary" id="acesso-save" type="button">Salvar senha</button>
+      <button class="btn primary" id="acesso-save" type="button">Salvar senhas</button>
     </div>
   </div>
 </div>
@@ -5394,12 +5436,13 @@
   let podeEditar = true;
   let pinConfigurado = false;
   let versaoApp = "";
-  let modoNuvem = false; // painel aberto pela VPS (acesso de fora da rede): so visualiza
+  let modoNuvem = false; // painel aberto pela VPS (acesso de fora da rede)
+  let configRevConhecida = null; // muda quando alguem (aqui, na VPS ou no notebook) grava a configuracao
   function pinSalvo() {
     try { return sessionStorage.getItem(PIN_KEY) || ""; } catch (e) { return ""; }
   }
   function cabecalhosControle(extra) {
-    const h = { ...(extra || {}) };
+    const h = { ...(extra || {}), "X-Painel-Edicao": "1" }; // VPS: protecao contra CSRF
     const pin = pinSalvo();
     if (pin) h["X-Pin"] = pin;
     return h;
@@ -5407,8 +5450,9 @@
   function renderSomenteLeitura() {
     const nota = $("#ro-note");
     if (nota) {
-      nota.hidden = podeEditar || !servidorOnline;
-      nota.textContent = modoNuvem ? "🔒 Acesso remoto · somente leitura" : "🔒 Somente leitura";
+      const editorRemoto = modoNuvem && podeEditar;
+      nota.hidden = !servidorOnline || (podeEditar && !editorRemoto);
+      nota.textContent = editorRemoto ? "✏ Edição remota" : modoNuvem ? "🔒 Acesso remoto · somente leitura" : "🔒 Somente leitura";
     }
     const v = $("#foot-versao");
     if (v) v.textContent = versaoApp ? `· v${versaoApp}` : "";
@@ -5432,6 +5476,8 @@
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
     });
     if (res.status === 403) {
+      const motivo = await res.clone().json().catch(() => ({}));
+      if (motivo.erro !== "somente_leitura") return res; // ex.: senha atual errada - quem chamou mostra
       podeEditar = false;
       renderSomenteLeitura();
       restaurarConfigDoServidor(); // a alteracao nao foi salva
@@ -5440,11 +5486,33 @@
       erro.somenteLeitura = true;
       throw erro;
     }
+    if (rota === "/config" && res.ok) { // gravacao deste painel: nao e "alteracao de outro usuario"
+      const d = await res.clone().json().catch(() => ({}));
+      if (d.configRev) configRevConhecida = d.configRev;
+    }
     return res;
+  }
+
+  let avisoTimer = null;
+  function avisoFlutuante(texto) {
+    let el = $("#aviso-flutuante");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "aviso-flutuante";
+      el.className = "aviso-flutuante";
+      el.setAttribute("role", "status");
+      document.body.appendChild(el);
+    }
+    el.textContent = texto;
+    el.classList.add("visivel");
+    clearTimeout(avisoTimer);
+    avisoTimer = setTimeout(() => el.classList.remove("visivel"), 5000);
   }
   $("#ro-note").addEventListener("click", async () => {
     if (modoNuvem) {
-      alert("Acesso remoto: este painel só visualiza os dados.\n\nAs alterações (máquinas, metas, turnos) são feitas no computador do painel, na empresa, e chegam aqui sozinhas.");
+      alert(podeEditar
+        ? "Edição remota: você entrou com a senha de edição.\n\nO que você alterar aqui (máquinas, metas, turnos, calendário…) é salvo de forma permanente e chega ao computador da fábrica em alguns segundos. Leitura do controlador e conexão continuam só lá."
+        : "Acesso remoto: com esta senha o painel só visualiza os dados.\n\nPara alterar, clique em Sair (no rodapé) e entre com a senha de edição.");
       return;
     }
     if (!pinConfigurado) {
@@ -5594,6 +5662,14 @@
       versaoApp = dados.versao || "";
       modoNuvem = dados.modoServidor === "nuvem";
       document.body.classList.toggle("modo-nuvem", modoNuvem);
+      document.body.classList.toggle("papel-edicao", modoNuvem && podeEditar);
+      if (dados.configRev) {
+        if (configRevConhecida && dados.configRev !== configRevConhecida && !sincronizandoConfig) {
+          sincronizarConfigComServidor();
+          avisoFlutuante(modoNuvem ? "Configuração atualizada por outro usuário." : "Configuração atualizada (alteração feita pela internet).");
+        }
+        configRevConhecida = dados.configRev;
+      }
     } catch (e) {
       servidorOnline = false;
     }
@@ -6399,38 +6475,70 @@
   // entra no painel da VPS com esta senha; o servidor guarda so o hash e o
   // envia para a VPS junto com a configuracao.
   // ---------------------------------------------------------------------
+  const NOME_ORIGEM = { notebook: "computador da fábrica", nuvem: "internet" };
   async function renderAcessoRemoto() {
     const alvo = $("#acesso-status");
     let ar = null;
     try {
-      const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
+      const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store", headers: cabecalhosControle() });
       ar = res.ok ? (await res.json()).acessoRemoto : null;
     } catch (e) { /* sem servidor */ }
     if (!ar) { alvo.textContent = "Indisponível: abra pelo aplicativo do painel."; return; }
+    $("#acesso-mestre").hidden = modoNuvem; // so o computador da fabrica liga/desliga
+    $("#acesso-atual-wrap").hidden = !modoNuvem;
+    $("#acesso-edicao-ativa").checked = ar.edicaoRemotaAtiva !== false;
+    $("#acesso-edicao-wrap").classList.toggle("active", ar.edicaoRemotaAtiva !== false);
     const url = ar.url ? escaparHtml(ar.url) : "";
-    $("#acesso-explica").innerHTML = url
-      ? `Quem está fora da empresa abre <strong>${url}</strong> e entra com esta senha (somente visualização).`
-      : "O endereço da nuvem (NUVEM_URL) não está configurado neste aplicativo — a senha fica guardada, mas não há para onde enviar.";
+    $("#acesso-explica").innerHTML = modoNuvem
+      ? "Você está editando pela internet. As mudanças chegam ao computador da fábrica em alguns segundos."
+      : url
+        ? `Quem está fora da empresa abre <strong>${url}</strong> (ou o programa <strong>Painel Santex Remoto</strong>) e entra com uma destas senhas.`
+        : "O endereço da nuvem (NUVEM_URL) não está configurado neste aplicativo — as senhas ficam guardadas, mas não há para onde enviar.";
+    const quando = (iso) => (fmtQuando(iso) ? ` em <strong>${fmtQuando(iso)}</strong>` : "");
     const linhas = [];
     linhas.push(ar.definida
-      ? `<span class="ok">✔ Senha definida</span>${ar.alteradaEm ? ` em <strong>${fmtQuando(ar.alteradaEm)}</strong>` : ""}.`
-      : `<span class="aviso">⚠ Nenhuma senha definida</span> — ninguém consegue entrar pelo acesso remoto.`);
+      ? `<span class="ok">✔ Visualização</span> definida${quando(ar.alteradaEm)}.`
+      : `<span class="aviso">⚠ Visualização: nenhuma senha</span>.`);
+    linhas.push(ar.edicaoDefinida
+      ? `<span class="ok">✔ Edição</span> definida${quando(ar.edicaoAlteradaEm)}${ar.edicaoRemotaAtiva === false ? ` — <span class="aviso">edição pela internet desligada</span>` : ""}.`
+      : `<span class="aviso">⚠ Edição: nenhuma senha</span> — ninguém altera pela internet.`);
     const n = sincronizacao && sincronizacao.nuvem;
-    if (ar.definida && n && n.ativo) {
+    if (!modoNuvem && n && n.ativo) {
       linhas.push(n.erro
-        ? `<span class="aviso">⚠ Ainda não chegou à nuvem:</span> ${escaparHtml(n.erro)}. Tenta de novo sozinho.`
-        : n.ultimo_envio ? `Enviada para a nuvem ${fmtQuando(n.ultimo_envio)}.` : "Aguardando o envio para a nuvem…");
+        ? `<span class="aviso">⚠ Sem sincronizar com a nuvem:</span> ${escaparHtml(n.erro)}. Tenta de novo sozinho.`
+        : n.ultimo_envio ? `Sincronizado com a nuvem ${fmtQuando(n.ultimo_envio)}.` : "Aguardando a sincronização com a nuvem…");
     }
     alvo.innerHTML = linhas.join("<br>");
+    renderAlteracoes();
+  }
+
+  async function renderAlteracoes() {
+    const lista = $("#acesso-alteracoes");
+    try {
+      const res = await fetch(CONTROLE_URL + "/alteracoes", { cache: "no-store", headers: cabecalhosControle() });
+      if (!res.ok) { lista.innerHTML = "<li>Indisponível.</li>"; return; }
+      const d = await res.json();
+      const itens = (d.avisos || []).slice(0, 5).map((a) =>
+        `<li class="aviso">⚠ ${escaparHtml(a.texto)} <span>(${fmtQuando(a.quando) || ""})</span></li>`);
+      (d.alteracoes || []).forEach((a) => {
+        const onde = NOME_ORIGEM[a.origem] || a.origem;
+        const quem = a.autor && a.autor !== a.origem ? ` · ${escaparHtml(a.autor)}` : "";
+        itens.push(`<li><strong>${escaparHtml(a.resumo)}</strong><br>${fmtQuando(a.quando) || ""} · ${escaparHtml(onde)}${quem}</li>`);
+      });
+      lista.innerHTML = itens.length ? itens.join("") : "<li>Nenhuma alteração registrada ainda.</li>";
+    } catch (e) {
+      lista.innerHTML = "<li>Indisponível.</li>";
+    }
   }
 
   function abrirAcessoRemoto() {
     if (!podeEditar) {
-      alert("Somente o computador do painel (ou um aparelho com o PIN) pode definir a senha do acesso remoto.");
+      alert(modoNuvem
+        ? "Para gerenciar o acesso remoto, entre com a senha de edição."
+        : "Somente o computador do painel (ou um aparelho com o PIN) pode gerenciar o acesso remoto.");
       return;
     }
-    $("#acesso-senha").value = "";
-    $("#acesso-senha2").value = "";
+    ["#acesso-senha", "#acesso-senha2", "#acesso-edicao", "#acesso-edicao2", "#acesso-atual"].forEach((id) => { $(id).value = ""; });
     $("#acesso-erro").textContent = "";
     $("#acesso-ok").textContent = "";
     $("#acesso-status").textContent = "Verificando…";
@@ -6441,36 +6549,66 @@
 
   function fecharAcessoRemoto() { $("#acesso-overlay").classList.remove("visible"); }
 
+  async function enviarAcesso(corpo, msgOk) {
+    const erro = $("#acesso-erro");
+    try {
+      const res = await postControle("/config", { setor: setorAtual.id, ...corpo });
+      const dados = await res.json().catch(() => ({}));
+      if (!res.ok || !dados.ok) { erro.textContent = dados.erro || "Não foi possível salvar."; return false; }
+      erro.textContent = "";
+      $("#acesso-ok").textContent = msgOk;
+      setTimeout(() => { consultarSincronizacao(); setTimeout(renderAcessoRemoto, 1500); }, 1500);
+      renderAcessoRemoto();
+      return true;
+    } catch (e) {
+      erro.textContent = e.somenteLeitura ? "Sem permissão para alterar." : "Servidor indisponível.";
+      return false;
+    }
+  }
+
   async function salvarAcessoRemoto() {
-    const senha = $("#acesso-senha").value;
     const erro = $("#acesso-erro");
     $("#acesso-ok").textContent = "";
-    if (senha.length < 8) { erro.textContent = "A senha precisa ter pelo menos 8 caracteres."; return; }
-    if (senha !== $("#acesso-senha2").value) { erro.textContent = "As duas senhas não são iguais."; return; }
+    const ver = $("#acesso-senha").value, ed = $("#acesso-edicao").value;
+    const corpo = {};
+    if (ver || $("#acesso-senha2").value) {
+      if (ver.length < 8) { erro.textContent = "A senha de visualização precisa ter pelo menos 8 caracteres."; return; }
+      if (ver !== $("#acesso-senha2").value) { erro.textContent = "As duas senhas de visualização não são iguais."; return; }
+      corpo.senhaRemota = ver;
+    }
+    if (ed || $("#acesso-edicao2").value) {
+      if (ed.length < 10) { erro.textContent = "A senha de edição precisa ter pelo menos 10 caracteres."; return; }
+      if (ed !== $("#acesso-edicao2").value) { erro.textContent = "As duas senhas de edição não são iguais."; return; }
+      corpo.senhaEdicao = ed;
+    }
+    if (corpo.senhaRemota && corpo.senhaRemota === corpo.senhaEdicao) { erro.textContent = "As senhas de visualização e de edição precisam ser diferentes."; return; }
+    if (!Object.keys(corpo).length) { erro.textContent = "Preencha a senha que deseja trocar."; return; }
+    if (modoNuvem) {
+      corpo.senhaAtual = $("#acesso-atual").value;
+      if (!corpo.senhaAtual) { erro.textContent = "Informe sua senha de edição atual."; return; }
+    }
     erro.textContent = "";
     $("#acesso-save").disabled = true;
-    try {
-      const res = await postControle("/config", { setor: setorAtual.id, senhaRemota: senha });
-      const dados = await res.json();
-      if (!res.ok || !dados.ok) {
-        erro.textContent = dados.erro || "Não foi possível salvar a senha.";
-      } else {
-        $("#acesso-senha").value = "";
-        $("#acesso-senha2").value = "";
-        $("#acesso-ok").textContent = "Senha salva. Ela chega à nuvem em alguns segundos (com internet).";
-        setTimeout(() => { consultarSincronizacao(); setTimeout(renderAcessoRemoto, 1500); }, 1500);
-        renderAcessoRemoto();
-      }
-    } catch (e) {
-      erro.textContent = e.somenteLeitura ? "Este aparelho está em modo somente leitura." : "Servidor local indisponível.";
-    }
+    const ok = await enviarAcesso(corpo, modoNuvem
+      ? "Senha salva. Ela já vale aqui e chega ao computador da fábrica em alguns segundos."
+      : "Senha salva. Ela chega à nuvem em alguns segundos (com internet).");
+    if (ok) ["#acesso-senha", "#acesso-senha2", "#acesso-edicao", "#acesso-edicao2", "#acesso-atual"].forEach((id) => { $(id).value = ""; });
     $("#acesso-save").disabled = false;
   }
+
+  $("#acesso-edicao-ativa").addEventListener("change", (ev) => {
+    const ativa = ev.target.checked;
+    $("#acesso-edicao-wrap").classList.toggle("active", ativa);
+    enviarAcesso({ edicaoRemota: ativa }, ativa
+      ? "Edição pela internet ligada."
+      : "Edição pela internet desligada — quem estava editando foi desconectado.");
+  });
 
   ABRIR_POPUP["acesso-remoto"] = abrirAcessoRemoto;
   ligarPopup("acesso", fecharAcessoRemoto);
   $("#acesso-save").addEventListener("click", salvarAcessoRemoto);
-  $("#acesso-senha2").addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarAcessoRemoto(); });
+  ["#acesso-senha2", "#acesso-edicao2", "#acesso-atual"].forEach((id) =>
+    $(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarAcessoRemoto(); }));
   ligarPopup("meta", fecharMeta);
   $("#meta-save").addEventListener("click", salvarMeta);
   $("#meta-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarMeta(); });
