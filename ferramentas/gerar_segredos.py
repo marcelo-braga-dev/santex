@@ -107,7 +107,7 @@ def main():
         json.dump({"api_chave": valores["API_CHAVE"], "nuvem_url": valores["NUVEM_URL"],
                    "nuvem_chave": valores["NUVEM_CHAVE"]}, arquivo)
     print(f"OK: {os.path.relpath(ARQ_SAIDA, RAIZ)} e {os.path.relpath(ARQ_SAIDA_APP, RAIZ)} atualizados a partir do .env.")
-    print("Grave o firmware E gere o .exe de novo (app/gerar_executavel.bat) - os dois usam as mesmas chaves.")
+    print("Grave o firmware E gere o .exe de novo (gerar/gerar.bat) - os dois usam as mesmas chaves.")
     print(f"Acesso remoto: {'ligado -> ' + valores['NUVEM_URL'] if valores['NUVEM_URL'] else 'desligado (NUVEM_URL vazia)'}")
 
 

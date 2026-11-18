@@ -1,16 +1,16 @@
 <#
-  Monta o pacote do acesso remoto para a VPS: dist-vps\painel-nuvem-<versao>.tar.gz
+  Monta o pacote do acesso remoto para a VPS: distribuir\painel-nuvem-<versao>.tar.gz
 
   Leva so o que o servidor da VPS precisa (servidor, ferramentas, painel,
-  deploy, guia) + o CLAUDE.md para o Claude Code rodar a instalacao la.
+  vps/, guia) + o CLAUDE.md para o Claude Code rodar a instalacao la.
   Nunca leva segredos da fabrica (.env, segredos_app.json, segredos.h),
   bancos, backups nem o .exe.
 
   Uso (PowerShell, na raiz do projeto):
-    .\deploy\empacotar_vps.ps1
+    .\gerar\pacote_vps.ps1   (ou gerar\gerar.bat, opcao 3)
 
   Depois, para a VPS (troque usuario@IP):
-    scp dist-vps\painel-nuvem-<versao>.tar.gz usuario@IP:~
+    scp distribuir\painel-nuvem-<versao>.tar.gz usuario@IP:~
     ssh usuario@IP "tar -xzf painel-nuvem-<versao>.tar.gz"   # cria ~/painel-nuvem
 #>
 $ErrorActionPreference = "Stop"
@@ -18,7 +18,7 @@ $raiz = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $raiz
 
 $versao = (Select-String -Path "app\servidor.py" -Pattern '^APP_VERSAO = "([^"]+)"').Matches[0].Groups[1].Value
-$saida = Join-Path $raiz "dist-vps"
+$saida = Join-Path $raiz "distribuir"
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("painel-nuvem-" + [guid]::NewGuid().ToString("N"))
 $pacote = Join-Path $temp "painel-nuvem"
 
@@ -28,7 +28,7 @@ $arquivos = @(
     "ferramentas\monitor_wifi.py", "ferramentas\nuvem.py",
     "ferramentas\controle_leitura_server.py",
     "painel\index.html",
-    "deploy\instalar_vps.sh", "deploy\painel-nuvem.service", "deploy\Caddyfile", "deploy\painel-nuvem.env.exemplo",
+    "vps\instalar.sh", "vps\painel-nuvem.service", "vps\Caddyfile", "vps\painel-nuvem.env.exemplo",
     "docs\nuvem-vps.md"
 )
 
@@ -39,7 +39,7 @@ try {
         Copy-Item $a $destino
     }
     Copy-Item "painel\assets" (Join-Path $pacote "painel\assets") -Recurse
-    Copy-Item "deploy\CLAUDE_VPS.md" (Join-Path $pacote "CLAUDE.md")
+    Copy-Item "vps\CLAUDE_VPS.md" (Join-Path $pacote "CLAUDE.md")
 
     # Linux: quebra de linha LF nos arquivos de texto (bash/systemd falham com CRLF)
     Get-ChildItem $pacote -Recurse -File -Include *.sh, *.service, Caddyfile, *.py, *.md, *.exemplo | ForEach-Object {

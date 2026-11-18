@@ -1,14 +1,15 @@
 """
-Gera o instalavel standalone (.exe) do Painel de Producao - um unico
-arquivo, sem precisar de Python nem bibliotecas instaladas na maquina de
-destino (tudo embutido pelo PyInstaller).
+Gera o PainelProducaoSantex.exe - o aplicativo do COMPUTADOR DA FABRICA
+(le o ESP32, guarda o banco, sincroniza com a VPS). Um unico arquivo, sem
+precisar de Python nem bibliotecas na maquina de destino (PyInstaller).
+Leva a chave da fabrica: NUNCA distribua este .exe para fora da empresa -
+fora usa-se o PainelSantexRemoto.exe (gerar/exe_remoto.py).
 
-Uso:
-    cd app
-    pip install -r requirements.txt
-    python build_exe.py
+Uso (ou gerar/gerar.bat):
+    pip install -r app/requirements.txt
+    python gerar/exe_fabrica.py
 
-Gera app/dist/PainelProducaoSantex.exe. Teste SEMPRE rodando esse .exe
+Gera distribuir/PainelProducaoSantex.exe. Teste SEMPRE rodando esse .exe
 numa pasta fora do projeto (ou em outra maquina) antes de distribuir - pra
 garantir que nenhum caminho relativo escapou do empacotamento.
 
@@ -23,8 +24,8 @@ import os
 
 import PyInstaller.__main__
 
-DIR_BASE = os.path.dirname(os.path.abspath(__file__))
-RAIZ_PROJETO = os.path.dirname(DIR_BASE)
+RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIR_BASE = os.path.join(RAIZ_PROJETO, "app")
 
 PAINEL_SRC = os.path.join(RAIZ_PROJETO, "painel")
 MONITOR_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_serial.py")
@@ -49,8 +50,8 @@ SPLASH = os.path.join(DIR_BASE, "assets", "splash.png")
 
 # Pastas de saida (podem ser trocadas por variavel de ambiente, ex. para
 # testar um build sem sobrescrever o .exe em uso).
-DIST = os.environ.get("BUILD_DIST", os.path.join(DIR_BASE, "dist"))
-WORK = os.environ.get("BUILD_WORK", os.path.join(DIR_BASE, "build"))
+DIST = os.environ.get("BUILD_DIST", os.path.join(RAIZ_PROJETO, "distribuir"))
+WORK = os.environ.get("BUILD_WORK", os.path.join(RAIZ_PROJETO, "gerar", "_trabalho", "fabrica"))
 
 # --add-data usa ";" no Windows e ":" no Linux/macOS - os.pathsep ja acerta
 # isso automaticamente conforme o SO onde o build estiver rodando.
@@ -93,7 +94,7 @@ ARGS = [
     "--collect-submodules=zeroconf",
     "--distpath=" + DIST,
     "--workpath=" + WORK,
-    "--specpath=" + DIR_BASE,
+    "--specpath=" + WORK,
     "--noconfirm",
 ]
 

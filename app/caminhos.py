@@ -46,7 +46,7 @@ def dir_dados_usuario():
 
 def _raiz_projeto():
     """Raiz do projeto controle_producao_horimetro: a do codigo-fonte ou, no
-    .exe, a gravada por build_exe.py em app/build_info.json no momento do
+    .exe, a gravada por gerar/exe_fabrica.py em app/build_info.json no momento do
     build. None se nao souber ou se a pasta nao existir neste PC."""
     if not rodando_empacotado():
         return dir_base_bundle()

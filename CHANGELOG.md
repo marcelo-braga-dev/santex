@@ -1,5 +1,38 @@
 # Histórico de versões
 
+## 1.2.0 — edição remota (app 1.2.0 · firmware 3.0, sem mudança)
+
+Quem está fora da empresa também altera a configuração de forma permanente,
+sem precisar do computador da fábrica. Ver `docs/nuvem-vps.md`, "Edição remota".
+
+- **Computador da fábrica = mestre**: nunca pede senha, pode tudo, define as
+  senhas e liga/desliga a edição remota (⚙ Configurações → Acesso remoto).
+- **Duas senhas na VPS**: visualização (só vê) e edição (vê e altera
+  máquinas, metas, turnos, intervalos, calendário, vigências e cores). O
+  papel vai no cookie assinado; trocar uma senha derruba só as sessões dela.
+  Pela VPS, trocar senha exige redigitar a senha de edição atual.
+- **Configuração nas duas mãos**: cada item tem revisão (tabela nova
+  `config_rev`); o notebook troca com a VPS a cada 15 s
+  (`POST /api/nuvem/config`, `"versao": 2`). Mesmo item alterado nos dois
+  lados = vale o mais recente, e quem perdeu recebe aviso; itens diferentes
+  nunca se perdem; edição offline sobe quando a internet volta.
+- **Auditoria** (tabela nova `alteracoes`): quem, de onde (fábrica/internet +
+  IP), quando e o quê — no popup Acesso remoto, "Últimas alterações".
+- Painéis abertos se atualizam sozinhos quando outra pessoa altera
+  ("Configuração atualizada por outro usuário").
+- Segurança: CSRF (cabeçalho `X-Painel-Edicao` + origem), sem CORS na VPS,
+  leitura do controlador/conexão nunca pela VPS, bloqueio por tentativas.
+- Compatível nos dois sentidos: VPS 1.2.0 aceita o notebook 1.1.0 sem
+  desfazer edições remotas; notebook 1.2.0 cai no envio antigo com VPS 1.1.0.
+- **`PainelSantexRemoto.exe`**: programa para os computadores de fora — só
+  abre a VPS, sem chave nem banco; login guardado por 30 dias.
+- **Estrutura reorganizada**: `deploy/` → `vps/` (instalador `vps/instalar.sh`);
+  geradores em `gerar/` (`gerar.bat` com menu); todos os entregáveis em
+  `distribuir/` (fora do git); código do programa remoto em `remoto/`.
+- 32 testes (7 novos de edição remota com servidor real) e teste ponta a
+  ponta no navegador com a cópia do banco de produção.
+
+
 ## 1.1.0 — em desenvolvimento (app 1.1.0 · firmware 3.0)
 
 Acesso remoto: quem está fora da rede da empresa vê o painel em

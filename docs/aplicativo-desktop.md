@@ -14,11 +14,15 @@ app/
 ├── tela_inicial.py    # Tela "Carregando… / Falha / Já aberto" mostrada antes do painel
 ├── servidor.py        # Servidor HTTP: serve o painel (painel/) + API de leitura
 ├── caminhos.py         # Resolve caminhos (fonte vs. .exe empacotado, pasta de dados do usuário)
-├── build_exe.py        # Roda o PyInstaller com os parâmetros certos
-├── gerar_executavel.bat # Atalho (duplo clique): instala dependências + roda build_exe.py
 ├── requirements.txt     # pywebview, pyinstaller, pyserial
 ├── assets/icone.ico     # Ícone do aplicativo (gerado a partir do logo da empresa)
 └── assets/splash.png    # Imagem de abertura do .exe (enquanto ele se descompacta)
+
+gerar/                  # Geradores (na raiz do projeto) - saída em distribuir/
+├── gerar.bat           # Duplo clique: menu (fábrica / remoto / VPS / tudo)
+├── exe_fabrica.py      # PyInstaller do PainelProducaoSantex.exe (este aplicativo)
+├── exe_remoto.py       # PainelSantexRemoto.exe (computadores de fora - ver docs/nuvem-vps.md)
+└── pacote_vps.ps1      # Pacote da VPS (alternativa ao git pull)
 ```
 
 ### Abertura sem "tela branca"
@@ -105,19 +109,23 @@ script `controle_leitura_server.py`).
 
 ## Gerar o `.exe`
 
-Mais simples: duplo clique em **`app/gerar_executavel.bat`** — instala as
-dependências e gera o executável, com uma pausa no final mostrando onde ele
-ficou.
+Mais simples: duplo clique em **`gerar/gerar.bat`** e escolha a opção 1 —
+instala as dependências, atualiza as chaves a partir do `.env` e gera o
+executável em `distribuir\`.
 
-Ou manualmente:
+Ou manualmente (na raiz do projeto):
 
 ```
-cd app
-pip install -r requirements.txt
-python build_exe.py
+pip install -r app/requirements.txt
+python ferramentas/gerar_segredos.py
+python gerar/exe_fabrica.py
 ```
 
-Gera **`app/dist/PainelProducaoSantex.exe`** — um único arquivo, com
+**Este `.exe` leva a chave da fábrica: nunca o copie para computadores de
+fora da empresa** — para eles existe o `PainelSantexRemoto.exe` (opção 2 do
+`gerar.bat`), que só abre o painel da VPS e não leva segredo nenhum.
+
+Gera **`distribuir/PainelProducaoSantex.exe`** — um único arquivo, com
 Python, `pywebview`, `pyserial`, `sqlite3` e o painel inteiro embutidos.
 Quem for instalar não precisa ter Python nem rodar `pip install` — só esse
 `.exe`.
@@ -125,7 +133,7 @@ Quem for instalar não precisa ter Python nem rodar `pip install` — só esse
 `monitor_serial.py` e `banco_dados.py` entram via `--add-data` (copiados
 como arquivos, carregados em tempo de execução por `sys.path` — ver
 `servidor.py`), então o PyInstaller nunca analisa os `import` que eles
-fazem. Por isso `build_exe.py` declara manualmente
+fazem. Por isso `gerar/exe_fabrica.py` declara manualmente
 `--hidden-import=serial.tools.list_ports` e `--hidden-import=sqlite3`;
 sem o segundo, o `.exe` compila sem erro mas quebra ao abrir com
 `ModuleNotFoundError: No module named 'sqlite3'` (só aparece rodando o
@@ -219,7 +227,7 @@ Isso é uma camada a mais de segurança além do banco de dados
 (para não esticar/distorcer um logo retangular) e exportado em vários
 tamanhos (16 a 256px), como o Windows espera de um `.ico`. Para trocar o
 ícone, gere um novo `.ico` a partir da imagem desejada e substitua o
-arquivo — `build_exe.py` já aponta para ele.
+arquivo — `gerar/exe_fabrica.py` já aponta para ele.
 
 ## Acessar o painel de outro computador (navegador)
 
@@ -331,7 +339,7 @@ no rodapé do painel ("· v1.0.0" — `APP_VERSAO` em `app/servidor.py`).
 
 1. Suba o número em `APP_VERSAO` (`app/servidor.py`).
 2. Rode os testes: `python -m unittest discover -s testes -v`.
-3. Duplo clique em `app/gerar_executavel.bat` (ele também roda
+3. Duplo clique em `gerar/gerar.bat` (ele também roda
    `gerar_segredos.py`, que leva a `API_CHAVE` do `.env` para o app).
 4. Feche o app, troque o `.exe` e abra de novo. Os dados ficam onde estão.
 5. Se mudou o firmware: grave pela Arduino IDE **com o mesmo `.env`** (o

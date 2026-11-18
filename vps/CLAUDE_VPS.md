@@ -2,12 +2,12 @@
 
 Você está numa **VPS de produção** que pode hospedar outros sites. Sua tarefa
 é instalar e manter o servidor do **acesso remoto do Painel de Produção**
-(app 1.1.0) em **https://santex.rexar.com.br**. Responda sempre em
+(app 1.2.0) em **https://santex.rexar.com.br**. Responda sempre em
 **português do Brasil**, com comandos e resultados claros.
 
 O código chega à VPS de dois jeitos: **clone do repositório**
 (`https://github.com/marcelo-braga-dev/santex`, atualizado com `git pull` —
-o caminho usado hoje; este arquivo é `deploy/CLAUDE_VPS.md`, e o `CLAUDE.md`
+o caminho usado hoje; este arquivo é `vps/CLAUDE_VPS.md`, e o `CLAUDE.md`
 da raiz aponta para cá) ou o pacote `painel-nuvem-<versão>.tar.gz` (este
 arquivo vira o `CLAUDE.md` dele). Guia humano equivalente: `docs/nuvem-vps.md`.
 
@@ -18,19 +18,24 @@ para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das reg
 
 - Na fábrica, um **ESP32 (firmware 3.0)** lê 4 máquinas e **envia** ciclos e
   estado por HTTPS para `POST https://santex.rexar.com.br/api/nuvem/enviar`.
-- O **notebook da fábrica** (app 1.1.0) é a fonte principal e envia a
-  configuração (máquinas, metas, turnos, hash da senha) para
-  `POST /api/nuvem/config` e **todo o histórico de ciclos** que a VPS ainda
-  não tem para `POST /api/nuvem/historico` (lotes de 500, sem duplicar).
+- O **notebook da fábrica** (app 1.2.0) é a fonte principal e o **mestre**:
+  a cada 15 s troca a configuração com a VPS nas duas mãos
+  (`POST /api/nuvem/config`, `"versao": 2` — manda o que mudou lá, recebe o
+  que foi editado aqui) e envia **todo o histórico de ciclos** que a VPS
+  ainda não tem para `POST /api/nuvem/historico` (lotes de 500, sem duplicar).
 - Os dois enviam o cabeçalho `X-Chave-Nuvem` com a **NUVEM_CHAVE**.
 - Nesta VPS roda o **mesmo servidor Python do app** em `PAINEL_MODO=nuvem`
   (`ferramentas/controle_leitura_server.py` → `app/servidor.py` +
-  `ferramentas/nuvem.py`): guarda uma cópia em SQLite e serve o painel
-  **somente leitura**, com **uma senha única** (tela de login só com senha,
-  sessão de 30 dias em cookie assinado), atrás do servidor web com HTTPS.
-  A senha é definida **no notebook** (⚙ Configurações → Acesso remoto) e
-  chega aqui só como hash, junto com a configuração — **não existe cadastro
-  de usuários na VPS**. Só biblioteca padrão do Python + `pyserial`.
+  `ferramentas/nuvem.py`): guarda uma cópia em SQLite e serve o painel com
+  **duas senhas** (tela de login só com senha, sessão de 30 dias em cookie
+  assinado com o papel): **visualização** (só vê) e **edição** (altera
+  máquinas, metas, turnos, calendário… e essas edições vão para o notebook).
+  As senhas são definidas no notebook (⚙ Configurações → Acesso remoto) e
+  chegam só como hash; quem tem a de edição também pode trocá-las aqui,
+  redigitando a atual. O notebook pode desligar a edição remota. Leitura do
+  ESP32 e conexão **nunca** são controláveis pela VPS. Auditoria de toda
+  alteração na tabela `alteracoes`. **Não existe cadastro de usuários na
+  VPS.** Só biblioteca padrão do Python + `pyserial`.
 
 | Item | Valor |
 |---|---|
@@ -47,7 +52,7 @@ para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das reg
    comandos com `echo`, nem em respostas). Para usá-la num teste, leia do
    arquivo dentro de um `sudo bash -c '. /etc/painel-nuvem.env; ...'` sem exibi-la.
 2. **Senhas e a chave são digitadas pelo usuário, não por você.** Os comandos
-   interativos (`instalar_vps.sh` na primeira vez) pedem entrada oculta:
+   interativos (`instalar.sh` na primeira vez) pedem entrada oculta:
    peça ao usuário para rodá-los ele mesmo digitando `! <comando>` no prompt
    do Claude Code. A senha do painel nem passa pela VPS em texto: é definida
    no notebook.
@@ -71,14 +76,21 @@ para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das reg
 **Estado em 18/11/2026:** já instalado e funcionando — serviço
 `painel-nuvem` ativo, LiteSpeed fazendo o proxy de `santex.rexar.com.br`
 para `127.0.0.1:8080`, `NUVEM_CHAVE` em `/etc/painel-nuvem.env`, ESP32
-(firmware 3.0) e notebook (app 1.1.0) já enviando, senha de acesso já
-recebida. **Não refaça os Passos 0–3 nem mexa no LiteSpeed** num deploy
-comum: só atualize o código e verifique.
+(firmware 3.0) e notebook já enviando, senha de visualização já recebida.
+**Não refaça os Passos 0–3 nem mexa no LiteSpeed** num deploy comum: só
+atualize o código e verifique.
 
-Mudança que este deploy leva (commit seguinte ao `02b7412`): a rota
-`POST /api/nuvem/historico`, que recebe do notebook todo o histórico de
-ciclos (a VPS passa a ter o mesmo histórico do notebook), e a chave certa
-deixa de ser afetada pelo bloqueio por tentativas.
+**Mudanças da 1.2.0** (este deploy):
+- A pasta de instalação mudou: **`deploy/` virou `vps/`** e o instalador é
+  **`vps/instalar.sh`** (antes `deploy/instalar_vps.sh`). O serviço, os dados
+  e a chave continuam onde estavam.
+- Edição remota (senha de edição), sincronização da configuração nas duas
+  mãos, auditoria. O banco ganha as tabelas `config_rev` e `alteracoes`
+  sozinho ao iniciar (mudança só aditiva — nada é apagado).
+- Os logins abertos na 1.1.0 caem uma vez (o cookie agora leva o papel):
+  as pessoas entram de novo com a mesma senha.
+- Pode ser instalada antes ou depois do `.exe` 1.2.0 no notebook: a VPS
+  aceita o formato antigo sem desfazer edições feitas aqui.
 
 1. **Conferir o clone** (na pasta do repositório, ex. `~/santex`):
    ```bash
@@ -91,7 +103,7 @@ deixa de ser afetada pelo bloqueio por tentativas.
    `git pull` recusado (histórico divergente)? Pare e pergunte — nunca use `--force` nem `reset --hard` sem confirmação.
 2. **Instalar o código novo** (mantém `/etc/painel-nuvem.env`, `/var/lib/painel-nuvem` e a senha; reinicia o serviço):
    ```bash
-   sudo bash deploy/instalar_vps.sh
+   sudo bash vps/instalar.sh
    ```
 3. **Verificar** (todos precisam bater):
    ```bash
@@ -101,21 +113,21 @@ deixa de ser afetada pelo bloqueio por tentativas.
    curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
    curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
-   #   -> {"ok": true, "versao": "1.1.0"}
+   #   -> {"ok": true, "versao": "1.2.0"}
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
    #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
    ```
    A chave não aparece na tela em nenhum desses comandos — mantenha assim.
-4. **Histórico chegando** (depois que o notebook estiver com o `.exe` novo,
-   que o usuário instala na fábrica): repita o último comando do passo 3 —
-   o `total` sobe até o total do notebook (≈ 4.200+ ciclos em 18/11/2026) em
-   poucos minutos. Para acompanhar sem expor nada:
+4. **Histórico e configuração chegando** (depois que o notebook estiver com
+   o `.exe` 1.2.0): repita o último comando do passo 3 — o `total` acompanha
+   o do notebook (≈ 4.200+ ciclos em 18/11/2026). Para acompanhar sem expor nada:
    ```bash
-   sudo python3 -c "import sqlite3; c=sqlite3.connect('file:/var/lib/painel-nuvem/painel.db?mode=ro', uri=True); print('ciclos na VPS:', c.execute('select count(*) from ciclos').fetchone()[0])"
+   sudo python3 -c "import sqlite3; c=sqlite3.connect('file:/var/lib/painel-nuvem/painel.db?mode=ro', uri=True); print('ciclos:', c.execute('select count(*) from ciclos').fetchone()[0]); print('revisoes da configuracao:', c.execute('select count(*), coalesce(max(rev),0) from config_rev').fetchone()); print('ultimas alteracoes:', c.execute('select quando, origem, chave from alteracoes order by id desc limit 5').fetchall())"
    ```
+   `config_rev` com linhas = o notebook 1.2.0 já sincronizou a configuração.
 5. **Se algo falhar**: veja `journalctl -u painel-nuvem -n 50`. Para voltar
    ao código anterior: `git checkout <commit anotado no passo 1>` e
-   `sudo bash deploy/instalar_vps.sh` (os dados não são afetados); depois
+   `sudo bash vps/instalar.sh` (os dados não são afetados); depois
    `git checkout main` quando corrigido.
 6. **Relate ao usuário**: commit instalado, resultado de cada verificação e
    o `total` de ciclos na VPS.
@@ -154,16 +166,16 @@ mas não para o controlador.
 ## Passo 1 — Instalar/atualizar o servidor
 
 O pacote já deve estar descompactado (ex.: `~/painel-nuvem`, com `app/`,
-`ferramentas/`, `painel/`, `deploy/`). Na **primeira instalação** a chave
+`ferramentas/`, `painel/`, `vps/`). Na **primeira instalação** a chave
 ainda não existe — peça ao usuário:
 
 ```
-! cd ~/painel-nuvem && sudo bash deploy/instalar_vps.sh
+! cd ~/painel-nuvem && sudo bash vps/instalar.sh
 ```
 
 (o script pede a NUVEM_CHAVE sem mostrar; ela está no `.env` do notebook da
 fábrica). Nas **atualizações** você mesmo pode rodar
-`sudo bash deploy/instalar_vps.sh` — ele mantém chave, dados e senha.
+`sudo bash vps/instalar.sh` — ele mantém chave, dados e senha.
 
 Confira:
 
@@ -220,11 +232,11 @@ Escolha conforme o levantamento (e confirme com o usuário):
 - **80/443 livres** → Caddy:
   ```bash
   sudo apt install -y caddy     # Ubuntu 24.04 / Debian 12; mais antigos: caddyserver.com/docs/install
-  sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+  sudo cp vps/Caddyfile /etc/caddy/Caddyfile
   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
   ```
 - **Caddy já serve outros sites** → acrescente o bloco `santex.rexar.com.br { ... }`
-  de `deploy/Caddyfile` ao Caddyfile existente (com cópia antes), `caddy validate`, `reload`.
+  de `vps/Caddyfile` ao Caddyfile existente (com cópia antes), `caddy validate`, `reload`.
 - **nginx já está nas portas** → crie um `server` só para `santex.rexar.com.br`
   com `proxy_pass http://127.0.0.1:8080;` e `proxy_set_header X-Forwarded-For $remote_addr;`
   (exemplo em `docs/nuvem-vps.md`), certificado Let's Encrypt com `certbot --nginx -d santex.rexar.com.br`,

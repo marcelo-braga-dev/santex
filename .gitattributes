@@ -1,4 +1,4 @@
 # Arquivos que rodam na VPS (Linux) ficam sempre com quebra de linha LF -
 # com CRLF o bash e o systemd falham ("$'\r': command not found").
 *.sh text eol=lf
-deploy/* text eol=lf
+vps/* text eol=lf

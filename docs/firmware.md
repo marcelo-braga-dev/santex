@@ -409,4 +409,4 @@ python ferramentas/gerar_segredos.py
 - `AP_SENHA` precisa ter pelo menos 8 caracteres (o script confere).
 - O script também gera `app/segredos_app.json` (fora do git) com a
   `API_CHAVE` para o `.exe`. **Firmware e `.exe` precisam ser gerados com o
-  mesmo `.env`** — `app/gerar_executavel.bat` já roda o script antes do build.
+  mesmo `.env`** — `gerar/gerar.bat` já roda o script antes do build.

@@ -22,7 +22,7 @@ Uso em desenvolvimento:
     pip install -r requirements.txt
     python main.py
 
-Gerar o .exe: ver build_exe.py.
+Gerar o .exe: gerar/gerar.bat (ou gerar/exe_fabrica.py).
 """
 
 import json

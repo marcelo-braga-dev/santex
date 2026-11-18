@@ -15,37 +15,27 @@ máquinas e dados isolados); por enquanto só o setor **Enfestadeiras**
 
 ```
 controle_producao_horimetro/
-├── README.md
-├── .env.exemplo                          # Modelo das senhas/chave (copiar para .env - fora do git)
-├── docs/                                 # Documentação completa (ver abaixo)
-├── firmware/
-│   └── controle_producao_horimetro/
-│       ├── controle_producao_horimetro.ino   # Firmware ESP32 3.0 (Arduino IDE)
-│       └── certificados.h                    # Certificado raiz da VPS (público)
-├── app/                                  # Aplicativo desktop (forma de uso em produção)
-│   ├── main.py                          # Janela nativa (WebView2) + tela de carregando
-│   ├── servidor.py                      # Servidor embutido: painel + API + leitura + backup
-│   ├── anuncio_rede.py                  # Anuncia http://painel.local na rede (mDNS)
-│   ├── build_exe.py / gerar_executavel.bat  # Gera o PainelProducaoSantex.exe
-│   └── dist/PainelProducaoSantex.exe    # Gerado (não versionado)
-├── ferramentas/
-│   ├── banco_dados.py               # Banco SQLite (ciclos, máquinas, turnos, metas)
-│   ├── backup_banco.py              # Backup diário automático do banco
-│   ├── nuvem.py                     # Acesso remoto: VPS (modo nuvem), senha única, envio da configuração
-│   ├── monitor_wifi.py              # Busca os ciclos do ESP32 pelo Wi-Fi
-│   ├── monitor_serial.py            # Leitura pelo cabo USB (alternativa)
-│   ├── gerar_segredos.py            # .env -> segredos.h (firmware) + segredos_app.json (app)
-│   ├── instalar_inicio_automatico.ps1  # Abre o app junto com o Windows
-│   ├── controle_leitura_server.py   # O mesmo servidor do app, sem janela (desenvolvimento)
-│   ├── controlar_porta_serial.ps1   # Libera/retoma a porta COM para regravar o firmware
-│   └── gerar_dados_historico.py     # Dados de exemplo (+1 ano)
-├── painel/
-│   ├── index.html                   # Painel web (servido pelo app)
-│   └── assets/                      # Logo da empresa
-├── deploy/                          # VPS: systemd, Caddy, instalar_vps.sh, empacotar_vps.ps1, CLAUDE_VPS.md
-├── testes/
-│   └── test_backend.py              # python -m unittest discover -s testes -v
-├── dados/                           # Banco/configuração em desenvolvimento (fora do git)
+├── README.md · CHANGELOG.md · CLAUDE.md
+├── .env.exemplo                     # Modelo das senhas/chave (copiar para .env - fora do git)
+│
+├── firmware/                        # ESP32 (firmware 3.0, Arduino IDE)
+│   └── controle_producao_horimetro/ #   .ino + certificados.h (raiz da VPS, público)
+├── app/                             # Aplicativo da FÁBRICA (código): janela, servidor embutido
+├── ferramentas/                     # Banco, sincronização com a VPS, leitura Wi-Fi/USB, scripts
+├── painel/                          # Painel web (index.html + assets) - o mesmo na fábrica e na VPS
+├── remoto/                          # Programa REMOTO (código): janela que só abre a VPS
+│
+├── vps/                             # Tudo da VPS: instalar.sh, systemd, Caddyfile, CLAUDE_VPS.md
+├── gerar/                           # Geradores: gerar.bat (menu), exe_fabrica.py, exe_remoto.py, pacote_vps.ps1
+├── distribuir/                      # SAÍDA dos geradores (fora do git):
+│   ├── PainelProducaoSantex.exe     #   computador da fábrica (leva a chave: NÃO distribuir)
+│   ├── PainelSantexRemoto.exe       #   computadores de fora (sem chave: pode copiar)
+│   ├── painel-nuvem-<versão>.tar.gz #   pacote da VPS (alternativa ao git pull)
+│   └── antigos/                     #   versões anteriores
+│
+├── docs/                            # Documentação completa (ver abaixo)
+├── testes/                          # python -m unittest discover -s testes -v
+├── dados/                           # Banco em desenvolvimento (fora do git)
 └── backup/                          # Backups automáticos diários do banco (fora do git e do .exe)
 ```
 
@@ -58,7 +48,7 @@ fora do git e do `.exe`.
 
 | Documento | Conteúdo |
 |---|---|
-| [`docs/nuvem-vps.md`](docs/nuvem-vps.md) | **Acesso remoto** pela VPS (https://santex.rexar.com.br): instalação, senha de acesso, firmware 3.0 |
+| [`docs/nuvem-vps.md`](docs/nuvem-vps.md) | **Acesso remoto** pela VPS (https://santex.rexar.com.br): instalação, senhas de visualização e de **edição remota**, programa remoto, firmware 3.0 |
 | [`docs/aplicativo-desktop.md`](docs/aplicativo-desktop.md) | Gerar e instalar o `.exe`, acesso pela rede, **somente leitura/PIN**, **backup automático**, **produção permanente**, como atualizar |
 | [`docs/firmware.md`](docs/firmware.md) | Pinagem, lógica, flash/NVS, RTC, Wi-Fi e API, **chave da API**, recomendações de hardware |
 | [`docs/painel.md`](docs/painel.md) | Todas as seções e funcionalidades do painel |
@@ -72,9 +62,11 @@ fora do git e do `.exe`.
    `python ferramentas/gerar_segredos.py` (cria a `API_CHAVE` se faltar).
 2. **Firmware**: abra o `.ino` na Arduino IDE (placa **ESP32 Dev Module**) e
    grave. Detalhes em [`docs/firmware.md`](docs/firmware.md).
-3. **Aplicativo**: duplo clique em `app/gerar_executavel.bat` → copie
-   `app/dist/PainelProducaoSantex.exe` para o notebook do painel. Firmware
-   e `.exe` precisam vir do **mesmo `.env`** (mesma `API_CHAVE`).
+3. **Aplicativo**: duplo clique em `gerar\gerar.bat` → copie
+   `distribuir\PainelProducaoSantex.exe` para o notebook do painel. Firmware
+   e `.exe` precisam vir do **mesmo `.env`** (mesma `API_CHAVE`). Para quem
+   está fora da empresa: `distribuir\PainelSantexRemoto.exe` (sem chave) e as
+   senhas definidas em ⚙ Configurações → Acesso remoto.
 4. **Notebook do painel**: firewall só em rede Privada/Domínio, abrir com o
    Windows (`ferramentas/instalar_inicio_automatico.ps1`), sem suspensão na
    tomada, hora automática do Windows ligada, e de preferência uma cópia

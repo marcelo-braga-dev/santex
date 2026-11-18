@@ -1,5 +1,5 @@
 # Painel de Producao - servidor do acesso remoto (modo nuvem) na VPS.
-# Instalado por deploy/instalar_vps.sh em /etc/systemd/system/.
+# Instalado por vps/instalar.sh em /etc/systemd/system/.
 # Logs: journalctl -u painel-nuvem -f
 [Unit]
 Description=Painel de Producao - acesso remoto (modo nuvem)

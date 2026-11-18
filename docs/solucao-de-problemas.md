@@ -184,7 +184,7 @@ analisa estaticamente o código deles, então não percebe que `banco_dados.py`
 faz `import sqlite3` e não empacota a extensão `_sqlite3`. O build termina
 sem erro; o `.exe` só quebra ao **abrir**, com essa mensagem.
 
-**Correção**: `build_exe.py` declara `--hidden-import=sqlite3`
+**Correção**: `gerar/exe_fabrica.py` declara `--hidden-import=sqlite3`
 explicitamente (mesma razão pela qual `--hidden-import=serial.tools.list_ports`
 já existia ali). Isso só aparece rodando o `.exe` de verdade — testar
 apenas se o build "passou sem erro" não pega esse tipo de problema.
@@ -230,7 +230,7 @@ ESP32 e o acerto do relógio pelo PC ficam parados.
 
 **Correção:** gere o firmware e o `.exe` com o mesmo `.env`:
 `python ferramentas/gerar_segredos.py`, grave o firmware e rode
-`app/gerar_executavel.bat`. Para alinhar sem gerar o `.exe`, ponha a chave
+`gerar/gerar.bat`. Para alinhar sem gerar o `.exe`, ponha a chave
 do firmware em `conexao.json`: `{"modo": "wifi", "chave": "..."}`.
 
 ## Rodapé mostra "⚠ N sem data/hora"

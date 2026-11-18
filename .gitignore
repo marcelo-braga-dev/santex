@@ -7,10 +7,10 @@ app/build_info.json
 # backups automaticos do banco (app/caminhos.py dir_backup) - nunca versionar
 /backup/
 
-# ---- Gerados pelo build do executavel (app/gerar_executavel.bat) ----
-app/build/
-app/dist/
-app/*.spec
+# ---- Entregaveis e intermediarios (gerar/gerar.bat) ----
+/distribuir/
+/gerar/_trabalho/
+*.spec
 
 # ---- Python ----
 __pycache__/
@@ -45,6 +45,3 @@ desktop.ini
 .vscode/
 .idea/
 
-# pacote da VPS e .exe de versoes novas gerados localmente
-dist-vps/
-app/dist_*/

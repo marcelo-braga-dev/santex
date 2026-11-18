@@ -2,7 +2,7 @@
 # Instala/atualiza o servidor do acesso remoto na VPS (Ubuntu/Debian).
 #
 # Uso, NA VPS, de dentro do clone do repositorio (ou do pacote extraido):
-#     git pull --ff-only && sudo bash deploy/instalar_vps.sh
+#     git pull --ff-only && sudo bash vps/instalar.sh
 # Na primeira instalacao o script pede a NUVEM_CHAVE (sem mostrar na tela).
 #
 # Pode rodar de novo para atualizar: copia o codigo novo para /opt, mantem
@@ -53,7 +53,7 @@ fi
 chmod 600 /etc/painel-nuvem.env
 
 echo "== Servico systemd"
-cp "$ORIGEM/deploy/painel-nuvem.service" /etc/systemd/system/painel-nuvem.service
+cp "$ORIGEM/vps/painel-nuvem.service" /etc/systemd/system/painel-nuvem.service
 systemctl daemon-reload
 systemctl enable painel-nuvem >/dev/null
 systemctl restart painel-nuvem
@@ -62,6 +62,6 @@ systemctl --no-pager --lines=5 status painel-nuvem || true
 
 echo
 echo "Pronto. Proximos passos (uma vez):"
-echo "  1) Caddy com HTTPS: deploy/Caddyfile  ->  /etc/caddy/Caddyfile ; sudo systemctl reload caddy"
-echo "  2) Senha de acesso: definida no NOTEBOOK da fabrica (Configuracoes -> Acesso remoto); chega aqui sozinha"
+echo "  1) HTTPS: proxy do servidor web (LiteSpeed/Caddy) para 127.0.0.1:8080 - ver vps/CLAUDE_VPS.md"
+echo "  2) Senhas (visualizacao e edicao): definidas no computador da fabrica (Configuracoes -> Acesso remoto); chegam aqui sozinhas"
 echo "  3) Teste: https://santex.rexar.com.br  (tela de login com a senha)"
