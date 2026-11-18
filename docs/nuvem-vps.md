@@ -204,13 +204,34 @@ no cookie assinado; bloqueio após 10 senhas erradas em 10 min; edição exige
 o cabeçalho `X-Painel-Edicao` e origem do próprio site (contra CSRF); a VPS
 não aceita chamadas de outros sites (sem CORS).
 
-## Programa para os computadores de fora (`PainelSantexRemoto.exe`)
+## Programa para os computadores de fora (`Painel de Produção.exe`)
 
-Gerado por `gerar\gerar.bat` (opção 2) em `distribuir\`. É só uma janela que
-abre https://santex.rexar.com.br — **não leva chave, banco nem segredo** e
-pode ser copiado para quem precisar. O login fica guardado por 30 dias
-(perfil em `%APPDATA%\PainelSantexRemoto`); sem internet mostra "Sem conexão
-com o painel — Tentar de novo".
+É só uma janela que abre https://santex.rexar.com.br — **não leva chave,
+banco nem segredo**. O login fica guardado por 30 dias (perfil em
+`%APPDATA%\PainelSantexRemoto`); sem internet mostra "Sem conexão com o
+painel — Tentar de novo". Ícone com a marca da Santex (o "S" na elipse
+vermelha do logo), gerado por `gerar/icone_remoto.py` em `remoto/icone.ico`.
+
+**Download pelo próprio painel da VPS** — quem abre o painel no navegador de
+um computador com Windows vê:
+- na tela de login, o link "Aplicativo para Windows";
+- no painel, um cartão "Painel no seu computador" (Baixar / Agora não — some
+  por 30 dias) e o item fixo ⚙ Configurações → **Aplicativo para Windows**;
+- ao baixar, uma janela com os 3 passos de instalação, incluindo o aviso do
+  Windows SmartScreen ("Mais informações → Executar assim mesmo" — o programa
+  não tem assinatura digital paga).
+
+Nada disso aparece no celular, dentro do próprio programa nem no computador
+da fábrica. Rotas públicas: `GET /app-remoto` (informações) e
+`GET /app-remoto/PainelSantexRemoto.exe` (chega como "Painel de Produção.exe").
+
+**Como o arquivo chega à VPS:** `gerar\gerar.bat` (opção 2) gera
+`distribuir\Painel de Produção.exe` e, **só quando o código ou o ícone do
+programa mudou**, publica a cópia em `vps/app-remoto/` (versionada no git).
+Commit + push + deploy da VPS e pronto — o `vps/instalar.sh` instala em
+`/opt/painel-nuvem/app-remoto/`. Para subir à mão (sem git), coloque
+`PainelSantexRemoto.exe` (+ `PainelSantexRemoto.json` e `icone.png`) em
+`/var/lib/painel-nuvem/app-remoto/` — essa pasta tem prioridade.
 
 **Nunca copie o `PainelProducaoSantex.exe` (o da fábrica) para fora:** ele
 leva a chave da fábrica e tentaria ler o controlador.

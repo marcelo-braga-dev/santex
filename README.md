@@ -26,10 +26,11 @@ controle_producao_horimetro/
 ├── remoto/                          # Programa REMOTO (código): janela que só abre a VPS
 │
 ├── vps/                             # Tudo da VPS: instalar.sh, systemd, Caddyfile, CLAUDE_VPS.md
+│   └── app-remoto/                  #   programa remoto oferecido para download no painel da VPS
 ├── gerar/                           # Geradores: gerar.bat (menu), exe_fabrica.py, exe_remoto.py, pacote_vps.ps1
 ├── distribuir/                      # SAÍDA dos geradores (fora do git):
 │   ├── PainelProducaoSantex.exe     #   computador da fábrica (leva a chave: NÃO distribuir)
-│   ├── PainelSantexRemoto.exe       #   computadores de fora (sem chave: pode copiar)
+│   ├── Painel de Produção.exe       #   computadores de fora (sem chave; também baixável no painel da VPS)
 │   ├── painel-nuvem-<versão>.tar.gz #   pacote da VPS (alternativa ao git pull)
 │   └── antigos/                     #   versões anteriores
 │
@@ -65,8 +66,9 @@ fora do git e do `.exe`.
 3. **Aplicativo**: duplo clique em `gerar\gerar.bat` → copie
    `distribuir\PainelProducaoSantex.exe` para o notebook do painel. Firmware
    e `.exe` precisam vir do **mesmo `.env`** (mesma `API_CHAVE`). Para quem
-   está fora da empresa: `distribuir\PainelSantexRemoto.exe` (sem chave) e as
-   senhas definidas em ⚙ Configurações → Acesso remoto.
+   está fora da empresa: o **Painel de Produção.exe** (sem chave), que eles
+   mesmos baixam pelo painel da VPS, e as senhas definidas em
+   ⚙ Configurações → Acesso remoto.
 4. **Notebook do painel**: firewall só em rede Privada/Domínio, abrir com o
    Windows (`ferramentas/instalar_inicio_automatico.ps1`), sem suspensão na
    tomada, hora automática do Windows ligada, e de preferência uma cópia

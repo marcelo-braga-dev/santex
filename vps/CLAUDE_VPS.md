@@ -102,6 +102,16 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
+**Aplicativo para Windows no painel** (deploy seguinte ao `e31fc87`): o
+`vps/instalar.sh` passa a copiar `vps/app-remoto/` (o `PainelSantexRemoto.exe`
+— programa sem segredos — + `.json` + `icone.png`) para
+`/opt/painel-nuvem/app-remoto/`; o painel oferece o download em
+`/app-remoto/PainelSantexRemoto.exe`. Verificação:
+`curl -s https://santex.rexar.com.br/app-remoto` → `{"disponivel": true, ...}` e
+`curl -sI https://santex.rexar.com.br/app-remoto/PainelSantexRemoto.exe` → `200`
+com `Content-Disposition: attachment`. Arquivo enviado à mão em
+`/var/lib/painel-nuvem/app-remoto/` tem prioridade.
+
 **Revisão final da 1.2.0** (deploy seguinte ao `3d3166f`): a VPS passa a
 enviar cabeçalhos de proteção (`X-Frame-Options: DENY`, `nosniff`,
 `Referrer-Policy`, HSTS) e o bloqueio por senhas erradas usa o **último**

@@ -24,8 +24,19 @@ sem precisar do computador da fábrica. Ver `docs/nuvem-vps.md`, "Edição remot
   leitura do controlador/conexão nunca pela VPS, bloqueio por tentativas.
 - Compatível nos dois sentidos: VPS 1.2.0 aceita o notebook 1.1.0 sem
   desfazer edições remotas; notebook 1.2.0 cai no envio antigo com VPS 1.1.0.
-- **`PainelSantexRemoto.exe`**: programa para os computadores de fora — só
-  abre a VPS, sem chave nem banco; login guardado por 30 dias.
+- **`Painel de Produção.exe`** (programa remoto): para os computadores de
+  fora — só abre a VPS, sem chave nem banco; login guardado por 30 dias;
+  ícone com a marca da Santex (o "S" na elipse vermelha do logo, nítido de
+  16 a 256 px).
+- **Download pelo painel da VPS**: link na tela de login, cartão "Painel no
+  seu computador" (dispensável por 30 dias), item ⚙ Configurações →
+  Aplicativo para Windows e janela com os passos de instalação (incluindo o
+  aviso do SmartScreen). Só em computador com Windows, nunca no celular nem
+  dentro do próprio programa. O arquivo vai versionado em `vps/app-remoto/`
+  (atualizado só quando o programa muda) e o `vps/instalar.sh` o instala.
+- **Downloads no aplicativo**: "Exportar Excel" e "Backup dos dados" não
+  faziam nada no `.exe` (o pywebview cancelava todo download) — agora abrem
+  "Salvar como" do Windows.
 - **Estrutura reorganizada**: `deploy/` → `vps/` (instalador `vps/instalar.sh`);
   geradores em `gerar/` (`gerar.bat` com menu); todos os entregáveis em
   `distribuir/` (fora do git); código do programa remoto em `remoto/`.
