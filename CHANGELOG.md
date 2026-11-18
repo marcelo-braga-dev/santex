@@ -29,8 +29,22 @@ sem precisar do computador da fábrica. Ver `docs/nuvem-vps.md`, "Edição remot
 - **Estrutura reorganizada**: `deploy/` → `vps/` (instalador `vps/instalar.sh`);
   geradores em `gerar/` (`gerar.bat` com menu); todos os entregáveis em
   `distribuir/` (fora do git); código do programa remoto em `remoto/`.
-- 32 testes (7 novos de edição remota com servidor real) e teste ponta a
-  ponta no navegador com a cópia do banco de produção.
+- 34 testes (9 novos de edição remota com servidor real), teste ponta a
+  ponta no navegador com a cópia do banco de produção e teste de
+  estabilidade (painel da fábrica + editor remoto abertos juntos, sem loop).
+- Revisão final antes da produção definitiva:
+  - nome de turno escapado na tabela de ciclos (um nome malicioso salvo pela
+    internet não executa nada no painel da fábrica);
+  - bloqueio por senhas erradas usa o IP acrescentado pelo proxy (último do
+    `X-Forwarded-For`): trocar o "IP" a cada tentativa não burla mais;
+  - VPS envia `X-Frame-Options`/`frame-ancestors` (nenhum site embute o
+    painel), `nosniff`, `Referrer-Policy` e HSTS;
+  - VPS reinstalada ou restaurada de backup: o notebook percebe e reenvia a
+    configuração (vence o que for mais recente);
+  - auditoria com a hora real na primeira sincronização (antes aparecia 1970);
+  - alterações feitas por aparelho da rede local com PIN aparecem como
+    "rede local (IP)" na auditoria;
+  - lista de IPs com senha errada não cresce sem limite.
 
 
 ## 1.1.0 — em desenvolvimento (app 1.1.0 · firmware 3.0)

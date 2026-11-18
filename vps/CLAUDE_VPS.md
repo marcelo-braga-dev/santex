@@ -73,12 +73,21 @@ para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das reg
 
 ## Deploy de uma atualização (git pull) — o caso mais comum
 
-**Estado em 18/11/2026:** já instalado e funcionando — serviço
+**Estado em 18/11/2026:** **1.2.0 instalada e funcionando** — serviço
 `painel-nuvem` ativo, LiteSpeed fazendo o proxy de `santex.rexar.com.br`
 para `127.0.0.1:8080`, `NUVEM_CHAVE` em `/etc/painel-nuvem.env`, ESP32
-(firmware 3.0) e notebook já enviando, senha de visualização já recebida.
+(firmware 3.0) e notebook 1.2.0 sincronizando, senhas de visualização e de
+edição já recebidas, edição remota testada em produção.
 **Não refaça os Passos 0–3 nem mexa no LiteSpeed** num deploy comum: só
 atualize o código e verifique.
+
+**Revisão final da 1.2.0** (deploy seguinte ao `3d3166f`): a VPS passa a
+enviar cabeçalhos de proteção (`X-Frame-Options: DENY`, `nosniff`,
+`Referrer-Policy`, HSTS) e o bloqueio por senhas erradas usa o **último**
+IP do `X-Forwarded-For` (o que o LiteSpeed acrescenta). Verificação extra:
+`curl -sI https://santex.rexar.com.br/ | grep -i x-frame-options` →
+`X-Frame-Options: DENY`. Se o LiteSpeed já mandar algum desses cabeçalhos,
+pode aparecer duplicado — inofensivo.
 
 **Mudanças da 1.2.0** (este deploy):
 - A pasta de instalação mudou: **`deploy/` virou `vps/`** e o instalador é

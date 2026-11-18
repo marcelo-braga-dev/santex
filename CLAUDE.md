@@ -45,7 +45,7 @@ Documentação: `README.md`, `docs/` (`nuvem-vps.md` = acesso remoto e edição 
 ## Testes e build
 
 ```
-python -m unittest discover -s testes -v      # 32 testes, pasta temporária
+python -m unittest discover -s testes -v      # 34 testes, pasta temporária
 python ferramentas/gerar_segredos.py          # .env -> segredos.h + app/segredos_app.json
 gerar\gerar.bat                               # menu: .exe da fábrica / .exe remoto / pacote VPS -> distribuir\
 python gerar/exe_fabrica.py                   # (ou cada um direto)
