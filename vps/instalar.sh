@@ -28,6 +28,11 @@ for pasta in app ferramentas painel; do
   rm -rf "${DESTINO:?}/$pasta"
   cp -r "$ORIGEM/$pasta" "$DESTINO/$pasta"
 done
+# programa para Windows oferecido no painel (PainelSantexRemoto.exe, sem segredos)
+rm -rf "${DESTINO:?}/app-remoto"
+if [ -d "$ORIGEM/vps/app-remoto" ]; then
+  cp -r "$ORIGEM/vps/app-remoto" "$DESTINO/app-remoto"
+fi
 # segredos da fabrica nunca vao para a VPS
 rm -f "$DESTINO/app/segredos_app.json" "$DESTINO/app/build_info.json"
 rm -rf "$DESTINO/painel/_backup"

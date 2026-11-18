@@ -38,6 +38,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import webview  # noqa: E402 (pywebview)
 
+# Sem isto o pywebview CANCELA todo download (Exportar Excel, Backup dos
+# dados...) sem aviso. Ligado, abre a janela "Salvar como" do Windows.
+webview.settings["ALLOW_DOWNLOADS"] = True
+
 from caminhos import dir_dados_usuario, dir_perfil_webview  # noqa: E402
 from tela_inicial import COR_FUNDO, html_tela_inicial  # noqa: E402
 

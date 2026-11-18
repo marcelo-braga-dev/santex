@@ -39,10 +39,11 @@ try {
         Copy-Item $a $destino
     }
     Copy-Item "painel\assets" (Join-Path $pacote "painel\assets") -Recurse
+    if (Test-Path "vps\app-remoto") { Copy-Item "vps\app-remoto" (Join-Path $pacote "vps\app-remoto") -Recurse }
     Copy-Item "vps\CLAUDE_VPS.md" (Join-Path $pacote "CLAUDE.md")
 
     # Linux: quebra de linha LF nos arquivos de texto (bash/systemd falham com CRLF)
-    Get-ChildItem $pacote -Recurse -File -Include *.sh, *.service, Caddyfile, *.py, *.md, *.exemplo | ForEach-Object {
+    Get-ChildItem $pacote -Recurse -File -Include *.sh, *.service, Caddyfile, *.py, *.md, *.exemplo | Where-Object { $_.FullName -notlike "*app-remoto*" } | ForEach-Object {
         $texto = [System.IO.File]::ReadAllText($_.FullName)
         [System.IO.File]::WriteAllText($_.FullName, $texto.Replace("`r`n", "`n"), (New-Object System.Text.UTF8Encoding($false)))
     }

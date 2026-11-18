@@ -660,9 +660,25 @@ class Sessoes:
         return papel if hmac.compare_digest(assinatura, self._assinar(expira, papel, hashes[papel])) else None
 
 
-def pagina_login(erro="", senha_definida=True):
-    """Tela de login da VPS: so o campo de senha."""
+def pagina_login(erro="", senha_definida=True, app_remoto=None):
+    """Tela de login da VPS: so o campo de senha (+ link do programa para
+    Windows, mostrado so em computador com Windows e fora do proprio programa)."""
     from html import escape
+
+    app = ""
+    if app_remoto and app_remoto.get("disponivel"):
+        mb = max(1, round(int(app_remoto.get("tamanho", 0)) / 1_048_576))
+        icone = (f'<img src="{escape(app_remoto["icone"])}" alt="">' if app_remoto.get("icone") else
+                 '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" '
+                 'stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>')
+        app = (f'<a class="app" id="app-remoto" href="{escape(app_remoto["url"])}" '
+               f'download="{escape(app_remoto.get("nome") or "")}" hidden>'
+               f'<span class="ico">{icone}</span>'
+               f'<span><b>Aplicativo para Windows</b><small>Abre direto no painel, sem navegador · {mb} MB</small></span>'
+               '<span class="seta">↓</span></a>'
+               '<script>(function(){var ua=navigator.userAgent;'
+               'if(/Windows/.test(ua)&&!/Mobile|Android/.test(ua)&&!/PainelSantexRemoto/.test(ua)&&!window.pywebview)'
+               'document.getElementById("app-remoto").hidden=false;})();</script>')
 
     aviso = ""
     if not senha_definida:
@@ -685,15 +701,20 @@ input{{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--borda);b
 input:focus{{outline:2px solid var(--acento);outline-offset:1px}}
 button{{width:100%;margin-top:14px;font:inherit;font-weight:600;padding:11px;border:0;border-radius:9px;background:var(--acento);color:#fff;cursor:pointer}}
 .erro{{color:var(--erro);font-size:14px;margin:0 0 12px}}.aviso{{font-size:14px;margin:0 0 12px;color:var(--suave)}}
+.app{{display:flex;align-items:center;gap:12px;margin-top:20px;padding:12px 14px;border:1px solid var(--borda);border-radius:11px;color:var(--texto);text-decoration:none;transition:border-color .15s,background .15s}}
+.app[hidden]{{display:none}}.app:hover{{border-color:var(--acento);background:color-mix(in srgb,var(--acento) 6%,transparent)}}
+.app .ico{{flex:none;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--acento);background:color-mix(in srgb,var(--acento) 12%,transparent)}}
+.app .ico img{{width:40px;height:40px;margin:0;padding:0;background:none;border-radius:10px}}
+.app b{{display:block;font-size:14px}}.app small{{display:block;font-size:12.5px;color:var(--suave)}}.app .seta{{margin-left:auto;color:var(--acento);font-weight:700}}
 </style></head><body><main>
 <img src="/assets/logo.png" alt="">
-<h1>Painel de Produção</h1><p class="sub">Acesso remoto · somente visualização</p>
+<h1>Painel de Produção</h1><p class="sub">Acesso remoto</p>
 {aviso}
 <form method="post" action="/login">
 <label for="senha">Senha de acesso</label>
 <input id="senha" name="senha" type="password" autocomplete="current-password" required autofocus>
 <button type="submit">Entrar</button>
-</form></main></body></html>"""
+</form>{app}</main></body></html>"""
 
 
 # ---------------------------------------------------------------------

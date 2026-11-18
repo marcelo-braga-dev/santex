@@ -277,6 +277,23 @@ class TesteEdicaoRemota(unittest.TestCase):
             proc.wait(timeout=10)
             nb._conn.close()
 
+    def test_10_aplicativo_para_windows_disponivel_para_download(self):
+        st, info, _ = self.pedir("/app-remoto")  # publico: o programa nao tem segredo
+        if not info.get("disponivel"):
+            self.skipTest("vps/app-remoto/PainelSantexRemoto.exe ainda nao gerado (gerar/exe_remoto.py)")
+        self.assertEqual((st, info["nome"], info["url"]), (200, "Painel de Produção.exe", "/app-remoto/PainelSantexRemoto.exe"))
+        with urllib.request.urlopen(self.base + info["url"], timeout=30) as r:
+            corpo = r.read()
+            disposicao = r.headers["Content-Disposition"]
+        self.assertEqual(len(corpo), info["tamanho"])
+        self.assertEqual(corpo[:2], b"MZ")  # executavel do Windows
+        self.assertIn("filename*=UTF-8''Painel%20de%20Produ%C3%A7%C3%A3o.exe", disposicao)
+        with urllib.request.urlopen(self.base + "/app-remoto/icone.png", timeout=10) as r:
+            self.assertEqual(r.read()[1:4], b"PNG")  # assinatura do PNG
+        with urllib.request.urlopen(self.base + "/", timeout=10) as r:  # tela de login oferece o download
+            self.assertIn('id="app-remoto"', r.read().decode())
+        self.assertEqual(self.pedir("/app-remoto/../painel.db")[0], 404)
+
 
 if __name__ == "__main__":
     unittest.main()

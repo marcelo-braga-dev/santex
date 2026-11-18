@@ -24,7 +24,15 @@ import urllib.request
 
 import webview  # pywebview
 
+# Sem isto o pywebview cancela os downloads (Exportar Excel, Backup dos dados)
+webview.settings["ALLOW_DOWNLOADS"] = True
+
+VERSAO = "1.2.0"
 TITULO = "Painel de Produção — Acesso remoto"
+# O painel reconhece o programa por este final e nao oferece baixar o
+# proprio programa dentro dele.
+AGENTE = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+          f"Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0 PainelSantexRemoto/{VERSAO}")
 URL_PADRAO = "https://santex.rexar.com.br"
 COR_FUNDO = "#F4F1EC"
 
@@ -109,7 +117,7 @@ def main():
         width=1440, height=900, min_size=(1000, 650), maximized=True, text_select=True, background_color=COR_FUNDO,
     )
     # perfil guardado: o login (cookie de 30 dias) e as preferencias sobrevivem ao fechar
-    webview.start(abertura.abrir, private_mode=False, storage_path=dir_perfil())
+    webview.start(abertura.abrir, private_mode=False, storage_path=dir_perfil(), user_agent=AGENTE)
 
 
 if __name__ == "__main__":

@@ -2,3 +2,4 @@
 # com CRLF o bash e o systemd falham ("$'\r': command not found").
 *.sh text eol=lf
 vps/* text eol=lf
+vps/app-remoto/* -text

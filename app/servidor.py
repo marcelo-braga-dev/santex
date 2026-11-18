@@ -34,11 +34,11 @@ import os
 import socket
 import sys
 import threading
+import logging
 import time
-import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
@@ -202,6 +202,49 @@ def _csv_atual():
         return dict(_cache_csv)
 
 
+# ---------------------------------------------------------------------
+# Programa remoto para download na VPS (PainelSantexRemoto.exe)
+# ---------------------------------------------------------------------
+ARQUIVO_APP_REMOTO = "PainelSantexRemoto.exe"  # nome interno (ASCII)
+NOME_DOWNLOAD_APP_REMOTO = "Painel de Produção.exe"  # nome com que o arquivo chega ao usuario
+_cache_app_remoto = {"chave": None, "info": None}
+
+
+def _caminho_app_remoto():
+    """Onde esta o .exe para download, em ordem: enviado a mao para a pasta
+    de dados (/var/lib/painel-nuvem/app-remoto), instalado pelo
+    vps/instalar.sh (/opt/painel-nuvem/app-remoto) ou o do repositorio
+    (vps/app-remoto, rodando do clone). None = nao disponivel."""
+    for pasta in (os.path.join(dir_dados_usuario(), "app-remoto"), os.path.join(_BASE, "app-remoto"),
+                  os.path.join(_BASE, "vps", "app-remoto")):
+        caminho = os.path.join(pasta, ARQUIVO_APP_REMOTO)
+        if os.path.isfile(caminho):
+            return caminho
+    return None
+
+
+def info_app_remoto():
+    """{"disponivel", "versao", "tamanho", "atualizado_em"} - lido do .json ao
+    lado do .exe (gerar/exe_remoto.py), com cache pela data do arquivo."""
+    caminho = _caminho_app_remoto()
+    if not caminho:
+        return {"disponivel": False}
+    estado = os.stat(caminho)
+    chave = (caminho, estado.st_mtime_ns, estado.st_size)
+    if _cache_app_remoto["chave"] != chave:
+        try:
+            with open(os.path.splitext(caminho)[0] + ".json", "r", encoding="utf-8") as arquivo:
+                meta = json.load(arquivo)
+        except (OSError, ValueError):
+            meta = {}
+        _cache_app_remoto.update(chave=chave, info={
+            "disponivel": True, "tamanho": estado.st_size, "versao": str(meta.get("versao", ""))[:20],
+            "atualizado_em": str(meta.get("gerado_em", ""))[:25], "url": "/app-remoto/" + ARQUIVO_APP_REMOTO,
+            "nome": NOME_DOWNLOAD_APP_REMOTO,
+            "icone": "/app-remoto/icone.png" if os.path.isfile(os.path.join(os.path.dirname(caminho), "icone.png")) else ""})
+    return dict(_cache_app_remoto["info"])
+
+
 class _SemCorpo:
     """Saida que descarta o corpo da resposta (requisicoes HEAD)."""
 
@@ -293,7 +336,8 @@ class Handler(BaseHTTPRequestHandler):
         if self._sessao_valida():
             return True
         if self.command in ("GET", "HEAD") and caminho in ("/", "/index.html"):
-            self._responder_html(nuvem.pagina_login(senha_definida=any(self._hashes_papeis().values())))
+            self._responder_html(nuvem.pagina_login(senha_definida=any(self._hashes_papeis().values()),
+                                                    app_remoto=info_app_remoto()))
         else:
             self._responder_json({"ok": False, "erro": "login"}, status=401)
         return False
@@ -434,9 +478,10 @@ class Handler(BaseHTTPRequestHandler):
             self._erro_interno(erro)
 
     def _erro_interno(self, erro):
-        # detalhe completo no log (journalctl -u painel-nuvem na VPS); na
-        # internet o visitante so ve uma mensagem generica
-        traceback.print_exc()
+        # detalhe completo no log - no notebook o app.log (main.py), na VPS o
+        # journalctl -u painel-nuvem; na internet o visitante so ve "erro interno"
+        logging.getLogger("painel").error("Erro interno em %s %s", self.command, urlparse(self.path).path,
+                                          exc_info=(type(erro), erro, erro.__traceback__))
         mensagem = "erro interno" if MODO_NUVEM else f"{type(erro).__name__}: {erro}"
         try:
             self._responder_json({"ok": False, "erro": mensagem}, status=500)
@@ -444,6 +489,9 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def _get(self):
+        if MODO_NUVEM and urlparse(self.path).path.startswith("/app-remoto"):
+            self._responder_app_remoto()  # publico: o programa nao tem segredo nenhum (e pede a senha)
+            return
         if not self._autorizar_visitante():
             return
         url = urlparse(self.path)
@@ -496,6 +544,45 @@ class Handler(BaseHTTPRequestHandler):
             self._responder_json({"alteracoes": banco.ultimas_alteracoes(50), "avisos": avisos})
         else:
             self._responder_estatico(url.path)
+
+    def _responder_app_remoto(self):
+        """VPS: GET /app-remoto (informacoes) e /app-remoto/PainelSantexRemoto.exe."""
+        caminho_url = urlparse(self.path).path.rstrip("/")
+        info = info_app_remoto()
+        if caminho_url == "/app-remoto":
+            self._responder_json(info)
+            return
+        caminho = _caminho_app_remoto()
+        icone = os.path.join(os.path.dirname(caminho), "icone.png") if caminho else ""
+        if caminho_url == "/app-remoto/icone.png" and os.path.isfile(icone):
+            with open(icone, "rb") as arquivo:
+                dados = arquivo.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Content-Length", str(len(dados)))
+            self.end_headers()
+            self.wfile.write(dados)
+            return
+        if caminho_url != "/app-remoto/" + ARQUIVO_APP_REMOTO or not caminho:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.microsoft.portable-executable")
+        # nome com acento: filename* (RFC 6266) + alternativa ASCII para navegadores antigos
+        self.send_header("Content-Disposition", 'attachment; filename="Painel de Producao.exe"; '
+                         f"filename*=UTF-8''{quote(NOME_DOWNLOAD_APP_REMOTO)}")
+        self.send_header("Content-Length", str(info["tamanho"]))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        with open(caminho, "rb") as arquivo:
+            while True:
+                bloco = arquivo.read(256 * 1024)
+                if not bloco:
+                    break
+                self.wfile.write(bloco)
 
     def _responder_csv(self):
         """Historico completo em CSV. Com If-None-Match igual a versao atual
