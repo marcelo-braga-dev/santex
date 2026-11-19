@@ -102,6 +102,13 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
+**1.3.0** (deploy seguinte ao `d516dcf`): painel novo (motivos de parada,
+evolução, disciplina de turno, alerta, modo TV, relatório, taxa em m/h) e a
+chave nova `extras:motivos` na sincronização. **Sem tabela nova** (os motivos
+ficam em `config_extra`). Deploy comum (passos 1–3); o `ping` responde
+`"versao": "1.3.0"`. Enquanto a VPS estiver na 1.2.x, os motivos marcados
+no notebook não sobem (o resto sincroniza normalmente).
+
 **1.2.1** (deploy seguinte ao `74602d6`): só o painel (`painel/index.html`)
 mudou — tooltips de tempo parado e horário dos turnos na linha do tempo. Sem
 mudança no banco nem no `vps/app-remoto/`. Deploy comum (passos 1–3); o
@@ -158,7 +165,7 @@ pode aparecer duplicado — inofensivo.
    curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
    curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
-   #   -> {"ok": true, "versao": "1.2.1"}
+   #   -> {"ok": true, "versao": "1.3.0"}
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
    #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
    ```

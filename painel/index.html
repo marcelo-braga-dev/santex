@@ -611,9 +611,18 @@
   .kpi-foot { font-size: 11.5px; color: var(--ink-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kpi-bar { height: 4px; border-radius: 4px; background: var(--surface-sunken); overflow: hidden; margin-top: 2px; }
   .kpi-bar > span { display: block; height: 100%; width: 0%; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--kpi-c, var(--accent)) 75%, transparent), var(--kpi-c, var(--accent))); transition: width 0.4s ease; }
-  .kpi-dots { display: flex; gap: 5px; margin-top: 2px; }
-  .kpi-dots span { flex: 1; height: 4px; border-radius: 4px; background: var(--surface-sunken); border: 1px solid var(--border); }
-  .kpi-dots span.on { background: var(--good); border-color: transparent; box-shadow: 0 0 8px var(--good-wash); }
+  /* "Ligadas agora": um quadrado numerado por maquina - verde = ligada,
+     cinza = parada, tracejado = sem sinal do controlador */
+  .kpi-dots { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .kpi-dots span {
+    flex: 1 1 0; min-width: 26px; max-width: 46px; height: 26px; border-radius: 6px;
+    display: grid; place-items: center;
+    font: 700 13px/1 var(--font-mono, ui-monospace, monospace); font-variant-numeric: tabular-nums;
+    color: var(--ink-400); background: var(--surface-sunken); border: 1px solid var(--border);
+    transition: background .25s, color .25s, box-shadow .25s;
+  }
+  .kpi-dots span.on { background: var(--good); color: #fff; border-color: transparent; box-shadow: 0 0 10px var(--good-wash); }
+  .kpi-dots span.sem-sinal { border-style: dashed; opacity: .6; }
 
   /* =====================================================================
      PAINEIS
@@ -667,11 +676,6 @@
   .stat span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-400); }
   .stat strong { display: block; font-family: var(--font-mono); font-size: 17px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stat small { display: block; font-size: 11px; color: var(--ink-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .top-list { display: flex; flex-direction: column; gap: 6px; }
-  .top-item { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 9px; background: var(--surface-sunken); border: 1px solid var(--border); font-size: 12px; }
-  .top-item .machine-dot { grid-row: span 2; }
-  .top-item small { grid-column: 2 / 4; color: var(--ink-600); }
-  .top-item strong.mono { color: var(--critical); }
   .heat { display: grid; gap: 3px; font-size: 11px; overflow-x: auto; }
   .heat-cell { height: 28px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-900); background: var(--surface-sunken); border: 1px solid var(--border); min-width: 34px; }
   .heat-cell.vazio { background: transparent; border-style: dashed; color: var(--ink-400); }
@@ -1005,6 +1009,128 @@
   }
   footer.app-footer .foot-brand { display: flex; align-items: center; gap: 8px; }
   footer.app-footer .foot-brand::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+
+  /* =====================================================================
+     1.3.0 - GESTAO: cores com sentido fixo, indicadores, tempo, motivos,
+     alertas e modo TV
+     ===================================================================== */
+  :root {
+    --st-ligado: var(--good);       /* maquina trabalhando */
+    --st-parado: var(--critical);   /* parada dentro do turno */
+    --st-curta: var(--warning);     /* parada de 5 a 30 min */
+    --st-micro: var(--ink-400);     /* paradas curtas (menos de 5 min) */
+    --st-intervalo: var(--accent);  /* refeicao e paradas programadas */
+  }
+  .kpi-grid.kpi-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  @media (max-width: 1400px) { .kpi-grid.kpi-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .kpi-grid.kpi-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .kpi-bar { position: relative; overflow: visible; }
+  .kpi-bar > span { overflow: hidden; }
+  .kpi-bar > i { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--ink-900); opacity: .75; }
+  .kpi-linha { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .kpi-delta { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; background: var(--surface-sunken); color: var(--ink-600); }
+  .kpi-delta.sobe { background: var(--good-wash); color: var(--good); }
+  .kpi-delta.desce { background: var(--critical-wash); color: var(--critical); }
+  .kpi-spark { display: block; width: 100%; height: 26px; margin-top: 2px; }
+  .kpi-spark path.l { fill: none; stroke: var(--kpi-c, var(--accent)); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+  .kpi-spark path.a { fill: color-mix(in srgb, var(--kpi-c, var(--accent)) 14%, transparent); stroke: none; }
+  .kpi-spark circle { fill: var(--kpi-c, var(--accent)); }
+
+  /* Barras horizontais com rotulo (Pareto de motivos) */
+  .tempo-linhas { display: flex; flex-direction: column; gap: 12px; }
+  .tempo-linha { display: grid; grid-template-columns: minmax(90px, 150px) 1fr 64px; gap: 12px; align-items: center; }
+  .tempo-linha.total { padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+  .tempo-nome { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; min-width: 0; }
+  .tempo-nome span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tempo-barra { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface-sunken); border: 1px solid var(--border); }
+  .tempo-barra > b { display: block; height: 100%; min-width: 0; cursor: default; transition: filter .15s; }
+  .tempo-barra > b:hover { filter: brightness(1.12); }
+  .tempo-pct { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; text-align: right; color: var(--st-ligado); }
+  @media (max-width: 640px) { .tempo-linha { grid-template-columns: 1fr 52px; } .tempo-nome { grid-column: 1 / -1; } }
+
+  /* Motivos de parada */
+  .motivo-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--ink-900); background: color-mix(in srgb, var(--mc, var(--ink-400)) 16%, transparent); border: 1px solid color-mix(in srgb, var(--mc, var(--ink-400)) 40%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .motivo-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mc, var(--ink-400)); flex: none; }
+  .motivo-chip.vazio { color: var(--ink-400); background: transparent; border-style: dashed; }
+  .motivo-opcoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .motivo-opcao { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--ink-900); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+  .motivo-opcao i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .motivo-opcao:hover { border-color: var(--accent); }
+  .motivo-opcao.ativo { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+  .motivo-resumo { font-size: 12.5px; color: var(--ink-600); }
+  .motivo-resumo strong { color: var(--ink-900); }
+  .motivos-cfg { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+  .motivo-cfg-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: center; }
+  .motivo-cfg-row input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-raised); cursor: pointer; }
+  .motivo-cfg-row .input { height: 30px; padding: 0 8px; min-width: 0; }
+  .motivo-cfg-uso { font-size: 11.5px; color: var(--ink-400); white-space: nowrap; }
+
+  /* Tabela simples (disciplina de turno) */
+  .tabela-simples { width: 100%; min-width: 0; border-collapse: collapse; font-size: 12.5px; }
+  .tabela-simples th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-400); padding: 6px 10px; border-bottom: 1px solid var(--border-strong); background: none; position: static; }
+  .tabela-simples td { padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 12.5px; }
+  .tabela-simples td.num, .tabela-simples th.num { text-align: right; font-family: var(--font-mono); }
+  .tabela-simples .ruim { color: var(--critical); font-weight: 700; }
+  .tabela-simples .ok { color: var(--good); font-weight: 700; }
+  .tabela-rolagem { overflow-x: auto; }
+
+  /* Alerta de maquina parada */
+  .machine-card.is-alerta { border-color: var(--st-parado); box-shadow: 0 0 0 3px var(--critical-wash); animation: alerta-pulso 2s ease-in-out infinite; }
+  @keyframes alerta-pulso { 50% { box-shadow: 0 0 0 6px var(--critical-wash); } }
+  .machine-live.is-alerta { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 40%, var(--border)); background: var(--critical-wash); }
+  .machine-live.is-alerta .live-dot { background: var(--critical); }
+  .alerta-faixa { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--critical) 40%, var(--border)); background: var(--critical-wash); color: var(--ink-900); font-size: 13px; }
+  .alerta-faixa[hidden] { display: none; }
+  .alerta-faixa strong { color: var(--critical); }
+  .alerta-faixa .alerta-cfg { margin-left: auto; }
+  .kpi-dots span.alerta { background: var(--st-parado); color: #fff; border-color: transparent; }
+  @media (prefers-reduced-motion: reduce) { .machine-card.is-alerta { animation: none; } }
+
+  /* Modo TV (chao de fabrica) */
+  .tv-overlay { position: fixed; inset: 0; z-index: 200; display: none; flex-direction: column; gap: 2vh; padding: 3vh 3vw; background: var(--bg, #0b0f17); color: var(--ink-900); }
+  .tv-overlay.visible { display: flex; }
+  .tv-topo { display: flex; align-items: center; gap: 2vw; flex-wrap: wrap; }
+  .tv-titulo { font-family: var(--font-display); font-size: clamp(18px, 2.6vw, 40px); font-weight: 700; }
+  .tv-sub { font-size: clamp(13px, 1.5vw, 22px); color: var(--ink-600); }
+  .tv-relogio { margin-left: auto; font-family: var(--font-mono); font-size: clamp(22px, 3.4vw, 54px); font-weight: 700; }
+  .tv-sair { font-size: 14px; }
+  .tv-grade { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 2vh 2vw; align-content: stretch; }
+  .tv-maq { display: flex; flex-direction: column; justify-content: space-between; gap: 1.5vh; padding: 2.4vh 2vw; border-radius: 22px; border: 3px solid var(--border-strong); background: var(--surface-card); min-height: 0; }
+  .tv-maq.on { border-color: var(--st-ligado); background: color-mix(in srgb, var(--st-ligado) 12%, var(--surface-card)); }
+  .tv-maq.alerta { border-color: var(--st-parado); background: color-mix(in srgb, var(--st-parado) 14%, var(--surface-card)); animation: alerta-pulso 2s ease-in-out infinite; }
+  .tv-maq-topo { display: flex; align-items: center; gap: 1vw; }
+  .tv-num { display: grid; place-items: center; width: clamp(40px, 5vw, 84px); height: clamp(40px, 5vw, 84px); border-radius: 16px; font-family: var(--font-mono); font-size: clamp(22px, 3vw, 50px); font-weight: 800; background: var(--surface-sunken); border: 2px solid var(--border-strong); }
+  .tv-maq.on .tv-num { background: var(--st-ligado); color: #fff; border-color: transparent; }
+  .tv-maq.alerta .tv-num { background: var(--st-parado); color: #fff; border-color: transparent; }
+  .tv-nome { font-size: clamp(18px, 2.2vw, 36px); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tv-estado { font-size: clamp(20px, 2.8vw, 46px); font-weight: 800; }
+  .tv-maq.on .tv-estado { color: var(--st-ligado); }
+  .tv-maq.alerta .tv-estado { color: var(--st-parado); }
+  .tv-rend { display: flex; align-items: baseline; gap: 1vw; font-size: clamp(14px, 1.5vw, 24px); color: var(--ink-600); }
+  .tv-rend strong { font-family: var(--font-mono); font-size: clamp(30px, 4.4vw, 76px); color: var(--ink-900); }
+  .tv-barra { position: relative; height: clamp(10px, 1.4vh, 18px); border-radius: 999px; background: var(--surface-sunken); }
+  .tv-barra > span { display: block; height: 100%; border-radius: 999px; background: var(--st-ligado); }
+  .tv-barra > i { position: absolute; top: -5px; bottom: -5px; width: 3px; border-radius: 2px; background: var(--ink-900); }
+
+  /* Relatorio do periodo: na tela (janela) e na impressao (so ele) */
+  .relatorio-modal { max-width: 900px; }
+  .relatorio { display: flex; flex-direction: column; gap: 10px; }
+  .relatorio h4 { margin: 10px 0 0; font-family: var(--font-display); font-size: 14px; }
+  .rel-cab { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 2px solid var(--accent); }
+  .rel-titulo { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+  @media print {
+    body.imprimindo-relatorio > *:not(#relatorio-overlay) { display: none !important; }
+    body.imprimindo-relatorio { background: #fff !important; }
+    body.imprimindo-relatorio #relatorio-overlay { position: static; display: block; background: none; backdrop-filter: none; padding: 0; }
+    body.imprimindo-relatorio .relatorio-modal { max-width: none; max-height: none; overflow: visible; border: 0; box-shadow: none; animation: none; }
+    body.imprimindo-relatorio .relatorio-modal::before, body.imprimindo-relatorio .modal-head, body.imprimindo-relatorio .modal-foot { display: none; }
+    body.imprimindo-relatorio .relatorio, body.imprimindo-relatorio .relatorio * { color: #111 !important; }
+    body.imprimindo-relatorio .stat { background: #f5f5f5 !important; border-color: #ddd !important; }
+    body.imprimindo-relatorio .tabela-simples tr { break-inside: avoid; }
+  }
+
+  /* Toque (celular): o tooltip aberto por toque some ao tocar fora */
+  @media (hover: none) { .chart-wrap svg rect, .chart-wrap svg circle, .tempo-barra > b { cursor: pointer; } }
 
   /* =====================================================================
      MODAIS
@@ -1518,10 +1644,22 @@
           <div class="menu-section">Produção</div>
           <button class="menu-item" type="button" role="menuitem" data-abrir="pagina-turnos">
             <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <span>Turnos<small>Horários, refeição, calendário e histórico</small></span>
+            <span>Turnos e calendário<small>Horários, refeição, calendário, motivos de parada e histórico</small></span>
+          </button>
+          <button class="menu-item" type="button" role="menuitem" data-abrir="alertas">
+            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span>Alerta de máquina parada<small>Destaque e som quando uma máquina fica parada no turno</small></span>
+          </button>
+          <button class="menu-item" type="button" role="menuitem" data-abrir="relatorio">
+            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span>Relatório do período<small>Resumo pronto para imprimir ou salvar em PDF</small></span>
           </button>
           <div class="menu-sep"></div>
           <div class="menu-section">Aparência</div>
+          <button class="menu-item" type="button" role="menuitem" data-abrir="modo-tv">
+            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span>Modo TV<small>Tela cheia para o chão de fábrica (Esc para sair)</small></span>
+          </button>
           <button class="menu-item theme-toggle" id="theme-toggle" type="button" role="menuitemcheckbox" aria-checked="false">
             <span class="mi-icon">
               <svg class="ico-moon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
@@ -1649,6 +1787,7 @@
        VIEW: VISAO GERAL
        =================================================================== -->
   <section class="view active" id="view-visao" data-titulo="Visão geral" data-desc="Indicadores consolidados, rendimento, linha do tempo e ranking das máquinas">
+    <div class="alerta-faixa" id="alerta-faixa" role="alert" hidden></div>
     <section class="panel">
       <div class="panel-head">
         <div class="panel-title-wrap">
@@ -1672,40 +1811,37 @@
           <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 6h7M13 6h8M3 12h4M10 12h11M3 18h10M16 18h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
           <div>
             <div class="panel-title">Linha do tempo por máquina</div>
-            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); passe o mouse numa barra ou num trecho vazio para ver o tempo ligado e parado; faixa no topo e linhas tracejadas = turnos; risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
+            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); passe o mouse numa barra ou num trecho vazio para ver o tempo ligado e parado (clique na parada para marcar o motivo; risco colorido = motivo marcado); faixa no topo e linhas tracejadas = turnos; risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
           </div>
         </div>
       </div>
       <div class="panel-body"><div class="chart-wrap" id="timeline-wrap"></div></div>
     </section>
 
-    <div class="kpi-grid">
-      <div class="kpi" style="--kpi-c: var(--accent)">
+    <div class="kpi-grid kpi-5">
+      <div class="kpi" style="--kpi-c: var(--st-ligado)">
         <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l2.5 1.5M9.5 2.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="kpi-label">Tempo ligado</span></div>
         <div class="kpi-value" id="kpi-ligado">—</div>
         <div class="kpi-foot" id="kpi-ligado-sub">média por máquina</div>
       </div>
-      <div class="kpi" style="--kpi-c: var(--m1)">
-        <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 18a8 8 0 1116 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 18l4-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="kpi-label">Rendimento médio</span></div>
-        <div class="kpi-value" id="kpi-rendimento">—</div>
-        <div class="kpi-bar"><span id="kpi-rendimento-bar"></span></div>
+      <div class="kpi" style="--kpi-c: var(--st-parado)">
+        <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1.2" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="5" width="4" height="14" rx="1.2" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="kpi-label">Tempo parado</span></div>
+        <div class="kpi-value" id="kpi-parado">—</div>
+        <div class="kpi-foot" id="kpi-parado-sub">média por máquina, dentro do turno</div>
       </div>
-      <div class="kpi editable" style="--kpi-c: var(--good)" role="button" tabindex="0" data-abrir-popup="meta" title="Clique para editar a meta (% do tempo de cada turno)">
+      <div class="kpi editable" style="--kpi-c: var(--m1)" role="button" tabindex="0" data-abrir-popup="meta" title="Rendimento = ligado ÷ disponível. O risco na barra é a meta. Clique para editar a meta.">
         <span class="kpi-edit"><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> meta</span>
-        <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="kpi-label">Progresso da meta</span></div>
-        <div class="kpi-value" id="kpi-meta">—</div>
-        <div class="kpi-bar"><span id="kpi-meta-bar"></span></div>
+        <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 18a8 8 0 1116 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 18l4-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="kpi-label">Rendimento</span></div>
+        <div class="kpi-linha"><div class="kpi-value" id="kpi-rendimento">—</div><span class="kpi-delta" id="kpi-rendimento-delta" hidden></span></div>
+        <div class="kpi-bar"><span id="kpi-rendimento-bar"></span><i id="kpi-rendimento-meta" hidden></i></div>
+        <div class="kpi-foot" id="kpi-meta">meta —</div>
+        <svg class="kpi-spark" id="kpi-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
-      <div class="kpi editable" style="--kpi-c: var(--m6)" role="button" tabindex="0" data-abrir-popup="maquinas" title="Clique para configurar a produção por minuto das máquinas">
+      <div class="kpi editable" style="--kpi-c: var(--m6)" role="button" tabindex="0" data-abrir-popup="maquinas" title="Clique para configurar a produção por hora (m/h) das máquinas">
         <span class="kpi-edit"><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg> taxas</span>
         <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="kpi-label">Produção estimada</span></div>
         <div class="kpi-value" id="kpi-producao">—</div>
-        <div class="kpi-foot" id="kpi-producao-sub">taxa m/min não configurada</div>
-      </div>
-      <div class="kpi" style="--kpi-c: var(--m4)">
-        <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="kpi-label">Ciclos</span></div>
-        <div class="kpi-value" id="kpi-ciclos">—</div>
-        <div class="kpi-foot" id="kpi-ciclos-sub">no período selecionado</div>
+        <div class="kpi-foot" id="kpi-producao-sub">taxa m/h não configurada</div>
       </div>
       <div class="kpi" style="--kpi-c: var(--good)">
         <div class="kpi-head"><span class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="kpi-label">Ligadas agora</span></div>
@@ -1715,25 +1851,13 @@
     </div>
 
     <div class="grid-12">
-      <section class="panel span-8">
-        <div class="panel-head">
-          <div class="panel-title-wrap">
-            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M5 20V11M12 20V5M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
-            <div>
-              <div class="panel-title">Comparativo de rendimento</div>
-              <div class="panel-hint">Rendimento de cada máquina contra a meta do dia (linha tracejada)</div>
-            </div>
-          </div>
-        </div>
-        <div class="panel-body"><div class="chart-wrap" id="compare-wrap"></div></div>
-      </section>
-      <section class="panel span-4">
+      <section class="panel span-12">
         <div class="panel-head">
           <div class="panel-title-wrap">
             <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <div>
               <div class="panel-title">Ranking de rendimento</div>
-              <div class="panel-hint">Ordenado do maior para o menor</div>
+              <div class="panel-hint">Rendimento do maior para o menor · risco = meta</div>
             </div>
           </div>
         </div>
@@ -1761,30 +1885,56 @@
       <div class="panel-body"><div class="chart-wrap" id="hourly-wrap"></div></div>
     </section>
 
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div>
+            <div class="panel-title">Evolução do rendimento</div>
+            <div class="panel-hint">Rendimento de cada máquina dia a dia (no Ano, por semana) contra a meta · no filtro Dia, os últimos 14 dias</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body"><div class="chart-wrap" id="evolucao-wrap"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14.5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></span>
+          <div>
+            <div class="panel-title">Análise de paradas</div>
+            <div class="panel-hint">Intervalos sem a máquina ligada dentro do turno (a partir de 1 min, sem contar intervalos de refeição e paradas programadas)</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body"><div id="paradas-kpis" class="stat-row"></div><div class="chart-wrap" id="paradas-wrap"></div></div>
+    </section>
+
     <div class="grid-12">
-      <section class="panel span-8">
+      <section class="panel span-7">
         <div class="panel-head">
           <div class="panel-title-wrap">
-            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14.5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></span>
+            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 20h16M6 20V8M10 20v-7M14 20v-4M18 20v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 6c4 0 8 1 14 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2.5"/></svg></span>
             <div>
-              <div class="panel-title">Análise de paradas</div>
-              <div class="panel-hint">Intervalos sem a máquina ligada dentro do turno (a partir de 1 min, sem contar intervalos de refeição e paradas programadas)</div>
+              <div class="panel-title">Paradas por motivo</div>
+              <div class="panel-hint">Pareto: motivos que mais tiraram tempo de produção (paradas de 1 min ou mais). Clique numa parada na linha do tempo (Visão geral) para marcar o motivo</div>
             </div>
           </div>
         </div>
-        <div class="panel-body"><div id="paradas-kpis" class="stat-row"></div><div class="chart-wrap" id="paradas-wrap"></div></div>
+        <div class="panel-body"><div id="pareto-resumo" class="motivo-resumo"></div><div class="chart-wrap" id="pareto-wrap"></div></div>
       </section>
-      <section class="panel span-4">
+      <section class="panel span-5">
         <div class="panel-head">
           <div class="panel-title-wrap">
-            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14.5" y="4" width="4.5" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></span>
+            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l3 2M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
             <div>
-              <div class="panel-title">Maiores paradas</div>
-              <div class="panel-hint">As 8 paradas mais longas do filtro</div>
+              <div class="panel-title">Disciplina de turno</div>
+              <div class="panel-hint">Atraso na 1ª partida (do início do turno até a máquina ligar) e saída antecipada (da última parada até o fim do turno), sem contar intervalos</div>
             </div>
           </div>
         </div>
-        <div class="panel-body"><div id="paradas-top"></div></div>
+        <div class="panel-body"><div class="tabela-rolagem" id="disciplina-wrap"></div></div>
       </section>
     </div>
 
@@ -1875,7 +2025,7 @@
   <!-- ===================================================================
        VIEW: TURNOS
        =================================================================== -->
-  <section class="view" id="view-turnos" data-titulo="Produção por turno" data-desc="Tempo ligado e ocupação de cada máquina em cada turno cadastrado">
+  <section class="view" id="view-turnos" data-titulo="Turnos e calendário" data-desc="Horários dos turnos, refeição, calendário, motivos de parada e histórico de configurações">
     <section class="panel" id="turnos-card">
       <div class="panel-head">
         <div class="panel-title-wrap">
@@ -1931,6 +2081,19 @@
         <div class="panel-body" id="calendario-cfg"></div>
       </section>
     </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.8"/></svg></span>
+          <div>
+            <div class="panel-title">Motivos de parada</div>
+            <div class="panel-hint">Lista usada para marcar o porquê de cada parada (clique numa parada na linha do tempo da Visão geral). Alterar o nome ou a cor vale também para as marcações antigas</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body" id="motivos-cfg"></div>
+    </section>
 
     <section class="panel">
       <div class="panel-head">
@@ -2135,6 +2298,81 @@
 <!-- =====================================================================
      POPUPS
      ===================================================================== -->
+<!-- Motivo de uma parada -->
+<div class="modal-overlay" id="motivo-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="motivo-title" style="max-width:620px">
+    <div class="modal-head">
+      <div class="modal-title" id="motivo-title">Motivo da parada</div>
+      <button class="modal-close" id="motivo-close" type="button" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="motivo-resumo" id="motivo-info"></div>
+      <div class="motivo-opcoes" id="motivo-opcoes"></div>
+      <label class="config-field">Observação (opcional)
+        <input class="input" id="motivo-obs" type="text" maxlength="80" placeholder="Ex.: rolo com defeito, esperando o mecânico…" />
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="motivo-limpar" type="button">Remover motivo</button>
+      <button class="btn primary" id="motivo-salvar" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alerta de maquina parada (vale para este aparelho) -->
+<div class="modal-overlay" id="alertas-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="alertas-title">
+    <div class="modal-head">
+      <div class="modal-title" id="alertas-title">Alerta de máquina parada</div>
+      <button class="modal-close" id="alertas-close" type="button" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-note">Durante o turno (fora dos intervalos), a máquina parada há mais tempo que o limite fica em vermelho no painel e no Modo TV. A configuração vale para este aparelho.</div>
+      <label class="config-field">Ativo
+        <select class="select" id="alertas-ativo"><option value="1">Sim</option><option value="0">Não</option></select>
+      </label>
+      <label class="config-field">Avisar depois de (minutos parada)
+        <input class="input" id="alertas-min" type="number" min="1" max="240" step="1" />
+      </label>
+      <label class="config-field">Som
+        <select class="select" id="alertas-som"><option value="0">Sem som</option><option value="1">Bipe ao começar o alerta</option></select>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="alertas-testar" type="button">Testar som</button>
+      <button class="btn primary" id="alertas-salvar" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Relatorio do periodo (imprimir / PDF) -->
+<div class="modal-overlay" id="relatorio-overlay">
+  <div class="modal relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="relatorio-title">
+    <div class="modal-head">
+      <div class="modal-title" id="relatorio-title">Relatório do período</div>
+      <button class="modal-close" id="relatorio-close" type="button" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body" id="relatorio-corpo"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="relatorio-fechar" type="button">Fechar</button>
+      <button class="btn primary" id="relatorio-imprimir" type="button">Imprimir / salvar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modo TV -->
+<div class="tv-overlay" id="tv-overlay" aria-label="Modo TV">
+  <div class="tv-topo">
+    <div>
+      <div class="tv-titulo" id="tv-titulo">Painel de Produção</div>
+      <div class="tv-sub" id="tv-sub">—</div>
+    </div>
+    <div class="tv-relogio mono" id="tv-relogio">--:--</div>
+    <button class="btn tv-sair" id="tv-sair" type="button">Sair (Esc)</button>
+  </div>
+  <div class="tv-grade" id="tv-grade"></div>
+</div>
+
 <div class="modal-overlay" id="settings-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="modal-head">
@@ -2437,7 +2675,14 @@
   }
 
   // ---------------------------------------------------------------------
-  // Configuração por máquina (nome e produção por minuto) — editável pelo
+  // Taxa de producao: guardada em metros POR MINUTO (banco, sincronizacao,
+  // historico de vigencias - sem mudar nada salvo) e mostrada/digitada em
+  // metros POR HORA (m/h) - 1.3.0.
+  function taxaParaMH(porMin) { return Math.round((Number(porMin) || 0) * 600) / 10; }
+  function taxaDeMH(mh) { return (Number(mh) || 0) / 60; }
+  function fmtTaxaMH(porMin) { return `${taxaParaMH(porMin).toLocaleString("pt-BR")} m/h`; }
+
+  // Configuração por máquina (nome e produção por hora) — editável pelo
   // gestor no popup, persistida no navegador. A produção e medida na unidade
   // que fizer sentido pra maquina (ex.: metros/min numa enfestadeira de fita);
   // com taxa 0 (nao configurada), nenhum valor de producao e exibido.
@@ -2600,6 +2845,9 @@
   //                 reescrever o passado:
   //                 { taxa: { id: [{ desde, valor }] }, meta: [{ desde, valor }], turnos: [{ desde, valor: [...] }] }
   //                 "desde" = "AAAA-MM-DD"; a primeira vigencia vale desde sempre.
+  //   motivos ..... (1.3.0) { catalogo: [{ id, nome, cor }], marcas: { "maq|inicioSeg": { m: id, obs? } } }
+  //                 motivo de cada parada: a chave e a maquina + o inicio da
+  //                 parada em segundos (o inicio vem dos ciclos, entao e estavel).
   // =====================================================================
   const DESDE_SEMPRE = "0000-01-01";
   let extrasVersao = 0; // muda a cada alteracao - invalida os caches de calculo
@@ -2609,8 +2857,41 @@
       pausas: [],
       calendario: { ativo: false, diasSemana: [1, 2, 3, 4, 5], diasTurnos: [], paradas: [] },
       historico: { taxa: {}, meta: [], metaPct: [], turnos: [] },
-      avisos: { semHoraDispensados: 0 }
+      avisos: { semHoraDispensados: 0 },
+      motivos: { catalogo: MOTIVOS_PADRAO.map((m) => ({ ...m })), marcas: {} }
     };
+  }
+  // Motivos de parada sugeridos (o setor edita a lista em Turnos e calendario)
+  const MOTIVOS_PADRAO = [
+    { id: "material", nome: "Falta de material", cor: "#d0453a" },
+    { id: "troca", nome: "Troca de rolo / tecido", cor: "#e2870a" },
+    { id: "manutencao", nome: "Manutenção / quebra", cor: "#7c3aed" },
+    { id: "ajuste", nome: "Ajuste / regulagem", cor: "#2563eb" },
+    { id: "operador", nome: "Operador ausente", cor: "#64748b" },
+    { id: "limpeza", nome: "Limpeza / organização", cor: "#0d9488" },
+    { id: "programacao", nome: "Aguardando corte / programação", cor: "#ca8a04" },
+    { id: "outro", nome: "Outro", cor: "#94a3b8" }
+  ];
+  const RE_COR = /^#[0-9a-f]{6}$/i;
+  function normalizarMotivos(v) {
+    const pad = { catalogo: MOTIVOS_PADRAO.map((m) => ({ ...m })), marcas: {} };
+    if (!v || typeof v !== "object") return pad;
+    const vistos = new Set();
+    const catalogo = (Array.isArray(v.catalogo) ? v.catalogo : [])
+      .filter((m) => m && /^[a-z0-9_-]{1,24}$/i.test(m.id) && typeof m.nome === "string" && m.nome.trim() && !vistos.has(m.id) && vistos.add(m.id))
+      .slice(0, 30)
+      .map((m) => ({ id: m.id, nome: m.nome.trim().slice(0, 40), cor: RE_COR.test(m.cor) ? m.cor : "#94a3b8" }));
+    const marcas = {};
+    if (v.marcas && typeof v.marcas === "object") {
+      Object.keys(v.marcas).forEach((k) => {
+        const mk = v.marcas[k];
+        if (!/^\d{1,2}\|\d{9,11}$/.test(k) || !mk || typeof mk.m !== "string") return;
+        const item = { m: mk.m.slice(0, 24) };
+        if (mk.obs) item.obs = String(mk.obs).slice(0, 80);
+        marcas[k] = item;
+      });
+    }
+    return { catalogo: catalogo.length ? catalogo : pad.catalogo, marcas };
   }
   const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
   const RE_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -2692,7 +2973,8 @@
       pausas: normalizarPausas(raw.pausas),
       calendario: normalizarCalendario(raw.calendario),
       historico: normalizarHistorico(raw.historico),
-      avisos: normalizarAvisos(raw.avisos)
+      avisos: normalizarAvisos(raw.avisos),
+      motivos: normalizarMotivos(raw.motivos)
     };
   }
   function loadExtras() {
@@ -2703,7 +2985,7 @@
     extrasVersao++;
     try { localStorage.setItem(extrasKey(), JSON.stringify(extras)); } catch (e) { /* localStorage indisponível */ }
     const envio = {};
-    (chaves || ["pausas", "calendario", "historico", "avisos"]).forEach((k) => { envio[k] = extras[k]; });
+    (chaves || ["pausas", "calendario", "historico", "avisos", "motivos"]).forEach((k) => { envio[k] = extras[k]; });
     enviarConfigParaServidor({ extras: envio });
   }
 
@@ -3270,6 +3552,7 @@
     alvo.replaceChildren(...chips);
     const padrao = !usingRealTime || (periodoSelecionado === "dia" && periodoEhAtual() && selectedShift === "all");
     document.getElementById("fs-reset").hidden = padrao;
+    escreverUrlFiltros();
   }
   function restaurarFiltros() {
     selectedShift = "all";
@@ -3773,11 +4056,11 @@
             </button>
             <input class="mc-inline-input" type="text" data-input="nome" maxlength="28" hidden aria-label="Nome da máquina" />
           </div>
-          <button class="status-chip small mono editable" type="button" data-editar="taxa" title="Produção por minuto — clique para editar">
+          <button class="status-chip small mono editable" type="button" data-editar="taxa" title="Produção por hora ligada (m/h) — clique para editar">
             <span data-campo="taxa"></span><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
           </button>
           <span class="mc-rate-edit" data-input-wrap="taxa" hidden>
-            <input class="mc-inline-input" type="text" inputmode="decimal" data-input="taxa" maxlength="8" autocomplete="off" aria-label="Produção por minuto (aceita vírgula)" />m/min
+            <input class="mc-inline-input" type="text" inputmode="decimal" data-input="taxa" maxlength="8" autocomplete="off" aria-label="Produção por hora em metros (aceita vírgula)" />m/h
           </span>
         </div>
         <div class="machine-live" id="live-${id}"></div>
@@ -3813,7 +4096,7 @@
       const input = card.querySelector(`[data-input="${campo}"]`);
       const caixa = card.querySelector(`[data-input-wrap="${campo}"]`) || input;
       if (!caixa.hidden) return;
-      input.value = campo === "nome" ? machineName(id) : String(machineRate(id)).replace(".", ",");
+      input.value = campo === "nome" ? machineName(id) : String(taxaParaMH(machineRate(id))).replace(".", ",");
       botao.hidden = true;
       caixa.hidden = false;
       input.focus();
@@ -3830,8 +4113,8 @@
         const atual = { ...machineSettings[id] };
         if (campo === "nome") atual.nome = input.value.trim() || `Máquina ${id}`;
         else {
-          const taxa = parseFloat(String(input.value).replace(",", "."));
-          atual.metrosPorMin = isFinite(taxa) && taxa >= 0 ? Math.round(taxa * 100) / 100 : 0;
+          const taxa = parseFloat(String(input.value).replace(",", ".")); // digitado em m/h
+          atual.metrosPorMin = isFinite(taxa) && taxa >= 0 ? taxaDeMH(Math.round(taxa * 10) / 10) : 0;
         }
         if (atual.nome === machineSettings[id].nome && atual.metrosPorMin === machineSettings[id].metrosPorMin) return;
         machineSettings[id] = atual;
@@ -3913,7 +4196,7 @@
 
       const card = cartaoMaquina(grid, id);
       definirTexto(card, "nome", machineName(id));
-      definirTexto(card, "taxa", taxa > 0 ? `${taxa.toLocaleString("pt-BR")} m/min` : "definir taxa");
+      definirTexto(card, "taxa", taxa > 0 ? fmtTaxaMH(taxa) : "definir taxa");
       definirTexto(card, "ligado", stats ? fmtDuration(stats.tempoLigadoS) : "—");
       definirTexto(card, "parado", stats && !stats.semJanela ? fmtDuration(stats.tempoParadoS) : "—");
       definirTexto(card, "rendimento", stats && !stats.semJanela ? Math.round(stats.disponibilidadePct) + "%" : "—");
@@ -3947,45 +4230,6 @@
     const info = estadoAoVivo.maquinas[id];
     if (!info || info.segundosSemSinal > SEGUNDOS_SEM_SINAL) return null;
     return !!info.ligado;
-  }
-
-  function renderKpis() {
-    const metaS = metaPeriodoS();
-    let ligadoS = 0, rendSoma = 0, metaSoma = 0, producao = null;
-    MACHINE_IDS.forEach((id) => {
-      const stats = computeStats(registrosComAndamento(id), id);
-      if (!stats) return;
-      ligadoS += stats.tempoLigadoS;
-      rendSoma += stats.disponibilidadePct;
-      if (metaS > 0) metaSoma += Math.min(100, (stats.tempoLigadoS / metaS) * 100);
-      const m = stats.producaoM;
-      if (m !== null) producao = (producao || 0) + m;
-    });
-    const n = MACHINE_IDS.length || 1;
-    const temDados = records.length > 0 || ligadoS > 0;
-    const rend = rendSoma / n, metaPct = metaSoma / n;
-
-    definirKpi("kpi-ligado", temDados ? fmtDuration(ligadoS / n) : "—"); // media por maquina
-    definirKpi("kpi-ligado-sub", temDados ? `média por máquina · total ${fmtDuration(ligadoS)}` : "média por máquina");
-    definirKpi("kpi-rendimento", temDados ? `${Math.round(rend)}<small>%</small>` : "—");
-    definirKpi("kpi-meta", temDados ? `${Math.round(metaPct)}<small>%</small>` : "—");
-    $("#kpi-rendimento-bar").style.width = `${temDados ? Math.round(rend) : 0}%`;
-    $("#kpi-meta-bar").style.width = `${temDados ? Math.round(metaPct) : 0}%`;
-    definirKpi("kpi-producao", producao !== null ? fmtMetros(producao) : "—");
-    definirKpi("kpi-producao-sub", producao !== null ? "tempo ligado × taxa configurada" : "taxa m/min não configurada · clique para definir");
-
-    const alertas = records.filter((r) => r.status.key !== "good").length;
-    definirKpi("kpi-ciclos", records.length ? records.length.toLocaleString("pt-BR") : "—");
-    const foraTurno = janelaDisponivel() ? records.filter((r) => r.turnoIdx === FORA_DE_TURNO).length : 0;
-    const subCiclos = [alertas ? `${alertas} com alerta` : "", foraTurno ? `${foraTurno} fora de turno` : ""].filter(Boolean).join(" · ");
-    definirKpi("kpi-ciclos-sub", subCiclos || "no período selecionado");
-
-    const estados = MACHINE_IDS.map(maquinaLigadaAgora);
-    const semSinal = estados.every((e) => e === null);
-    const ligadas = estados.filter((e) => e === true).length;
-    definirKpi("kpi-ativas", semSinal ? "—" : `${ligadas}<small>/ ${MACHINE_IDS.length}</small>`);
-    definirKpi("kpi-ativas-dots", estados.map((e, i) =>
-      `<span class="${e ? "on" : ""}" title="${escaparHtml(machineName(MACHINE_IDS[i]))}"></span>`).join(""));
   }
 
   // ---------------------------------------------------------------------
@@ -4027,6 +4271,7 @@
       aplicar(info.ligado ? "machine-live is-on" : "machine-live",
               `<span class="live-dot"></span>${info.ligado ? "Ligada agora" : "Parada agora"}${ha ? ` · há ${ha}` : ""}`);
     });
+    renderAlertas();
   }
 
   async function consultarAoVivo() {
@@ -4256,100 +4501,17 @@
       </div>`;
   }
 
+  // Ranking de rendimento da Visao geral (o grafico comparativo saiu na 1.3.0:
+  // repetia os mesmos numeros do ranking e dos cartoes).
   function renderCompareChart() {
-    const wrap = $("#compare-wrap");
-    wrap.innerHTML = "";
-    const jSemDados = janelaDisponivel();
-    if (!records.length && !(jSemDados && jSemDados.totalS > 0)) {
-      wrap.innerHTML = '<div class="empty-state">Sem dados para comparar.</div>';
-      renderRanking(null, 0);
-      return;
-    }
-
-    // Meta de rendimento: a meta diaria (em horas) convertida para % das horas de turno do dia -
-    // o mesmo alvo vale pras 4 maquinas, entao cada barra pode ser comparada direto
-    // contra ele (acima = bateu a meta, abaixo = nao bateu).
+    const j = janelaDisponivel();
+    if ((!records.length && !(j && j.totalS > 0)) || (j && j.totalS <= 0)) { renderRanking(null, 0); return; }
     const metaPct = metaRendimentoPct();
-
-    const jComp = janelaDisponivel();
-    if (jComp && jComp.totalS <= 0) {
-      wrap.innerHTML = '<div class="empty-state">O turno selecionado ainda não começou — sem tempo disponível para comparar.</div>';
-      renderRanking(null, 0);
-      return;
-    }
     const dados = MACHINE_IDS.map((id) => {
       const stats = computeStats(registrosComAndamento(id), id);
       const pct = stats ? stats.disponibilidadePct : 0;
       return { id, pct, tempoLigadoS: stats ? stats.tempoLigadoS : 0, deltaPct: pct - metaPct };
     });
-
-    const W = wrap.clientWidth || 640, H = 216;
-    const pad = { t: 40, r: 16, b: 30, l: 16 };
-    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-    const bw = iw / dados.length;
-    const y = (pct) => pad.t + ih * (1 - pct / 100);
-
-    const svg = el("svg", { width: "100%", height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Rendimento comparado entre máquinas, com a meta como referência" });
-    [0.5, 1].forEach((f) => {
-      const gy = pad.t + ih * (1 - f);
-      svg.appendChild(el("line", { x1: pad.l, x2: W - pad.r, y1: gy, y2: gy, class: "grid-line" }));
-    });
-
-    const tooltip = document.createElement("div");
-    tooltip.className = "chart-tooltip";
-
-    dados.forEach((d, i) => {
-      const bx = pad.l + i * bw + bw * 0.18;
-      const bwReal = bw * 0.64;
-      const by = y(d.pct);
-      const barH = pad.t + ih - by;
-      const cor = `var(${MACHINE_META[d.id].colorVar})`;
-      const bateuMeta = d.pct >= metaPct;
-      const corDelta = bateuMeta ? "var(--good)" : "var(--critical)";
-
-      const rect = el("rect", { x: bx, y: by, width: bwReal, height: Math.max(0, barH), rx: 5, fill: cor, opacity: "0.92" });
-      rect.addEventListener("mouseenter", () => {
-        rect.setAttribute("opacity", "1");
-        tooltip.innerHTML = `<div class="tt-title">${escaparHtml(machineName(d.id))}</div><div class="tt-row"><span>Rendimento</span><strong class="mono">&nbsp;${Math.round(d.pct)}%</strong></div><div class="tt-row"><span>Meta</span><strong class="mono">&nbsp;${Math.round(metaPct)}%</strong></div><div class="tt-row"><span style="color:${corDelta}">${bateuMeta ? "Acima da meta" : "Abaixo da meta"}</span><strong class="mono" style="color:${corDelta}">&nbsp;${d.deltaPct >= 0 ? "+" : ""}${Math.round(d.deltaPct)} pts</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(d.tempoLigadoS)}</strong></div>`;
-        tooltip.style.left = (bx + bwReal / 2) + "px";
-        tooltip.style.top = (by - 8) + "px";
-        tooltip.classList.add("visible");
-      });
-      rect.addEventListener("mouseleave", () => { rect.setAttribute("opacity", "0.92"); tooltip.classList.remove("visible"); });
-      svg.appendChild(rect);
-
-      const lbl = el("text", { x: bx + bwReal / 2, y: by - 20, "text-anchor": "middle", class: "axis-label" });
-      lbl.setAttribute("style", "fill: var(--ink-900); font-weight: 700;");
-      lbl.textContent = Math.round(d.pct) + "%";
-      svg.appendChild(lbl);
-
-      const deltaLbl = el("text", { x: bx + bwReal / 2, y: by - 8, "text-anchor": "middle", class: "axis-label" });
-      deltaLbl.setAttribute("style", `fill: ${corDelta}; font-weight: 700;`);
-      deltaLbl.textContent = (d.deltaPct >= 0 ? "+" : "") + Math.round(d.deltaPct) + " pts";
-      svg.appendChild(deltaLbl);
-
-      const xlbl = el("text", { x: bx + bwReal / 2, y: H - 12, "text-anchor": "middle", class: "axis-label" });
-      xlbl.textContent = machineName(d.id);
-      svg.appendChild(xlbl);
-    });
-
-    const metaY = y(metaPct);
-    svg.appendChild(el("line", { x1: pad.l, x2: W - pad.r, y1: metaY, y2: metaY, stroke: "var(--ink-900)", "stroke-width": 2, "stroke-dasharray": "6,4" }));
-    const metaLblTxt = `Meta: ${Math.round(metaPct)}%`;
-    const metaLblW = metaLblTxt.length * 6.2 + 14;
-    const metaSelo = el("g", { class: "chart-edit", "data-abrir-popup": "meta", role: "button", tabindex: "0" });
-    const metaTitulo = el("title");
-    metaTitulo.textContent = "Clique para editar a meta (% do tempo de cada turno)";
-    metaSelo.appendChild(metaTitulo);
-    metaSelo.appendChild(el("rect", { x: pad.l, y: 6, width: metaLblW + 14, height: 18, rx: 9, fill: "var(--ink-900)" }));
-    const metaLbl = el("text", { x: pad.l + (metaLblW + 14) / 2, y: 19, "text-anchor": "middle" });
-    metaLbl.setAttribute("style", "fill: var(--surface-card); font-weight: 700; font-size: 10.5px;");
-    metaLbl.textContent = metaLblTxt + " ✎";
-    metaSelo.appendChild(metaLbl);
-    svg.appendChild(metaSelo);
-
-    wrap.appendChild(svg);
-    wrap.appendChild(tooltip);
     renderRanking(dados, metaPct);
   }
 
@@ -4510,7 +4672,12 @@
           t.textContent = rotulo;
           g.appendChild(t);
         }
-        ligarTooltip(g, tooltip, `<div class="tt-title">${escaparHtml(nome)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(w.inicio)} → ${hhmmDe(w.fimTurno || w.fim)}</strong></div>`, bx + bw / 2, faixaTurnoY);
+        // dia que usa um horario antigo (historico de configuracoes): avisa no tooltip
+        const hojeT = !w.extra && turnos[w.idx] ? turnoNoDiaSemana(turnos[w.idx], new Date(w.dia).getDay()) : null;
+        const doDiaT = !w.extra ? turnosEm(w.dia)[w.idx] : null;
+        const antigo = hojeT && doDiaT && (hojeT.inicio !== doDiaT.inicio || hojeT.fim !== doDiaT.fim)
+          ? `<div class="tt-row"><span style="color:var(--warning)">Horário da configuração vigente em ${ddmmDe(w.dia)}</span></div><div class="tt-row"><span>Hoje esse dia seria</span><strong class="mono">&nbsp;${hojeT.inicio} → ${hojeT.fim}</strong></div>` : "";
+        ligarTooltip(g, tooltip, `<div class="tt-title">${escaparHtml(nome)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(w.inicio)} → ${hhmmDe(w.fimTurno || w.fim)}</strong></div>${antigo}`, bx + bw / 2, faixaTurnoY);
         svg.appendChild(g);
       });
     }
@@ -4540,8 +4707,11 @@
         const alvo = el("rect", { x: px, y, width: pw, height: laneH, rx: 3, fill: "var(--critical)", "fill-opacity": 0 });
         alvo.addEventListener("mouseenter", () => alvo.setAttribute("fill-opacity", "0.18"));
         alvo.addEventListener("mouseleave", () => alvo.setAttribute("fill-opacity", "0"));
-        ligarTooltip(alvo, tooltip, () => `<div class="tt-title">${escaparHtml(machineName(id))} · ${pz.emAndamento ? "parada agora" : "parada"}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(pz.inicio)} → ${pz.emAndamento ? "agora" : hhmmDe(pz.fim)}</strong></div><div class="tt-row"><span>Tempo parado</span><strong class="mono" style="color:var(--critical)">&nbsp;${fmtDuration(pz.durS)}</strong></div>${totaisTt}`, px + pw / 2, y);
+        if (podeEditar) { alvo.style.cursor = "pointer"; alvo.addEventListener("click", () => { tooltip.classList.remove("visible"); abrirMotivo(id, pz); }); }
+        ligarTooltip(alvo, tooltip, () => `<div class="tt-title">${escaparHtml(machineName(id))} · ${pz.emAndamento ? "parada agora" : "parada"}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(pz.inicio)} → ${pz.emAndamento ? "agora" : hhmmDe(pz.fim)}</strong></div><div class="tt-row"><span>Tempo parado</span><strong class="mono" style="color:var(--critical)">&nbsp;${fmtDuration(pz.durS)}</strong></div>${linhaTooltipMotivo(id, pz.inicio)}${totaisTt}`, px + pw / 2, y);
         svg.appendChild(alvo);
+        const mt = motivoDe(id, pz.inicio);
+        if (mt) svg.appendChild(el("rect", { x: px, y, width: pw, height: 3, rx: 1.5, fill: mt.cor, "pointer-events": "none" }));
       });
 
       if (j) {
@@ -4947,20 +5117,23 @@
   // =====================================================================
   function renderDesempenho() {
     const R = resumoJanelas();
-    const wraps = ["paradas-wrap", "heatmap-wrap", "comp-turnos-wrap"].map((id) => $("#" + id));
+    const wraps = ["paradas-wrap", "heatmap-wrap", "comp-turnos-wrap", "pareto-wrap", "disciplina-wrap"].map((id) => $("#" + id));
+    renderEvolucao($("#evolucao-wrap"));
     if (!R) {
       wraps.forEach((wr) => vazio(wr, "Precisa do horário real dos ciclos (servidor local ativo ou CSV com data/hora) e de um período (Dia/Semana/Mês/Ano)."));
-      $("#paradas-kpis").innerHTML = ""; $("#paradas-top").innerHTML = "";
+      $("#paradas-kpis").innerHTML = ""; $("#pareto-resumo").innerHTML = "";
       return;
     }
     if (!R.linhas.length) {
       wraps.forEach((wr) => vazio(wr, "Nenhum turno no período/filtro selecionado."));
-      $("#paradas-kpis").innerHTML = ""; $("#paradas-top").innerHTML = "";
+      $("#paradas-kpis").innerHTML = ""; $("#pareto-resumo").innerHTML = "";
       return;
     }
     renderParadas(R, wraps[0]);
     renderHeatmap(R, wraps[1]);
     renderComparativoTurnos(wraps[2]);
+    renderPareto(R, wraps[3]);
+    renderDisciplina(R, wraps[4]);
   }
 
   // Agrupa as linhas do resumo em "baldes" de tempo (dia; no ano, semana).
@@ -5065,11 +5238,6 @@
     wrap.insertBefore(svg, tt);
     wrap.appendChild(legenda(FAIXAS.map((f) => ({ cor: f.cor, texto: f.nome }))));
 
-    const top = todas.sort((a, b) => b.durS - a.durS).slice(0, 8);
-    $("#paradas-top").innerHTML = top.length ? `<div class="top-list">${top.map((pz) =>
-      `<div class="top-item" style="--m-color:var(${MACHINE_META[pz.id].colorVar})"><span class="machine-dot"></span><span>${escaparHtml(machineName(pz.id))}</span><strong class="mono">${fmtDuration(pz.durS)}${pz.emAndamento ? " …" : ""}</strong>` +
-      `<small>${ddmmDe(pz.inicio)} · ${hhmmDe(pz.inicio)} → ${pz.emAndamento ? "agora" : hhmmDe(pz.fim)} · ${escaparHtml(turnoNome(pz.idx))}</small></div>`).join("")}</div>`
-      : '<div class="empty-state">Nenhuma parada de 1 min ou mais.</div>';
   }
 
   function renderHeatmap(R, wrap) {
@@ -5387,7 +5555,7 @@
     };
     let html = bloco("Meta de rendimento", "meta", h.metaPct, (v, atual) => `${fmtPct(atual ? getMeta() : v)} do tempo disponível`);
     MACHINE_IDS.forEach((id) => {
-      html += bloco(`Taxa — ${escaparHtml(machineName(id))}`, `taxa:${id}`, h.taxa[id], (v, atual) => { const x = atual ? machineRate(id) : v; return x > 0 ? `${x.toLocaleString("pt-BR")} m/min` : "sem taxa"; });
+      html += bloco(`Taxa — ${escaparHtml(machineName(id))}`, `taxa:${id}`, h.taxa[id], (v, atual) => { const x = atual ? machineRate(id) : v; return x > 0 ? fmtTaxaMH(x) : "sem taxa"; });
     });
     html += bloco("Turnos", "turnos", h.turnos, (v, atual) => (atual ? turnos : v).map((t) => {
       const dias = resumoDiasTurno(t);
@@ -5436,6 +5604,7 @@
     renderPausasCfg(force);
     renderCalendarioCfg(force);
     renderHistoricoCfg(force);
+    renderMotivosCfg(force);
   }
   ligarPausasCfg();
   ligarCalendarioCfg();
@@ -5505,6 +5674,7 @@
   }
 
   let ultimoTextoCarregado = null; // texto bruto do ultimo CSV carregado (de onde vier) - usado no backup
+  var urlFiltrosAplicada = false;
 
   function loadFromText(text, label, manterNavegacaoPeriodo) {
     ultimoTextoCarregado = text;
@@ -5523,6 +5693,7 @@
         ultimoFim[r.maquina] = Math.max(ultimoFim[r.maquina] || 0, r.tsFim);
       });
     qualidadeDados = { simulados: parsed.length - todosRegistros.length, sobrepostos };
+    const primeiraCarga = !urlFiltrosAplicada;
     if (!manterNavegacaoPeriodo) {
       // Toda vez que um arquivo novo e escolhido (botao, upload, arrastar),
       // volta sempre para "Dia" (ou "tudo" internamente, se o arquivo nao
@@ -5532,6 +5703,7 @@
     } else if (!usingRealTime) {
       periodoSelecionado = "tudo"; // leitura ao vivo sem RTC - nunca ha o que filtrar por periodo
     }
+    if (primeiraCarga) { urlFiltrosAplicada = true; aplicarFiltrosDaUrl(); } // link com dia/turno (#p=...)
     aplicarFiltroPeriodo();
 
     atualizarBarraPeriodo();
@@ -5705,8 +5877,10 @@
       if (dados.extras && typeof dados.extras === "object") {
         const doServidor = normalizarExtras(dados.extras);
         const faltando = [];
-        ["pausas", "calendario", "historico", "avisos"].forEach((k) => {
-          if (dados.extras[k] === undefined) { faltando.push(k); return; }
+        ["pausas", "calendario", "historico", "avisos", "motivos"].forEach((k) => {
+          // motivos: so leva ao servidor se ja houver algo marcado (servidor
+          // antigo descarta a chave - nao reenvia a cada sincronizacao)
+          if (dados.extras[k] === undefined) { if (k !== "motivos" || Object.keys(extras.motivos.marcas).length) faltando.push(k); return; }
           if (JSON.stringify(doServidor[k]) !== JSON.stringify(extras[k])) { extras[k] = doServidor[k]; extrasVersao++; }
         });
         if ((garantirHistoricoInicial() | alinharUltimaVigencia()) && !faltando.includes("historico")) faltando.push("historico");
@@ -6806,6 +6980,646 @@
   window.addEventListener("pywebviewready", () => { document.body.classList.remove("pode-baixar-app"); esconderCartaoApp(false); });
 
   ABRIR_POPUP["acesso-remoto"] = abrirAcessoRemoto;
+
+  // =====================================================================
+  // 1.3.0 - GESTAO: comparacao com o periodo anterior, tendencia, para
+  // onde foi o tempo, motivos de parada, disciplina de turno, alerta de
+  // maquina parada, modo TV, relatorio, tooltips por toque e filtros na URL.
+  // Estado em "var" (e funcoes declaradas): podem ser usados por renderAll
+  // antes de esta parte do script ser avaliada.
+  // =====================================================================
+
+  // ---- calcular outro periodo sem mexer na tela ----
+  // Troca por um instante o periodo (e o turno) do filtro, calcula e volta.
+  function comPeriodo(periodo, ref, fn, turno) {
+    const salvo = [periodoSelecionado, dataReferencia, registrosPeriodo, records, selectedShift];
+    periodoSelecionado = periodo;
+    dataReferencia = new Date(ref);
+    if (turno !== undefined) selectedShift = turno;
+    aplicarFiltroPeriodo();
+    try { return fn(); } finally {
+      [periodoSelecionado, dataReferencia, registrosPeriodo, records, selectedShift] = salvo;
+    }
+  }
+  function deslocarPeriodo(periodo, ref, passos) {
+    const d = new Date(ref);
+    if (periodo === "dia") d.setDate(d.getDate() + passos);
+    else if (periodo === "semana") d.setDate(d.getDate() + passos * 7);
+    else if (periodo === "mes") { d.setDate(1); d.setMonth(d.getMonth() + passos); }
+    else if (periodo === "ano") d.setFullYear(d.getFullYear() + passos);
+    return d;
+  }
+
+  // Numeros consolidados do filtro atual (mesma conta dos cartoes e KPIs).
+  function resumoGeralAtual() {
+    const metaS = metaPeriodoS();
+    let ligadoS = 0, paradoS = 0, dispS = 0, rendSoma = 0, metaSoma = 0, producao = null, comJanela = false;
+    MACHINE_IDS.forEach((id) => {
+      const st = computeStats(registrosComAndamento(id), id);
+      if (!st) return;
+      ligadoS += st.tempoLigadoS;
+      rendSoma += st.disponibilidadePct;
+      if (!st.semJanela) { paradoS += st.tempoParadoS; dispS += st.tempoDisponivelS; comJanela = true; }
+      if (metaS > 0) metaSoma += Math.min(100, (st.tempoLigadoS / metaS) * 100);
+      if (st.producaoM !== null) producao = (producao || 0) + st.producaoM;
+    });
+    const n = MACHINE_IDS.length || 1;
+    return { ligadoS, paradoS, dispS, rend: rendSoma / n, metaProg: metaSoma / n, producao, comJanela, metaS };
+  }
+  // Rendimento geral de um periodo qualquer (null = nenhum turno nele).
+  function rendimentoDoPeriodo(periodo, ref, turno) {
+    return comPeriodo(periodo, ref, () => {
+      const j = janelaDisponivel();
+      if (!j || j.totalS <= 0) return null;
+      return resumoGeralAtual().rend;
+    }, turno);
+  }
+
+  // Serie do rendimento (para o minigrafico e a comparacao): os ultimos
+  // periodos do mesmo tipo, terminando no atual. Dia: so dias com turno.
+  var cacheSerieRend = { chave: "", valor: null };
+  function serieRendimento() {
+    if (!usingRealTime || periodoSelecionado === "tudo" || !turnos.length) return null;
+    const chave = [periodoSelecionado, +limitesPeriodo(periodoSelecionado, dataReferencia)[0], selectedShift, extrasVersao,
+      todosRegistros.length, Math.floor(Date.now() / 60000)].join("|");
+    cacheSerieRend = cacheSerieRend || { chave: "", valor: null };
+    if (cacheSerieRend.chave === chave) return cacheSerieRend.valor;
+    const N = { dia: 7, semana: 8, mes: 6, ano: 4 }[periodoSelecionado] || 6;
+    const pontos = [];
+    if (periodoSelecionado === "dia") {
+      for (let k = 1; k <= 21 && pontos.length < N - 1; k++) { // anteriores: so dias com turno
+        const ref = deslocarPeriodo("dia", dataReferencia, -k);
+        const v = rendimentoDoPeriodo("dia", ref);
+        if (v !== null) pontos.unshift({ ref, v });
+      }
+    } else {
+      for (let k = N - 1; k >= 1; k--) {
+        const ref = deslocarPeriodo(periodoSelecionado, dataReferencia, -k);
+        pontos.push({ ref, v: rendimentoDoPeriodo(periodoSelecionado, ref) });
+      }
+    }
+    cacheSerieRend = { chave, valor: pontos };
+    return pontos;
+  }
+  function rotuloAnterior(ref) {
+    if (periodoSelecionado === "dia") {
+      const ontem = deslocarPeriodo("dia", dataReferencia, -1);
+      return chaveDia(ref) === chaveDia(ontem) ? "vs ontem" : `vs ${ddmmDe(+ref)}`;
+    }
+    return { semana: "vs semana anterior", mes: "vs mês anterior", ano: "vs ano anterior" }[periodoSelecionado] || "";
+  }
+  function desenharSpark(svg, valores) {
+    const vals = valores.filter((v) => v !== null);
+    if (vals.length < 2) { svg.innerHTML = ""; return; }
+    const W = 100, H = 26, n = valores.length;
+    const x = (i) => (n === 1 ? W / 2 : (i / (n - 1)) * (W - 4) + 2);
+    const y = (v) => H - 3 - (Math.min(100, Math.max(0, v)) / 100) * (H - 6);
+    let d = "", aberto = false, primeiroX = null, ultimoX = null;
+    valores.forEach((v, i) => {
+      if (v === null) { aberto = false; return; }
+      d += (aberto ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1);
+      if (primeiroX === null) primeiroX = x(i);
+      ultimoX = x(i); aberto = true;
+    });
+    const area = d.replace(/M/g, "L").replace(/^L/, "M") + `L${ultimoX.toFixed(1)},${H}L${primeiroX.toFixed(1)},${H}Z`;
+    const ult = valores.length - 1;
+    svg.innerHTML = `<path class="a" d="${area}"/><path class="l" d="${d}"/>` +
+      (valores[ult] !== null ? `<circle cx="${x(ult).toFixed(1)}" cy="${y(valores[ult]).toFixed(1)}" r="2.2"/>` : "");
+  }
+
+  // ---- paradas do filtro (com motivo) ----
+  function paradasDoResumo(R) {
+    const lista = [];
+    if (!R) return lista;
+    R.linhas.forEach((ln) => MACHINE_IDS.forEach((id) => {
+      (ln.maquinas[id] ? ln.maquinas[id].paradas : []).forEach((pz) => lista.push({ ...pz, id, idx: ln.idx, dia: ln.dia }));
+    }));
+    return lista;
+  }
+
+  // ---- KPIs da Visao geral ----
+  function renderKpis() {
+    const g = resumoGeralAtual();
+    const n = MACHINE_IDS.length || 1;
+    const temDados = records.length > 0 || g.ligadoS > 0;
+    const alertas = records.filter((r) => r.status.key !== "good").length;
+    const foraTurno = janelaDisponivel() ? records.filter((r) => r.turnoIdx === FORA_DE_TURNO).length : 0;
+
+    definirKpi("kpi-ligado", temDados ? fmtDuration(g.ligadoS / n) : "—");
+    definirKpi("kpi-ligado-sub", temDados
+      ? [`média por máquina · total ${fmtDuration(g.ligadoS)}`, `${records.length.toLocaleString("pt-BR")} ciclos`,
+         alertas ? `${alertas} com alerta` : "", foraTurno ? `${foraTurno} fora de turno` : ""].filter(Boolean).join(" · ")
+      : "média por máquina");
+
+    // Tempo parado: media por maquina + a maior parada do filtro
+    if (g.comJanela && temDados) {
+      definirKpi("kpi-parado", fmtDuration(g.paradoS / n));
+      const todas = paradasDoResumo(resumoJanelas());
+      const maior = todas.reduce((a, pz) => (!a || pz.durS > a.durS ? pz : a), null);
+      definirKpi("kpi-parado-sub", `total ${fmtDuration(g.paradoS)}` + (maior ? ` · maior ${fmtDuration(maior.durS)} (${escaparHtml(machineName(maior.id))})` : ""));
+    } else {
+      definirKpi("kpi-parado", "—");
+      definirKpi("kpi-parado-sub", "média por máquina, dentro do turno");
+    }
+
+    // Rendimento + meta (risco na barra) + comparacao + projecao + minigrafico
+    const metaPct = metaRendimentoPct();
+    definirKpi("kpi-rendimento", temDados ? `${Math.round(g.rend)}<small>%</small>` : "—");
+    $("#kpi-rendimento-bar").style.width = `${temDados ? Math.min(100, Math.round(g.rend)) : 0}%`;
+    const marca = $("#kpi-rendimento-meta");
+    marca.hidden = !temDados;
+    marca.style.left = `calc(${Math.min(100, metaPct)}% - 1px)`;
+    let foot = `meta ${Math.round(metaPct)}% · cumprida ${temDados ? Math.round(g.metaProg) : 0}%`;
+    let dica = `Meta de rendimento: ${Math.round(metaPct)}% do tempo disponível.
+Cumprida: ${temDados ? Math.round(g.metaProg) : 0}% do tempo ligado esperado no período.`;
+    const j = janelaDisponivel();
+    if (temDados && j && j.emAndamento && periodoEhAtual() && g.metaS > 0) {
+      const restanteS = Math.max(0, (j.totalCompletoS || 0) - j.totalS);
+      const projecao = Math.min(100, ((g.ligadoS / n + (g.rend / 100) * restanteS) / g.metaS) * 100);
+      if (restanteS > 60) {
+        foot += ` · fim ≈ ${Math.round(projecao)}%`;
+        dica += `
+No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta cumprida.`;
+      }
+    }
+    definirKpi("kpi-meta", foot);
+    $("#kpi-meta").title = dica;
+    const serie = temDados ? serieRendimento() : null;
+    const delta = $("#kpi-rendimento-delta");
+    const anterior = serie ? [...serie].reverse().find((p) => p.v !== null) : null;
+    if (anterior && temDados && g.comJanela) {
+      const dpp = Math.round(g.rend - anterior.v);
+      const html = `${dpp > 0 ? "▲" : dpp < 0 ? "▼" : "="} ${dpp > 0 ? "+" : ""}${dpp} pp`;
+      if (delta.innerHTML !== html) delta.innerHTML = html;
+      delta.className = `kpi-delta${dpp > 0 ? " sobe" : dpp < 0 ? " desce" : ""}`;
+      delta.title = `${rotuloAnterior(anterior.ref)}: ${Math.round(anterior.v)}% (pp = pontos percentuais)`;
+      delta.hidden = false;
+    } else delta.hidden = true;
+    desenharSpark($("#kpi-spark"), serie && serie.length ? serie.map((p) => p.v).concat([g.comJanela ? g.rend : null]) : []);
+    $("#kpi-spark").setAttribute("aria-label", serie ? "Rendimento dos períodos anteriores" : "");
+
+    definirKpi("kpi-producao", g.producao !== null ? fmtMetros(g.producao) : "—");
+    definirKpi("kpi-producao-sub", g.producao !== null ? "tempo ligado × taxa configurada" : "taxa m/min não configurada · clique para definir");
+
+    // Ligadas agora: um quadrado numerado por maquina
+    const estados = MACHINE_IDS.map(maquinaLigadaAgora);
+    const semSinal = estados.every((e) => e === null);
+    const ligadas = estados.filter((e) => e === true).length;
+    definirKpi("kpi-ativas", semSinal ? "—" : `${ligadas}<small>/ ${MACHINE_IDS.length}</small>`);
+    definirKpi("kpi-ativas-dots", estados.map((e, i) => {
+      const id = MACHINE_IDS[i];
+      const al = maquinaEmAlerta(id);
+      const situacao = e === true ? "ligada" : al ? `parada há ${fmtHaQuanto(al.ms)} (alerta)` : e === false ? "parada" : "sem sinal";
+      const cls = e === true ? "on" : al ? "alerta" : e === null ? "sem-sinal" : "";
+      return `<span class="${cls}" title="${escaparHtml(machineName(id))} · ${situacao}">${escaparHtml(String(id))}</span>`;
+    }).join(""));
+  }
+
+  // ---- Motivos de parada ----
+  var motivoEditando = null; // { id, inicio, fim, durS, emAndamento }
+  var motivoEscolhido = null;
+  function chaveMotivo(id, inicio) { return `${id}|${Math.round(inicio / 1000)}`; }
+  function motivoDe(id, inicio) {
+    const mk = extras.motivos && extras.motivos.marcas[chaveMotivo(id, inicio)];
+    if (!mk) return null;
+    const cat = extras.motivos.catalogo.find((c) => c.id === mk.m) || { id: mk.m, nome: "Motivo removido", cor: "#94a3b8" };
+    return { ...cat, obs: mk.obs || "" };
+  }
+  function chipMotivo(mt) {
+    if (!mt) return `<span class="motivo-chip vazio">${podeEditar ? "marcar motivo" : "sem motivo"}</span>`;
+    return `<span class="motivo-chip" style="--mc:${mt.cor}" title="${escaparHtml(mt.nome + (mt.obs ? " — " + mt.obs : ""))}">${escaparHtml(mt.nome)}</span>`;
+  }
+  function linhaTooltipMotivo(id, inicio) {
+    const mt = motivoDe(id, inicio);
+    if (mt) return `<div class="tt-row"><span>Motivo</span><strong>&nbsp;${escaparHtml(mt.nome)}</strong></div>${mt.obs ? `<div class="tt-row"><span>${escaparHtml(mt.obs)}</span></div>` : ""}`;
+    return podeEditar ? `<div class="tt-row"><span style="opacity:.75">Clique para marcar o motivo</span></div>` : "";
+  }
+  function abrirMotivo(id, pz) {
+    if (!podeEditar) { avisoFlutuante("Somente leitura: o motivo é marcado no computador da fábrica ou com a senha de edição."); return; }
+    motivoEditando = { id, inicio: pz.inicio, fim: pz.fim, durS: pz.durS, emAndamento: !!pz.emAndamento };
+    const atual = motivoDe(id, pz.inicio);
+    motivoEscolhido = atual ? atual.id : null;
+    $("#motivo-info").innerHTML = `<strong>${escaparHtml(machineName(id))}</strong> · ${ddmmDe(pz.inicio)} · ${hhmmDe(pz.inicio)} → ${pz.emAndamento ? "agora" : hhmmDe(pz.fim)} · parada de <strong>${fmtDuration(pz.durS)}</strong>`;
+    $("#motivo-obs").value = atual ? atual.obs : "";
+    renderOpcoesMotivo();
+    $("#motivo-limpar").hidden = !atual;
+    $("#motivo-overlay").classList.add("visible");
+  }
+  function renderOpcoesMotivo() {
+    $("#motivo-opcoes").innerHTML = extras.motivos.catalogo.map((c) =>
+      `<button class="motivo-opcao${c.id === motivoEscolhido ? " ativo" : ""}" type="button" data-motivo="${escaparHtml(c.id)}"><i style="background:${c.cor}"></i>${escaparHtml(c.nome)}</button>`).join("");
+  }
+  function fecharMotivo() { $("#motivo-overlay").classList.remove("visible"); motivoEditando = null; }
+  function gravarMotivo(remover) {
+    if (!motivoEditando) return;
+    const k = chaveMotivo(motivoEditando.id, motivoEditando.inicio);
+    if (remover) delete extras.motivos.marcas[k];
+    else {
+      if (!motivoEscolhido) { avisoFlutuante("Escolha um motivo."); return; }
+      const item = { m: motivoEscolhido };
+      const obs = $("#motivo-obs").value.trim();
+      if (obs) item.obs = obs.slice(0, 80);
+      extras.motivos.marcas[k] = item;
+    }
+    fecharMotivo();
+    aposMudarExtras(["motivos"]);
+  }
+  $("#motivo-opcoes").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-motivo]");
+    if (!b) return;
+    motivoEscolhido = b.dataset.motivo;
+    renderOpcoesMotivo();
+  });
+  $("#motivo-salvar").addEventListener("click", () => gravarMotivo(false));
+  $("#motivo-limpar").addEventListener("click", () => gravarMotivo(true));
+  $("#motivo-close").addEventListener("click", fecharMotivo);
+  $("#motivo-overlay").addEventListener("click", (ev) => { if (ev.target.id === "motivo-overlay") fecharMotivo(); });
+  $("#motivo-obs").addEventListener("keydown", (ev) => { if (ev.key === "Enter") gravarMotivo(false); });
+
+  // Cadastro dos motivos (pagina Turnos e calendario)
+  function renderMotivosCfg(force) {
+    const box = $("#motivos-cfg");
+    if (!box || (!force && box.contains(document.activeElement))) return;
+    const uso = {};
+    Object.values(extras.motivos.marcas).forEach((mk) => { uso[mk.m] = (uso[mk.m] || 0) + 1; });
+    const dis = podeEditar ? "" : " disabled";
+    box.innerHTML = `<div class="motivos-cfg">` + extras.motivos.catalogo.map((c, i) =>
+      `<div class="motivo-cfg-row"><input type="color" value="${c.cor}" data-mot-cor="${i}" aria-label="Cor"${dis} />` +
+      `<input class="input" type="text" maxlength="40" value="${escaparHtml(c.nome)}" data-mot-nome="${i}" aria-label="Nome do motivo"${dis} />` +
+      `<span class="motivo-cfg-uso">${uso[c.id] ? `${uso[c.id]} parada${uso[c.id] > 1 ? "s" : ""}` : "sem uso"}</span>` +
+      `<button class="btn small ghost" type="button" data-mot-del="${i}"${dis}>Remover</button></div>`).join("") +
+      `<div><button class="btn small" type="button" id="mot-add"${dis}>+ Adicionar motivo</button></div></div>`;
+  }
+  (function ligarMotivosCfg() {
+    const box = $("#motivos-cfg");
+    if (!box) return;
+    box.addEventListener("change", (ev) => {
+      const nome = ev.target.closest("[data-mot-nome]"), cor = ev.target.closest("[data-mot-cor]");
+      if (nome) {
+        const v = nome.value.trim();
+        if (!v) { renderMotivosCfg(true); return; }
+        extras.motivos.catalogo[Number(nome.dataset.motNome)].nome = v.slice(0, 40);
+      } else if (cor) {
+        if (!RE_COR.test(cor.value)) return;
+        extras.motivos.catalogo[Number(cor.dataset.motCor)].cor = cor.value;
+      } else return;
+      aposMudarExtras(["motivos"]);
+    });
+    box.addEventListener("click", (ev) => {
+      if (ev.target.id === "mot-add") {
+        if (extras.motivos.catalogo.length >= 30) { avisoFlutuante("Limite de 30 motivos."); return; }
+        let n = 1;
+        while (extras.motivos.catalogo.some((c) => c.id === `m${n}`)) n++;
+        extras.motivos.catalogo.push({ id: `m${n}`, nome: "Novo motivo", cor: "#64748b" });
+        aposMudarExtras(["motivos"]);
+        setTimeout(() => { const ult = box.querySelector(`[data-mot-nome="${extras.motivos.catalogo.length - 1}"]`); if (ult) { ult.focus(); ult.select(); } }, 0);
+        return;
+      }
+      const del = ev.target.closest("[data-mot-del]");
+      if (!del) return;
+      const i = Number(del.dataset.motDel), c = extras.motivos.catalogo[i];
+      const usadas = Object.keys(extras.motivos.marcas).filter((k) => extras.motivos.marcas[k].m === c.id);
+      if (extras.motivos.catalogo.length <= 1) { avisoFlutuante("Mantenha pelo menos um motivo."); return; }
+      if (usadas.length && !confirm(`"${c.nome}" está marcado em ${usadas.length} parada(s). Remover o motivo e essas marcações?`)) return;
+      usadas.forEach((k) => delete extras.motivos.marcas[k]);
+      extras.motivos.catalogo.splice(i, 1);
+      aposMudarExtras(["motivos"]);
+    });
+  })();
+
+  // ---- Paradas por motivo (Pareto) ----
+  function renderPareto(R, wrap) {
+    const todas = paradasDoResumo(R);
+    const resumo = $("#pareto-resumo");
+    if (!todas.length) { resumo.innerHTML = ""; vazio(wrap, "Nenhuma parada de 1 min ou mais no filtro."); return; }
+    const grupos = new Map();
+    let marcadas = 0, marcadasS = 0, totalS = 0;
+    todas.forEach((pz) => {
+      const mt = motivoDe(pz.id, pz.inicio);
+      const k = mt ? mt.id : "";
+      if (!grupos.has(k)) grupos.set(k, { nome: mt ? mt.nome : "Sem motivo marcado", cor: mt ? mt.cor : "var(--ink-400)", n: 0, s: 0 });
+      const gr = grupos.get(k); gr.n++; gr.s += pz.durS;
+      totalS += pz.durS;
+      if (mt) { marcadas++; marcadasS += pz.durS; }
+    });
+    resumo.innerHTML = `<strong>${marcadas}</strong> de <strong>${todas.length}</strong> paradas com motivo · <strong>${Math.round(totalS ? (marcadasS / totalS) * 100 : 0)}%</strong> do tempo parado explicado` +
+      (podeEditar && marcadas < todas.length ? " · clique numa parada na linha do tempo (Visão geral) para marcar" : "");
+    const lista = [...grupos.entries()].filter(([k]) => k).map(([, v]) => v).sort((a, b) => b.s - a.s);
+    if (grupos.has("")) lista.push(grupos.get(""));
+    const maxS = Math.max(...lista.map((g) => g.s), 1);
+    let acum = 0;
+    wrap.innerHTML = `<div class="tempo-linhas" style="margin-top:12px">` + lista.map((g) => {
+      acum += g.s;
+      return `<div class="tempo-linha"><div class="tempo-nome"><span class="machine-dot" style="--m-color:${g.cor}"></span><span>${escaparHtml(g.nome)}</span></div>` +
+        `<div class="tempo-barra" title="${g.n} parada(s) · ${fmtDuration(g.s)} · acumulado ${Math.round((acum / totalS) * 100)}%"><b style="width:${((g.s / maxS) * 100).toFixed(1)}%;background:${g.cor}"></b></div>` +
+        `<div class="tempo-pct" style="color:var(--ink-900)">${Math.round((g.s / totalS) * 100)}%</div></div>` +
+        `<div class="motivo-resumo" style="margin:-8px 0 0 calc(min(150px, 30%) + 12px)">${fmtDuration(g.s)} · ${g.n}× · acumulado ${Math.round((acum / totalS) * 100)}%</div>`;
+    }).join("") + `</div>`;
+  }
+
+  // ---- Disciplina de turno ----
+  function renderDisciplina(R, wrap) {
+    const acc = {};
+    MACHINE_IDS.forEach((id) => { acc[id] = { n: 0, at: 0, atMax: null, nAnt: 0, ant: 0, antMax: null, semPartida: 0 }; });
+    R.linhas.filter((ln) => ln.idx !== HORA_EXTRA).forEach((ln) => MACHINE_IDS.forEach((id) => {
+      const m = ln.maquinas[id], a = acc[id];
+      if (!m) return;
+      a.n++;
+      if (m.atrasoInicioS === null) { if (!ln.correndo) a.semPartida++; return; }
+      a.at += m.atrasoInicioS;
+      if (!a.atMax || m.atrasoInicioS > a.atMax.s) a.atMax = { s: m.atrasoInicioS, dia: ln.dia, idx: ln.idx };
+      if (m.antecipacaoFimS !== null) {
+        a.nAnt++; a.ant += m.antecipacaoFimS;
+        if (!a.antMax || m.antecipacaoFimS > a.antMax.s) a.antMax = { s: m.antecipacaoFimS, dia: ln.dia, idx: ln.idx };
+      }
+    }));
+    const cls = (s) => (s === null ? "" : s > 600 ? "ruim" : s < 300 ? "ok" : "");
+    const fmt = (s) => (s === null ? "—" : s < 60 ? "< 1 min" : fmtDuration(s));
+    const pior = (x) => (x ? `<span class="${cls(x.s)}">${fmt(x.s)}</span> <small style="color:var(--ink-400)">${ddmmDe(x.dia)} ${escaparHtml(turnoNome(x.idx))}</small>` : "—");
+    const linhas = MACHINE_IDS.map((id) => {
+      const a = acc[id], comPartida = a.n - a.semPartida;
+      const medAt = comPartida > 0 && a.atMax ? a.at / comPartida : null, medAnt = a.nAnt ? a.ant / a.nAnt : null;
+      return `<tr><td><span class="machine-dot" style="--m-color:var(${MACHINE_META[id].colorVar});display:inline-block;margin-right:7px"></span>${escaparHtml(machineName(id))}</td>` +
+        `<td class="num">${a.n}${a.semPartida ? ` <small title="turnos sem ligar" style="color:var(--critical)">(${a.semPartida} sem ligar)</small>` : ""}</td>` +
+        `<td class="num ${cls(medAt)}">${fmt(medAt)}</td><td>${pior(a.atMax)}</td>` +
+        `<td class="num ${cls(medAnt)}">${fmt(medAnt)}</td><td>${pior(a.antMax)}</td></tr>`;
+    }).join("");
+    wrap.innerHTML = `<table class="tabela-simples"><thead><tr><th>Máquina</th><th class="num">Turnos</th><th class="num">Atraso médio</th><th>Pior atraso</th><th class="num">Saída antecipada</th><th>Pior saída</th></tr></thead><tbody>${linhas}</tbody></table>` +
+      `<div class="cfg-nota" style="margin-top:8px">Verde = menos de 5 min · vermelho = mais de 10 min. Saída antecipada só conta turnos já encerrados.</div>`;
+  }
+
+  // ---- Evolucao do rendimento por maquina ----
+  var cacheEvolucao = { chave: "", valor: null };
+  function renderEvolucao(wrap) {
+    if (!usingRealTime || periodoSelecionado === "tudo" || !turnos.length) { vazio(wrap, "Precisa do horário real dos ciclos e de um período."); return; }
+    let chaves, valoresPor;
+    if (periodoSelecionado === "dia") {
+      const chave = [+limitesPeriodo("dia", dataReferencia)[0], selectedShift, extrasVersao, todosRegistros.length, Math.floor(Date.now() / 60000)].join("|");
+      cacheEvolucao = cacheEvolucao || { chave: "", valor: null };
+      if (cacheEvolucao.chave !== chave) {
+        const dias = [];
+        for (let k = 13; k >= 0; k--) {
+          const ref = deslocarPeriodo("dia", dataReferencia, -k);
+          const vals = comPeriodo("dia", ref, () => {
+            const j = janelaDisponivel();
+            if (!j || j.totalS <= 0) return null;
+            const o = {};
+            MACHINE_IDS.forEach((id) => { const st = computeStats(registrosComAndamento(id), id); o[id] = st && !st.semJanela ? st.disponibilidadePct : null; });
+            return o;
+          });
+          if (vals) dias.push({ k: inicioDoDia(+ref), vals });
+        }
+        cacheEvolucao = { chave, valor: dias };
+      }
+      const dias = cacheEvolucao.valor;
+      chaves = dias.map((d) => d.k);
+      valoresPor = (id) => dias.map((d) => d.vals[id]);
+    } else {
+      const R = resumoJanelas();
+      if (!R || !R.linhas.length) { vazio(wrap, "Nenhum turno no período."); return; }
+      const porSemana = periodoSelecionado === "ano";
+      const baldes = new Map();
+      R.linhas.forEach((ln) => {
+        const k = chaveBalde(ln.dia, porSemana);
+        if (!baldes.has(k)) baldes.set(k, {});
+        const b = baldes.get(k);
+        MACHINE_IDS.forEach((id) => {
+          const m = ln.maquinas[id];
+          if (!m) return;
+          if (!b[id]) b[id] = { lig: 0, disp: 0 };
+          b[id].lig += m.ligadoS; b[id].disp += m.dispS;
+        });
+      });
+      chaves = [...baldes.keys()].sort((a, b) => a - b);
+      valoresPor = (id) => chaves.map((k) => { const v = baldes.get(k)[id]; return v && v.disp > 0 ? Math.min(100, (v.lig / v.disp) * 100) : null; });
+    }
+    if (chaves.length < 2) { vazio(wrap, "Poucos dias com turno para mostrar a evolução — escolha Semana, Mês ou Ano."); return; }
+    const series = MACHINE_IDS.map((id) => ({ nome: machineName(id), cor: `var(${MACHINE_META[id].colorVar})`, valores: valoresPor(id) }));
+    const porSemana = periodoSelecionado === "ano";
+    graficoLinhas(wrap, chaves, series, metaRendimentoPct(), (k) => (porSemana ? "sem " : "") + ddmmDe(k), "Evolução do rendimento de cada máquina");
+  }
+
+  // ---- Alerta de maquina parada (por aparelho) ----
+  var alertasAtivos = new Set();
+  function cfgAlerta() {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem("painel_alerta_parada") || "null"); } catch (e) { v = null; }
+    const min = v && Number.isFinite(Number(v.min)) ? Math.min(240, Math.max(1, Math.round(Number(v.min)))) : 15;
+    return { ativo: !v || v.ativo !== false, min, som: !!(v && v.som) };
+  }
+  // { ms } = parada ha ms dentro do turno atual (fora de intervalo), acima do limite
+  function maquinaEmAlerta(id) {
+    const cfg = cfgAlerta();
+    if (!cfg.ativo || maquinaLigadaAgora(id) !== false || !usingRealTime) return null;
+    const info = estadoAoVivo.maquinas[id];
+    const desde = Date.parse(info.desde);
+    if (!isFinite(desde)) return null;
+    const agora = Date.now();
+    const t = classificarTurnoTs(agora);
+    if (t.idx === FORA_DE_TURNO || diaTrabalhado(t.diaProducao, t.idx) === false) return null;
+    const turno = turnosEm(t.diaProducao)[t.idx];
+    if (!turno) return null;
+    const d = new Date(t.diaProducao), ini = hhmmParaMin(turno.inicio);
+    const inicioTurno = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(ini / 60), ini % 60).getTime();
+    const fimTurno = inicioTurno + duracaoTurnoS(turno) * 1000;
+    if (pausasDaJanela(t.idx, turno, inicioTurno, fimTurno).some((pz) => agora >= pz.inicio && agora < pz.fim)) return null;
+    const ms = agora - Math.max(desde, inicioTurno);
+    // refeicao flexivel: parada dentro da faixa e ainda dentro da duracao maxima = provavel refeicao
+    const flex = almocosFlexiveisDaJanela(t.idx, turno, inicioTurno, fimTurno).find((f) => agora >= f.inicio && agora < f.fim);
+    if (flex && ms <= flex.durS * 1000) return null;
+    return ms >= cfg.min * 60000 ? { ms } : null;
+  }
+  function bipe() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      [0, 0.35].forEach((t0) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "square"; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t0);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t0 + 0.25);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(ctx.currentTime + t0); o.stop(ctx.currentTime + t0 + 0.27);
+      });
+      setTimeout(() => ctx.close(), 1200);
+    } catch (e) { /* sem audio */ }
+  }
+  function renderAlertas() {
+    const faixa = $("#alerta-faixa");
+    if (!faixa) return;
+    const lista = MACHINE_IDS.map((id) => ({ id, al: maquinaEmAlerta(id) })).filter((x) => x.al);
+    if (!alertasAtivos) alertasAtivos = new Set();
+    const novos = lista.filter((x) => !alertasAtivos.has(x.id));
+    alertasAtivos = new Set(lista.map((x) => x.id));
+    if (novos.length && cfgAlerta().som) bipe();
+    MACHINE_IDS.forEach((id) => {
+      const card = document.querySelector(`.machine-card[data-maquina="${id}"]`);
+      if (card) card.classList.toggle("is-alerta", alertasAtivos.has(id));
+      const live = document.getElementById(`live-${id}`);
+      const x = lista.find((y) => y.id === id);
+      if (live && x) {
+        live.className = "machine-live is-alerta";
+        const html = `<span class="live-dot"></span>Parada há ${fmtHaQuanto(x.al.ms)} · alerta`;
+        if (live.innerHTML !== html) live.innerHTML = html;
+      }
+    });
+    if (!lista.length) { faixa.hidden = true; return; }
+    const html = `<strong>⚠ Máquina parada:</strong> ` + lista.map((x) => `${escaparHtml(machineName(x.id))} há <strong>${fmtHaQuanto(x.al.ms)}</strong>`).join(" · ") +
+      `<button class="btn small ghost alerta-cfg" type="button" data-abrir-popup="alertas">Configurar alerta</button>`;
+    if (faixa.innerHTML !== html) faixa.innerHTML = html;
+    faixa.hidden = false;
+  }
+  function abrirAlertas() {
+    const c = cfgAlerta();
+    $("#alertas-ativo").value = c.ativo ? "1" : "0";
+    $("#alertas-min").value = c.min;
+    $("#alertas-som").value = c.som ? "1" : "0";
+    $("#alertas-overlay").classList.add("visible");
+  }
+  function fecharAlertas() { $("#alertas-overlay").classList.remove("visible"); }
+  $("#alertas-close").addEventListener("click", fecharAlertas);
+  $("#alertas-overlay").addEventListener("click", (ev) => { if (ev.target.id === "alertas-overlay") fecharAlertas(); });
+  $("#alertas-testar").addEventListener("click", bipe);
+  $("#alertas-salvar").addEventListener("click", () => {
+    const min = Math.min(240, Math.max(1, Math.round(Number($("#alertas-min").value) || 15)));
+    try { localStorage.setItem("painel_alerta_parada", JSON.stringify({ ativo: $("#alertas-ativo").value === "1", min, som: $("#alertas-som").value === "1" })); } catch (e) { /* sem localStorage */ }
+    fecharAlertas();
+    renderMachineGrid();
+    avisoFlutuante("Alerta salvo neste aparelho.");
+  });
+  ABRIR_POPUP["alertas"] = abrirAlertas;
+
+  // ---- Modo TV ----
+  var tvTimer = null;
+  function renderTV() {
+    const agora = new Date();
+    $("#tv-relogio").textContent = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    $("#tv-titulo").textContent = `${nomeEmpresa() || "Painel de Produção"} · ${setorAtual.nome || ""}`.replace(/ · $/, "");
+    const dados = comPeriodo("dia", agora, () => {
+      const j = janelaDisponivel();
+      const porMaq = {};
+      MACHINE_IDS.forEach((id) => {
+        const st = computeStats(registrosComAndamento(id), id);
+        porMaq[id] = st && !st.semJanela ? st.disponibilidadePct : null;
+      });
+      return { j, porMaq, geral: j && j.totalS > 0 ? resumoGeralAtual().rend : null, meta: metaRendimentoPct() };
+    }, "all");
+    const t = classificarTurnoTs(+agora);
+    const turnoTxt = t.idx === FORA_DE_TURNO ? "Fora do horário de turno" : `${turnoNome(t.idx)} · ${(turnosEm(t.diaProducao)[t.idx] || {}).inicio || ""}–${(turnosEm(t.diaProducao)[t.idx] || {}).fim || ""}`;
+    $("#tv-sub").textContent = `${turnoTxt} · hoje: rendimento ${dados.geral !== null ? Math.round(dados.geral) + "%" : "—"} (meta ${Math.round(dados.meta)}%)`;
+    $("#tv-grade").innerHTML = MACHINE_IDS.map((id) => {
+      const e = maquinaLigadaAgora(id), al = maquinaEmAlerta(id);
+      const info = estadoAoVivo && estadoAoVivo.maquinas ? estadoAoVivo.maquinas[id] : null;
+      const desde = info ? Date.parse(info.desde) : NaN;
+      const ha = isFinite(desde) ? fmtHaQuanto(Date.now() - desde) : "";
+      const estado = e === true ? `Ligada${ha ? ` · ${ha}` : ""}` : al ? `Parada há ${fmtHaQuanto(al.ms)}` : e === false ? `Parada${ha ? ` · ${ha}` : ""}` : "Sem sinal";
+      const r = dados.porMaq[id];
+      return `<div class="tv-maq${e === true ? " on" : al ? " alerta" : ""}"><div class="tv-maq-topo"><span class="tv-num">${escaparHtml(String(id))}</span><span class="tv-nome">${escaparHtml(machineName(id))}</span></div>` +
+        `<div class="tv-estado">${escaparHtml(estado)}</div>` +
+        `<div class="tv-rend"><strong>${r !== null ? Math.round(r) + "%" : "—"}</strong> rendimento hoje</div>` +
+        `<div class="tv-barra"><span style="width:${r !== null ? Math.min(100, r) : 0}%"></span><i style="left:calc(${Math.min(100, dados.meta)}% - 1px)"></i></div></div>`;
+    }).join("");
+  }
+  function abrirTV() {
+    $("#tv-overlay").classList.add("visible");
+    renderTV();
+    clearInterval(tvTimer);
+    tvTimer = setInterval(() => { if (!document.hidden) renderTV(); }, 2000);
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().catch(() => { /* sem tela cheia: segue na janela */ });
+  }
+  function fecharTV() {
+    if (!$("#tv-overlay").classList.contains("visible")) return;
+    $("#tv-overlay").classList.remove("visible");
+    clearInterval(tvTimer); tvTimer = null;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  }
+  $("#tv-sair").addEventListener("click", fecharTV);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    fecharTV(); fecharMotivo(); fecharAlertas(); fecharRelatorio();
+  });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) fecharTV(); });
+  ABRIR_POPUP["modo-tv"] = abrirTV;
+
+  // ---- Relatorio do periodo (imprimir / PDF) ----
+  function renderRelatorio() {
+    const g = resumoGeralAtual();
+    const n = MACHINE_IDS.length || 1;
+    const R = resumoJanelas();
+    const periodo = !usingRealTime || periodoSelecionado === "tudo" ? "Todo o histórico" : (atualizarResumoFiltros(), $("#fs-chips") ? $("#fs-chips").innerText.replace(/\s*\n\s*/g, " · ") : formatarRotuloPeriodo(periodoSelecionado, dataReferencia));
+    const tab = (cab, linhas) => `<table class="tabela-simples"><thead><tr>${cab.map((c, i) => `<th${i ? ' class="num"' : ""}>${c}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((c, i) => `<td${i ? ' class="num"' : ""}>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    let html = `<div class="relatorio">` +
+      `<div class="rel-cab"><div><div class="rel-titulo">${escaparHtml(nomeEmpresa() || "Painel de Produção")} — ${escaparHtml(setorAtual.nome || "")}</div><div class="motivo-resumo">${escaparHtml(periodo)}</div></div><div class="motivo-resumo">Gerado em ${new Date().toLocaleString("pt-BR")}</div></div>` +
+      `<div class="stat-row">` + [
+        ["Tempo ligado", fmtDuration(g.ligadoS / n), "média por máquina"],
+        ["Tempo parado", g.comJanela ? fmtDuration(g.paradoS / n) : "—", "média por máquina"],
+        ["Rendimento", `${Math.round(g.rend)}%`, `meta ${Math.round(metaRendimentoPct())}%`],
+        ["Meta cumprida", `${Math.round(g.metaProg)}%`, "do tempo ligado esperado"],
+        ["Produção estimada", g.producao !== null ? fmtMetros(g.producao) : "—", "tempo ligado × taxa"]
+      ].map(([a, b, c]) => `<div class="stat"><span>${a}</span><strong>${b}</strong><small>${c}</small></div>`).join("") + `</div>`;
+    html += `<h4>Por máquina</h4>` + tab(["Máquina", "Ligado", "Parado", "Rendimento", "Produção"], MACHINE_IDS.map((id) => {
+      const st = computeStats(registrosComAndamento(id), id);
+      return [escaparHtml(machineName(id)), st ? fmtDuration(st.tempoLigadoS) : "—", st && !st.semJanela ? fmtDuration(st.tempoParadoS) : "—",
+        st && !st.semJanela ? `${Math.round(st.disponibilidadePct)}%` : "—", st && st.producaoM !== null ? fmtMetros(st.producaoM) : "—"];
+    }));
+    if (R && R.linhas.length) {
+      const todas = paradasDoResumo(R).sort((a, b) => b.durS - a.durS);
+      html += `<h4>Maiores paradas</h4>` + (todas.length ? tab(["Máquina", "Quando", "Duração", "Motivo"], todas.slice(0, 10).map((pz) => {
+        const mt = motivoDe(pz.id, pz.inicio);
+        return [escaparHtml(machineName(pz.id)), `${ddmmDe(pz.inicio)} ${hhmmDe(pz.inicio)}–${pz.emAndamento ? "agora" : hhmmDe(pz.fim)}`, fmtDuration(pz.durS), mt ? escaparHtml(mt.nome + (mt.obs ? ` (${mt.obs})` : "")) : "—"];
+      })) : `<div class="cfg-nota">Nenhuma parada de 1 min ou mais.</div>`);
+      const grupos = new Map();
+      todas.forEach((pz) => { const mt = motivoDe(pz.id, pz.inicio); const k = mt ? mt.nome : "Sem motivo marcado"; grupos.set(k, (grupos.get(k) || 0) + pz.durS); });
+      const totP = todas.reduce((a, pz) => a + pz.durS, 0) || 1;
+      if (todas.length) html += `<h4>Paradas por motivo</h4>` + tab(["Motivo", "Tempo", "%"], [...grupos.entries()].sort((a, b) => b[1] - a[1]).map(([k, s]) => [escaparHtml(k), fmtDuration(s), `${Math.round((s / totP) * 100)}%`]));
+    }
+    html += `</div>`;
+    $("#relatorio-corpo").innerHTML = html;
+  }
+  function abrirRelatorio() { renderRelatorio(); $("#relatorio-overlay").classList.add("visible"); }
+  function fecharRelatorio() { $("#relatorio-overlay").classList.remove("visible"); document.body.classList.remove("imprimindo-relatorio"); }
+  $("#relatorio-close").addEventListener("click", fecharRelatorio);
+  $("#relatorio-fechar").addEventListener("click", fecharRelatorio);
+  $("#relatorio-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relatorio-overlay") fecharRelatorio(); });
+  $("#relatorio-imprimir").addEventListener("click", () => {
+    document.body.classList.add("imprimindo-relatorio");
+    setTimeout(() => { window.print(); document.body.classList.remove("imprimindo-relatorio"); }, 50);
+  });
+  ABRIR_POPUP["relatorio"] = abrirRelatorio;
+
+  // ---- Tooltips por toque (celular/tablet) ----
+  var toqueAtual = null;
+  document.addEventListener("pointerdown", (ev) => {
+    if (ev.pointerType !== "touch") return;
+    const alvo = ev.target.closest && ev.target.closest(".chart-wrap svg rect, .chart-wrap svg circle, .chart-wrap svg g, .tempo-barra > b");
+    if (toqueAtual && toqueAtual !== alvo) toqueAtual.dispatchEvent(new MouseEvent("mouseleave"));
+    toqueAtual = alvo || null;
+    if (alvo) alvo.dispatchEvent(new MouseEvent("mouseenter"));
+  }, { passive: true });
+
+  // ---- Filtros no endereco (para mandar o link de um dia/turno) ----
+  function escreverUrlFiltros() {
+    if (!usingRealTime || !history.replaceState) return;
+    const padrao = periodoSelecionado === "dia" && periodoEhAtual() && selectedShift === "all";
+    const q = padrao ? "" : `#p=${periodoSelecionado}&d=${chaveDia(+dataReferencia)}&t=${selectedShift}`;
+    if (location.hash !== q && (q || location.hash.startsWith("#p="))) {
+      try { history.replaceState(null, "", location.pathname + location.search + q); } catch (e) { /* ok */ }
+    }
+  }
+  function aplicarFiltrosDaUrl() {
+    const m = /^#p=(dia|semana|mes|ano)&d=(\d{4}-\d{2}-\d{2})&t=(all|\d{1,2})$/.exec(location.hash || "");
+    if (!m || !usingRealTime) return;
+    periodoSelecionado = m[1];
+    dataReferencia = new Date(msDeChave(m[2]) + 12 * 3600000);
+    const t = m[3] === "all" ? "all" : Number(m[3]);
+    selectedShift = t === "all" || turnos[t] ? t : "all";
+    const sel = $("#shift-select");
+    if (sel && [...sel.options].some((o) => o.value === String(selectedShift))) sel.value = String(selectedShift);
+  }
+
   ligarPopup("acesso", fecharAcessoRemoto);
   $("#acesso-save").addEventListener("click", salvarAcessoRemoto);
   ["#acesso-senha2", "#acesso-edicao2", "#acesso-atual"].forEach((id) =>
@@ -6838,7 +7652,7 @@
   // ---------------------------------------------------------------------
   function renderSettingsForm() {
     const body = $("#settings-body");
-    body.innerHTML = `<div class="settings-note">Deixe "produção/min" em 0 para não mostrar essa métrica dessa máquina.</div>`;
+    body.innerHTML = `<div class="settings-note">Produção em metros por hora ligada (m/h). Deixe em 0 para não mostrar essa métrica dessa máquina.</div>`;
     MACHINE_IDS.forEach((id) => {
       const cfg = machineSettings[id];
       const row = document.createElement("div");
@@ -6852,8 +7666,8 @@
           </label>
           <label>Produção
             <span class="settings-rate-field">
-              <input type="number" class="settings-taxa mono" data-id="${id}" min="0" step="0.1" value="${cfg.metrosPorMin}" />
-              <span>metros / minuto ligada</span>
+              <input type="number" class="settings-taxa mono" data-id="${id}" min="0" step="1" value="${taxaParaMH(cfg.metrosPorMin)}" />
+              <span>metros / hora ligada (m/h)</span>
             </span>
           </label>
         </div>
@@ -6877,7 +7691,7 @@
       const taxaInput = document.querySelector(`.settings-taxa[data-id="${id}"]`);
       const nome = nomeInput.value.trim() || `Máquina ${id}`;
       const taxa = parseFloat(taxaInput.value);
-      machineSettings[id] = { nome, metrosPorMin: isFinite(taxa) && taxa >= 0 ? taxa : 0 };
+      machineSettings[id] = { nome, metrosPorMin: isFinite(taxa) && taxa >= 0 ? taxaDeMH(taxa) : 0 }; // digitado em m/h
     });
     saveMachineSettings();
     fecharConfiguracoes();

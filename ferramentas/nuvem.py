@@ -173,13 +173,13 @@ def _aplicar_campos(banco, corpo, setor):
 # ---------------------------------------------------------------------
 # Itens versionados da configuracao (sincronizacao nas duas maos, 1.2.0)
 # ---------------------------------------------------------------------
-EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual")
-_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual)"
+EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual", "motivos")
+_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual|motivos)"
                             r"|senha_leitura|senha_edicao|edicao_remota)$")
 _NOMES_ITEM = {
     "meta_pct": "Meta", "turnos": "Turnos", "extras:pausas": "Intervalos de refeição",
     "extras:calendario": "Calendário", "extras:historico": "Histórico de configurações",
-    "extras:avisos": "Avisos", "extras:visual": "Identidade visual",
+    "extras:avisos": "Avisos", "extras:visual": "Identidade visual", "extras:motivos": "Motivos de parada",
     "senha_leitura": "Senha de visualização", "senha_edicao": "Senha de edição", "edicao_remota": "Edição remota",
 }
 _versao_config = {"v": time.time_ns()}
@@ -284,7 +284,7 @@ def _igual(a, b):
 def resumo_item(chave, valor):
     try:
         if chave.startswith("maquina:"):
-            return f"{valor['nome']} · {valor['metrosPorMin']:g} m/min"
+            return f"{valor['nome']} · {round(float(valor['metrosPorMin']) * 60, 1):g} m/h"
         if chave == "meta_pct":
             return f"{float(valor):g}%"
         if chave == "turnos":

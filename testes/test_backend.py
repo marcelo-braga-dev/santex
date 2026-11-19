@@ -61,6 +61,21 @@ class TesteBanco(unittest.TestCase):
         self.assertEqual(b.ultimo_id_origem("403F07000000-AAAAAAAA"), 10)
         self.assertEqual(b.ultimo_id_origem("403F07000000-BBBBBBBB"), 0)
 
+    def test_motivos_de_parada_sao_salvos_e_sincronizados(self):
+        # 1.3.0: motivos de parada = chave nova em config_extra, versionada como as outras
+        import nuvem
+        from banco_dados import normalizar_extras
+        b = novo_banco()
+        motivos = {"catalogo": [{"id": "material", "nome": "Falta de material", "cor": "#d0453a"}],
+                   "marcas": {"2|1763546400": {"m": "material", "obs": "rolo"}}}
+        b.salvar_extras("s", normalizar_extras({"motivos": motivos, "desconhecida": {"x": 1}}))
+        self.assertEqual(b.obter_extras("s"), {"motivos": motivos})
+        self.assertTrue(nuvem.chave_item_valida("extras:motivos"))
+        self.assertEqual(nuvem.itens_atuais(b, "s")["extras:motivos"], motivos)
+        self.assertEqual(nuvem.nome_item("extras:motivos"), "Motivos de parada")
+        # taxa na auditoria em metros por hora (guardada em m/min)
+        self.assertIn("2000 m/h", nuvem.resumo_item("maquina:1", {"nome": "E1", "metrosPorMin": 2000 / 60}))
+
     def test_ciclo_wifi_sem_hora_sai_sem_horario(self):
         b = novo_banco()
         b.gravar_ciclo_remoto("s", "AA-01", 1, 1, 1, "?", "?", 5.0, "SEM_HORA")  # hora = download

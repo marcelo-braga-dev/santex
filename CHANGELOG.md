@@ -1,5 +1,58 @@
 # Histórico de versões
 
+## 1.3.0 — gestão: paradas com motivo, tendência, alerta, modo TV e relatório (app 1.3.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel e a sincronização mudaram: na VPS, `git pull` (precisa da 1.3.0 lá
+para os motivos de parada irem e voltarem); quem usa o programa remoto recebe ao
+reabrir; no notebook, `.exe` novo. Banco: nenhuma tabela nova — os motivos são
+uma chave nova (`motivos`) em `config_extra`.
+
+- **Produção em metros por hora (m/h)**: a taxa de cada máquina aparece e é
+  digitada em m/h (cartões, ⚙ Máquinas, histórico, auditoria). Continua
+  guardada em m/min (banco, sincronização e vigências antigas intactos):
+  33 m/min = 1.980 m/h; digitar 2000 guarda 33,33 m/min.
+- **Visão geral**
+  - Indicadores do topo: **Tempo ligado**, **Tempo parado** (novo: média,
+    total e maior parada), **Rendimento** (juntou "Rendimento médio" e
+    "Progresso da meta": barra com risco da meta, % da meta cumprida,
+    projeção para o fim do turno em andamento, comparação em pontos
+    percentuais com o período anterior e minigráfico dos últimos
+    períodos), **Produção estimada** e **Ligadas agora** (cada máquina num
+    quadrado com o número: verde = ligada, vermelho = alerta, cinza =
+    parada, tracejado = sem sinal). O KPI "Ciclos" virou texto no rodapé
+    do Tempo ligado.
+  - Saiu o gráfico "Comparativo de rendimento" (repetia o ranking e os
+    cartões); o **Ranking** ocupa a linha inteira.
+  - Linha do tempo: clicar numa parada marca o motivo; parada com motivo
+    ganha um risco da cor do motivo; a faixa do turno avisa quando o dia
+    usa um horário de uma configuração antiga.
+- **Motivos de parada**: lista editável em Turnos e calendário (8
+  sugestões: falta de material, troca de rolo, manutenção…); marcar pela
+  linha do tempo, com observação; sincroniza com a
+  VPS e entra na auditoria. Quem só visualiza não marca.
+- **Desempenho**: **Evolução do rendimento** por máquina (dia a dia; no
+  filtro Dia, os últimos 14 dias), **Paradas por motivo** (Pareto, com o
+  quanto do tempo parado já tem motivo) e **Disciplina de turno** (atraso
+  na 1ª partida e saída antecipada por máquina, médio e pior caso).
+- **Alerta de máquina parada** (⚙ → Alerta de máquina parada, por
+  aparelho): dentro do turno e fora dos intervalos, máquina parada além do
+  limite (padrão 15 min) fica em vermelho no cartão, no topo da Visão geral
+  e no Modo TV; bipe opcional.
+- **Modo TV** (⚙ → Aparência): tela cheia para o chão de fábrica — estado
+  de cada máquina, há quanto tempo, rendimento de hoje contra a meta.
+- **Relatório do período** (⚙): indicadores, por máquina, maiores paradas
+  com motivo e paradas por motivo, pronto para imprimir ou salvar em PDF.
+- Saiu a lista "Maiores paradas" do Desempenho (a maior parada continua no
+  indicador Tempo parado, na Análise de paradas e no relatório).
+- Página "Produção por turno" (configuração) passa a se chamar **Turnos e
+  calendário**.
+- Tooltips dos gráficos abrem por toque no celular; período, data e turno
+  vão no endereço (`#p=dia&d=2026-11-13&t=0`) para mandar o link de um dia.
+- Cores com sentido fixo (ligado verde, parado vermelho, parada curta
+  amarela, intervalo laranja).
+- 37 testes (1 novo: motivos de parada no banco e na sincronização).
+
+
 ## 1.2.1 — linha do tempo com tempo parado (app 1.2.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto

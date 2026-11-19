@@ -51,9 +51,9 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
 
 | Seção (aba) | Conteúdo |
 |---|---|
-| **Visão geral** | Primeiro, os cartões **Rendimento por máquina**; logo abaixo, a **Linha do tempo por máquina**; depois 6 KPIs (tempo ligado, rendimento médio, progresso da meta, produção estimada, ciclos/alertas, máquinas ligadas agora); depois comparativo de rendimento + ranking |
-| **Desempenho** | Tempo ligado por hora, análise de paradas + maiores paradas, **produção por turno** (gráfico + tabela), comparativo entre turnos, mapa de calor e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
-| **Turnos** (⚙ Configurações → Turnos, primeira opção do menu) | Cards de configuração: **Turnos cadastrados** (edição direta — ver abaixo), **Intervalo de refeição**, **Calendário e paradas programadas** e **Histórico de configurações** |
+| **Visão geral** | Faixa de **alerta** (máquina parada além do limite); os cartões **Rendimento por máquina**; a **Linha do tempo por máquina**; 5 KPIs (tempo ligado, tempo parado, rendimento com meta/comparação/minigráfico, produção estimada, ligadas agora); **ranking** de rendimento |
+| **Desempenho** | Tempo ligado por hora, **evolução do rendimento**, análise de paradas, **paradas por motivo** (Pareto) + **disciplina de turno**, **produção por turno** (gráfico + tabela), comparativo entre turnos, mapa de calor e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
+| **Turnos e calendário** (⚙ Configurações → Turnos e calendário) | Cards de configuração: **Turnos cadastrados** (edição direta — ver abaixo), **Intervalo de refeição**, **Calendário e paradas programadas**, **Motivos de parada** e **Histórico de configurações** |
 | **Identidade visual** (⚙ → Aparência) | Editor da paleta da marca — ver abaixo |
 
 ### Como os cartões calculam (base: turno → agora)
@@ -67,7 +67,7 @@ estiver correndo. Horas que ainda não passaram nunca entram.
 | **Horímetro (tempo ligado)** | Tempo ligado **dentro** das janelas de turno (ciclo que começou antes do turno conta só o trecho depois do início) |
 | **Parado** | Disponível − ligado |
 | **Rendimento** | Ligado ÷ disponível |
-| **Produção** | Ligado × taxa (m/min) |
+| **Produção** | Ligado × taxa (digitada em m/h; guardada em m/min) |
 | **Meta (anel)** | Ligado ÷ (meta % × tempo disponível de cada turno considerado, inteiro e sem pausas). Ex.: meta 85%, Turno 1 de 9 h → 7 h 39 min ligada; quando o Turno 2 começa, a meta do dia cresce junto |
 
 - Ligado + parado = disponível, em qualquer filtro.
@@ -142,7 +142,7 @@ como ligado e como disponível (para aquela máquina). Pode ser:
   não criam meta diária.
 - Paradas e horas extras valem mesmo com o calendário desligado.
 
-**Histórico de configurações** (aba Turnos): mudar taxa m/min, meta ou turnos vale a
+**Histórico de configurações** (aba Turnos): mudar taxa (m/h), meta ou turnos vale a
 partir **do dia da mudança**; os dias anteriores continuam com a regra da época
 (produção em metros, meta e turnos de cada dia). A data de início de cada vigência pode
 ser ajustada ou removida; "Aplicar a configuração atual a todo o histórico" desfaz isso.
@@ -156,9 +156,28 @@ e elas ficam só no navegador.
 
 | Onde | Gráfico |
 |---|---|
-| Desempenho → Análise de paradas | Nº de paradas (≥ 1 min, sem pausas), tempo parado, duração média, maior parada, tempo médio ligado entre paradas; barras por faixa (até 5 min / 5–30 / > 30) e as 8 maiores paradas |
+| Desempenho → Análise de paradas | Nº de paradas (≥ 1 min, sem pausas), tempo parado, duração média, maior parada, tempo médio ligado entre paradas; barras por faixa (até 5 min / 5–30 / > 30). (A lista "Maiores paradas" saiu na 1.3.0; a maior aparece no indicador e no relatório) |
 | Desempenho → Mapa de calor | Ocupação média por dia da semana × hora de turno |
 | Desempenho → Comparativo entre turnos | Rendimento de cada turno ao longo do período |
+
+1.3.0:
+
+| Onde | O quê |
+|---|---|
+| Visão geral → KPI Rendimento | Risco da meta na barra, % da meta cumprida, projeção do turno em andamento ("fim ≈ X%"), comparação com o período anterior (dia: o último dia com turno) em pontos percentuais e minigráfico dos últimos períodos |
+| Visão geral → Linha do tempo | Clique numa parada = marcar o motivo; risco colorido = motivo marcado; a faixa do turno avisa quando o horário é de uma configuração antiga |
+| Desempenho → Evolução do rendimento | Rendimento de cada máquina por dia (Ano: por semana); no filtro Dia, os últimos 14 dias |
+| Desempenho → Paradas por motivo | Pareto dos motivos (tempo, nº, % e acumulado) e quanto do tempo parado já tem motivo |
+| Desempenho → Disciplina de turno | Por máquina: atraso médio/pior na 1ª partida e saída antecipada média/pior (sem intervalos; verde < 5 min, vermelho > 10 min) |
+| ⚙ → Alerta de máquina parada | Por aparelho (localStorage): limite em minutos (padrão 15) e bipe. Só dentro do turno, fora de intervalos fixos/paradas programadas; na refeição flexível, só depois da duração máxima |
+| ⚙ → Modo TV | Tela cheia (Esc sai): estado e há quanto tempo de cada máquina, rendimento de hoje e a meta |
+| ⚙ → Relatório do período | Indicadores, por máquina, maiores paradas com motivo e paradas por motivo — Imprimir / salvar PDF |
+
+**Motivos de parada**: `extras.motivos = { catalogo: [{ id, nome, cor }], marcas:
+{ "maquina|inicioEmSegundos": { m, obs } } }` (chave `motivos` de `config_extra`,
+sincronizada como `extras:motivos`). A parada é identificada pela máquina + o
+instante em que começou (vem dos ciclos, então é estável). **Endereço**: período,
+data e turno ficam em `#p=…&d=AAAA-MM-DD&t=all|N` (abrir o link aplica o filtro).
 
 Base de todos: estrutura `resumoJanelas()` — um resumo por turno/dia e máquina (ligado,
 disponível, produção, paradas, almoço detectado), calculado com as
@@ -195,8 +214,8 @@ neles mesmos. Ao passar o mouse aparece um lápis ✎ e um destaque:
 | Onde clicar | O que acontece |
 |---|---|
 | **Nome da máquina** (cartão) | Vira um campo de texto ali mesmo — Enter ou clicar fora salva, Esc cancela |
-| **Pill da taxa** ("7,5 m/min" / "definir taxa") | Vira um campo numérico ali mesmo (aceita vírgula) — Enter/clicar fora salva, Esc cancela |
-| **Selo "Meta por turno"** (cabeçalho de "Rendimento por máquina"), KPI **Progresso da meta**, selo **"Meta"** do comparativo, legenda da meta no **ranking** e no gráfico **por hora** | Abre o popup da meta diária |
+| **Pill da taxa** ("1.980 m/h" / "definir taxa") | Vira um campo numérico ali mesmo (aceita vírgula) — Enter/clicar fora salva, Esc cancela |
+| **Selo "Meta por turno"** (cabeçalho de "Rendimento por máquina"), KPI **Rendimento**, legenda da meta no **ranking** e no gráfico **por hora** | Abre o popup da meta diária |
 | KPI **Produção estimada** | Abre o popup de configuração das máquinas |
 
 Salvar pela edição direta grava igual ao popup (navegador + banco do
@@ -361,16 +380,16 @@ Um bloco por máquina do setor atual (cor fixa de identidade, validada para
 daltonismo, atribuída pela posição da máquina na lista do setor — nunca
 pelo número bruto do id), com: nome configurável, horímetro (tempo ligado,
 mostrado em gradiente de cor), tempo parado, rendimento (%), produção
-estimada (se a taxa m/min estiver configurada), e uma barra de progresso
+estimada (se a taxa em m/h estiver configurada), e uma barra de progresso
 contra a **meta de rendimento em %** (selo "Meta por turno" no cabeçalho da
 seção — clique para editar). Nome e produção por
-minuto de cada máquina: **⚙ Configurações → Máquinas**. A grade se ajusta sozinha à quantidade de máquinas do
+hora (m/h) de cada máquina: **⚙ Configurações → Máquinas**. A grade se ajusta sozinha à quantidade de máquinas do
 setor (não é mais fixa em 4 colunas).
 
-### Comparativo de rendimento
-Gráfico de barras com as máquinas do setor atual lado a lado, uma linha
-tracejada marcando a meta de rendimento (%), e cada
-barra mostrando quantos pontos percentuais está acima/abaixo da meta.
+### Ranking de rendimento
+Máquinas da maior para a menor rendimento, com a barra, o risco da meta e a
+diferença em pontos percentuais. (O "Comparativo de rendimento" em barras saiu
+na 1.3.0: repetia os mesmos números.)
 
 ### Linha do tempo por máquina
 Uma pista por máquina na mesma escala de tempo — ligado (cor da máquina)

@@ -44,7 +44,9 @@ _HORA_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 # Chaves aceitas em config_extra e o tamanho maximo do JSON de cada uma
 # (protecao contra lixo - o painel nunca chega perto disso).
-CHAVES_EXTRA = {"pausas": 20000, "calendario": 50000, "historico": 200000, "visual": 2000, "avisos": 2000}
+# "motivos" (1.3.0) = catalogo de motivos de parada + parada -> motivo marcado.
+CHAVES_EXTRA = {"pausas": 20000, "calendario": 50000, "historico": 200000, "visual": 2000, "avisos": 2000,
+                "motivos": 600000}
 # Chaves que valem para o painel inteiro (nao por setor): "visual" = paleta
 # de cores (Identidade visual) e nome da empresa - iguais em todo aparelho
 # que abrir o painel. Ficam gravadas sob este "setor" fixo.
