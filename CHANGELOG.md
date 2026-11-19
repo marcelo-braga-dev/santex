@@ -56,6 +56,11 @@ sem precisar do computador da fábrica. Ver `docs/nuvem-vps.md`, "Edição remot
   - alterações feitas por aparelho da rede local com PIN aparecem como
     "rede local (IP)" na auditoria;
   - lista de IPs com senha errada não cresce sem limite.
+- **Linha do tempo por máquina**: o tooltip de cada ciclo mostra o tempo
+  ligado, a parada antes dele e os totais do período (ligada / parada); os
+  trechos vazios (paradas) também têm tooltip, com horário e tempo parado
+  (mesma regra da "Análise de paradas"); a faixa dos turnos mostra o nome e
+  o horário de cada turno.
 
 
 ## 1.1.0 — em desenvolvimento (app 1.1.0 · firmware 3.0)

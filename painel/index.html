@@ -1672,7 +1672,7 @@
           <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M3 6h7M13 6h8M3 12h4M10 12h11M3 18h10M16 18h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
           <div>
             <div class="panel-title">Linha do tempo por máquina</div>
-            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); faixa no topo e linhas tracejadas = turnos; risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
+            <div class="panel-hint">Do início do turno até agora · ligado (cor da máquina), parado (trilho vazio), fora de turno (hachurado); passe o mouse numa barra ou num trecho vazio para ver o tempo ligado e parado; faixa no topo e linhas tracejadas = turnos; risco cinza = intervalo de refeição fixo, laranja = refeição detectada (flexível)</div>
           </div>
         </div>
       </div>
@@ -4410,6 +4410,38 @@
     }
     const span = Math.max(1, fim - inicio);
 
+    // Paradas de cada maquina: com turnos, as mesmas da "Análise de paradas"
+    // (dentro do turno, >= 1 min, sem intervalos/paradas programadas); sem
+    // turnos, os buracos entre um ciclo e o seguinte.
+    const paradasTl = {};
+    const rj = j ? resumoJanelas() : null;
+    MACHINE_IDS.forEach((id) => {
+      if (rj) {
+        paradasTl[id] = rj.linhas.flatMap((l) => (l.maquinas[id] ? l.maquinas[id].paradas : []));
+      } else {
+        const lista = [];
+        let cursor = null;
+        porMaquina[id].slice().sort((a, b) => a.tsIni - b.tsIni).forEach((r) => {
+          if (cursor !== null && r.tsIni > cursor && (r.tsIni - cursor) / 1000 >= PARADA_MIN_S) {
+            lista.push({ inicio: cursor, fim: r.tsIni, durS: (r.tsIni - cursor) / 1000, emAndamento: false });
+          }
+          cursor = cursor === null ? r.tsFim : Math.max(cursor, r.tsFim);
+        });
+        paradasTl[id] = lista;
+      }
+    });
+    // Parada que terminou quando o ciclo comecou (tolerancia de 2 s)
+    const paradaAntes = (id, tsIni) => {
+      const pz = paradasTl[id].find((p) => Math.abs(p.fim - tsIni) <= 2000);
+      return pz ? `<div class="tt-row"><span>Parada antes</span><strong class="mono" style="color:var(--critical)">&nbsp;${fmtDuration(pz.durS)}</strong></div>` : "";
+    };
+    // Totais do periodo da maquina (mesma conta dos cartoes: ligado + parado = disponivel)
+    const rodapeTotais = (id) => {
+      const st = computeStats(porMaquina[id], id);
+      if (!st || st.semJanela) return "";
+      return `<div class="tt-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px"><span>Ligada no período</span><strong class="mono">&nbsp;${fmtDuration(st.tempoLigadoS)}</strong></div><div class="tt-row"><span>Parada no período</span><strong class="mono" style="color:var(--critical)">&nbsp;${fmtDuration(st.tempoParadoS)}</strong></div>`;
+    };
+
     const W = wrap.clientWidth || 900;
     // Tela estreita (celular): nome da maquina EM CIMA da barra e a barra
     // ocupando a largura toda; tela larga: nome a esquerda da barra.
@@ -4469,10 +4501,13 @@
         const g = el("g");
         g.appendChild(el("rect", { x: bx, y: faixaTurnoY, width: bw, height: faixaTurnoH, rx: 4, fill: cor, "fill-opacity": 0.18, stroke: cor, "stroke-width": 1 }));
         const nome = nomeJanelaTurno(w);
-        if (nome.length * 6 + 8 <= bw) {
+        // Nome + horario do turno; se nao couber, so o nome; se nem isso, nada
+        const horario = `${hhmmDe(w.inicio)}–${hhmmDe(w.fimTurno || w.fim)}`;
+        const rotulo = [`${nome} · ${horario}`, nome].find((s) => s.length * 6 + 8 <= bw);
+        if (rotulo) {
           const t = el("text", { x: bx + bw / 2, y: faixaTurnoY + faixaTurnoH / 2 + 3.5, "text-anchor": "middle", class: "axis-label" });
           t.setAttribute("style", `fill: ${cor}; font-weight: 700;`);
-          t.textContent = nome;
+          t.textContent = rotulo;
           g.appendChild(t);
         }
         ligarTooltip(g, tooltip, `<div class="tt-title">${escaparHtml(nome)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(w.inicio)} → ${hhmmDe(w.fimTurno || w.fim)}</strong></div>`, bx + bw / 2, faixaTurnoY);
@@ -4496,6 +4531,19 @@
       if (compacto) lbl.setAttribute("style", `fill: var(${MACHINE_META[id].colorVar}); font-weight: 700;`);
       lbl.textContent = machineName(id);
       svg.appendChild(lbl);
+      // Paradas (trechos vazios do trilho): area de toque invisivel com
+      // tooltip; desenhada antes das refeicoes e dos ciclos para ficar por baixo deles.
+      const totaisTt = rodapeTotais(id);
+      paradasTl[id].forEach((pz) => {
+        if (pz.fim <= inicio || pz.inicio >= fim) return;
+        const px = x(pz.inicio), pw = Math.max(2, x(pz.fim) - px);
+        const alvo = el("rect", { x: px, y, width: pw, height: laneH, rx: 3, fill: "var(--critical)", "fill-opacity": 0 });
+        alvo.addEventListener("mouseenter", () => alvo.setAttribute("fill-opacity", "0.18"));
+        alvo.addEventListener("mouseleave", () => alvo.setAttribute("fill-opacity", "0"));
+        ligarTooltip(alvo, tooltip, () => `<div class="tt-title">${escaparHtml(machineName(id))} · ${pz.emAndamento ? "parada agora" : "parada"}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hhmmDe(pz.inicio)} → ${pz.emAndamento ? "agora" : hhmmDe(pz.fim)}</strong></div><div class="tt-row"><span>Tempo parado</span><strong class="mono" style="color:var(--critical)">&nbsp;${fmtDuration(pz.durS)}</strong></div>${totaisTt}`, px + pw / 2, y);
+        svg.appendChild(alvo);
+      });
+
       if (j) {
         j.pausas.forEach((pz) => svg.appendChild(el("rect", { x: x(pz.inicio), y: y + laneH - 4, width: Math.max(1, x(pz.fim) - x(pz.inicio)), height: 4, fill: "var(--ink-400)", opacity: 0.6 })));
         detectarAlmocos(intervalosMaquina(id), j.janelas).forEach((al) => {
@@ -4519,7 +4567,7 @@
           const hm = (ts) => new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
           const titulo = r.emAndamento ? `${machineName(id)} · ligada agora` : `${machineName(id)} · Ciclo #${r.ciclo}`;
           const fora = r.turnoIdx === FORA_DE_TURNO ? '<div class="tt-row"><span>Começou fora do horário de turno</span></div>' : "";
-          tooltip.innerHTML = `<div class="tt-title">${escaparHtml(titulo)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hm(r.tsIni)} → ${r.emAndamento ? "agora" : hm(r.tsFim)}</strong></div><div class="tt-row"><span>Duração</span><strong class="mono">&nbsp;${fmtDuration(r.duracaoS)}</strong></div>${metros !== null ? `<div class="tt-row"><span>Produção</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${fora}${r.status && r.status.key !== "good" ? `<div class="tt-row"><span style="color:${r.status.color}">${r.status.label}</span></div>` : ""}`;
+          tooltip.innerHTML = `<div class="tt-title">${escaparHtml(titulo)}</div><div class="tt-row"><span>Horário</span><strong class="mono">&nbsp;${hm(r.tsIni)} → ${r.emAndamento ? "agora" : hm(r.tsFim)}</strong></div><div class="tt-row"><span>Tempo ligado</span><strong class="mono">&nbsp;${fmtDuration(r.duracaoS)}</strong></div>${paradaAntes(id, r.tsIni)}${metros !== null ? `<div class="tt-row"><span>Produção</span><strong class="mono">&nbsp;${fmtMetros(metros)}</strong></div>` : ""}${fora}${r.status && r.status.key !== "good" ? `<div class="tt-row"><span style="color:${r.status.color}">${r.status.label}</span></div>` : ""}${totaisTt}`;
           tooltip.style.left = (bx + bw / 2) + "px";
           tooltip.style.top = y + "px";
           tooltip.classList.add("visible");
