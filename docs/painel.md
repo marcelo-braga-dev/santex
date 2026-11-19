@@ -33,8 +33,10 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
   menu fica aberto para ver a troca); a escolha fica gravada.
 - **Seleção de setor** saiu da barra superior e é o primeiro campo da barra
   de filtros. Com um só setor cadastrado, aparece só o nome (sem lista).
-- **Aviso de destaque** (1.4.0, no lugar do antigo "Exportar Excel"): à
-  direita da barra de filtros, só quando há algo importante — um item por
+- **Barra de filtros fixa** (1.5.2): presa abaixo do menu superior, uma linha
+  só; a data mostra o dia da semana e "· hoje" e fica na cor da marca fora do
+  período atual.
+- **Aviso de destaque** (1.4.0; no rodapé desde a 1.5.2): no centro da barra de status, só quando há algo importante — um item por
   vez, do mais urgente: máquina parada além do limite do alerta (vermelho),
   dados sem atualizar durante o turno (leitura pausada, sem sinal das
   máquinas, servidor fora do ar) e paradas longas (> 30 min) de hoje sem motivo. Clicar leva
@@ -236,7 +238,10 @@ chave `semProducao` de `config_extra`, por setor, sincronizada `extras:semProduc
 
 ### Central de relatórios (aba Relatórios, 1.4.0)
 
-Todos seguem o **período e o turno da barra de filtros**. Cada cartão mostra um
+Ao clicar em Visualizar, Excel ou PDF (1.5.2), abre a janela **"Gerar relatório"**
+com o período (Dia/Semana/Mês/Ano, atalhos, setas e calendário) e o turno —
+começa com o filtro atual, mostra quantos ciclos o período tem e, ao confirmar,
+aplica o filtro também na barra de filtros (`abrirFiltroRelatorio`). Cada cartão mostra um
 número rápido do filtro e tem **Visualizar** (janela com as tabelas), **Excel** e
 **PDF**; no topo, **Excel completo** / **PDF completo** juntam todos (uma aba por
 relatório no Excel). Relatórios que dependem de turnos ficam desativados sem

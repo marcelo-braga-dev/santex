@@ -1,5 +1,27 @@
 # Histórico de versões
 
+## 1.5.2 — filtros fixos e aviso no rodapé (app 1.5.2 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.
+
+- **Barra de filtros fixa e compacta**: fica presa logo abaixo do menu
+  superior ao rolar (o período e o turno filtrados estão sempre à vista) e
+  ocupa uma linha só no computador, com controles de bom tamanho. Só filtros: setor, Dia/Semana/
+  Mês/Ano, data com o dia da semana e "· hoje", turno e "Voltar para hoje".
+  Fora do período atual, a data fica na cor da marca; turno escolhido
+  também. Saíram os chips "Exibindo" (repetiam a data e o turno).
+- **Aviso de destaque no rodapé**: selo de uma linha no centro da barra de
+  status (ícone, título e detalhe), aproveitando a largura; o nome da
+  máquina vem entre aspas ("Enfestadeira 2" parada · 23 min).
+- **Relatórios: janela "Gerar relatório"** — Visualizar, Excel e PDF (e os
+  "completos") abrem antes uma janela com o período (Dia/Semana/Mês/Ano,
+  atalhos como Hoje, Ontem, Semana passada, Mês passado; setas e calendário)
+  e o turno, já com o filtro atual, mais o resumo do que vai sair (período,
+  turno e quantos ciclos; avisa se ficaria vazio). Ao confirmar, o filtro
+  também passa para a barra de filtros. Os cartões não ficam mais
+  desativados.
+
+
 ## 1.5.1 — alerta de máquina parada mais discreto (app 1.5.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.

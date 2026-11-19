@@ -1285,6 +1285,29 @@
   .cfg-acao strong { font-size: 13.5px; }
   .cfg-acao small { font-size: 11.5px; color: var(--ink-600); }
 
+  /* Janela "Gerar relatorio" */
+  .modal.relf-modal { max-width: 560px; }
+  .relf-bloco { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; }
+  .relf-rot { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-400); }
+  .relf-per { justify-self: start; }
+  .relf-per .segmented-btn { height: 32px; padding: 0 16px; font-size: 13.5px; }
+  .relf-atalhos { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 84px; }
+  .relf-atalhos button { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--ink-900); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .relf-atalhos button:hover { border-color: var(--accent); color: var(--accent); }
+  .relf-atalhos button.ativo { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+  .relf-data { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .relf-nav { height: 38px; }
+  .relf-nav .period-label { min-width: 190px; font-size: 15px; text-transform: none; }
+  .relf-escolha { height: 38px; width: 160px; }
+  .relf-turno { height: 38px; width: 100%; max-width: 320px; }
+  .relf-resumo { margin-top: 4px; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--ink-900); background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); }
+  .relf-resumo strong { color: var(--accent); }
+  .relf-resumo.vazio { background: var(--surface-sunken); border-color: var(--border); color: var(--ink-600); }
+  .relf-foot .spacer { flex: 1; }
+  .relf-foot .btn.destaque { box-shadow: 0 0 0 3px var(--accent-wash); }
+  .relf-foot .btn:not(.rel-excel):not(.rel-pdf).destaque { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 560px) { .relf-bloco { grid-template-columns: 1fr; gap: 6px; } .relf-atalhos { padding-left: 0; } .relf-foot { flex-wrap: wrap; } }
+
   /* Central de relatorios */
   .rel-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface-card)), var(--surface-card) 60%); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.05)); }
   .rel-hero-texto { display: flex; gap: 16px; align-items: flex-start; min-width: 0; flex: 1 1 520px; }
@@ -1695,6 +1718,76 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
+
+  /* =====================================================================
+     1.5.2 - BARRA DE FILTROS FIXA E COMPACTA: fica presa logo abaixo do
+     menu superior ao rolar (sempre se ve o periodo/turno filtrado) e ocupa
+     uma linha so. O rotulo do periodo diz o dia da semana e "hoje", e fica
+     na cor da marca quando o filtro sai do periodo atual.
+     ===================================================================== */
+  .filterbar {
+    position: sticky; top: var(--topnav-h, 68px); z-index: 55;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+    margin: -6px 0 14px; padding: 9px 16px; border-radius: 0 0 14px 14px;
+    background: color-mix(in srgb, var(--surface-card) 94%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .10);
+  }
+  .filterbar::before { border-radius: 0; }
+  .fb-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; flex: 0 1 auto; min-width: 0; }
+  .fb-field, .fb-main .fb-field:last-child { padding: 0; border: none; gap: 8px; flex: 0 1 auto; }
+  .fb-icon { display: none; }
+  .fb-body { flex-direction: row; align-items: center; gap: 8px; }
+  .fb-label { font-size: 11px; }
+  .fb-controls { gap: 8px; flex-wrap: nowrap; }
+  .sector-select { height: 36px; min-width: 0; font-size: 17px; }
+  .filterbar .segmented-btn { height: 32px; padding: 0 14px; font-size: 13.5px; }
+  .period-nav { height: 38px; }
+  .period-nav button { width: 36px; }
+  .period-label { min-width: 170px; font-size: 15px; text-transform: none; }
+  .period-nav.is-custom { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+  .period-nav.is-custom .period-label { color: var(--accent); }
+  .filterbar .select { height: 38px; font-size: 14px; }
+  .shift-select { min-width: 200px; }
+  .shift-select.is-custom { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+  .fb-summary { display: contents; }
+  .fs-title, #fs-chips { display: none !important; }
+  .fs-reset { margin-left: 0; height: 34px; font-size: 13.5px; }
+  @media (max-width: 760px) {
+    .filterbar { gap: 5px 8px; padding: 5px 8px; margin-top: -4px; }
+    .fb-main { display: contents; } /* os campos entram direto na barra: turno e aviso dividem a linha */
+    .fb-main > .fb-field:nth-child(2) { flex: 1 1 100%; }
+    .fb-main > .fb-field:nth-child(3) { flex: 1 1 100%; }
+    .fb-label { display: none; }
+    .fb-sector.single { display: none; } /* um setor so: o nome ja esta no menu superior */
+    .fb-field, .fb-main .fb-field:last-child { flex: 1 1 auto; }
+    .fb-controls { flex-wrap: wrap; gap: 5px; }
+    .filterbar .segmented-btn { height: 30px; padding: 0 10px; font-size: 12.5px; }
+    .period-nav { height: 34px; flex: 1 1 auto; }
+    .period-label { min-width: 0; flex: 1; font-size: 14px; }
+    .filterbar .select { height: 34px; font-size: 13.5px; }
+    .shift-select { min-width: 0; width: 100%; }
+    .fs-reset { height: 28px; padding: 0 6px; }
+  }
+  /* aviso de destaque no rodape: selo de uma linha no centro da barra de status */
+  .fb-actions { display: none; }
+  .statusbar .sb-left { flex: 1 1 0; }
+  .statusbar .sb-right { flex: 1 1 0; justify-content: flex-end; min-width: 0; }
+  .statusbar .fb-destaque {
+    flex: 0 1 auto; min-width: 0; max-width: min(760px, 52vw); height: 24px; margin: 0;
+    flex-direction: row; gap: 8px; padding: 0 14px 0 4px; border-radius: 999px; animation: none;
+  }
+  .statusbar .fb-destaque:hover { transform: none; box-shadow: none; filter: brightness(1.03); }
+  .statusbar .fb-destaque .dq-ico { width: 18px; height: 18px; border-radius: 50%; }
+  .statusbar .fb-destaque .dq-ico svg { width: 11px; height: 11px; }
+  .statusbar .fb-destaque .dq-txt { flex-direction: row; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .statusbar .fb-destaque strong { font-size: 12px; flex: none; }
+  .statusbar .fb-destaque small { display: block; font-size: 11.5px; -webkit-line-clamp: unset; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .statusbar .fb-destaque small::before { content: "· "; }
+  @media (max-width: 760px) {
+    .statusbar .fb-destaque { max-width: 46vw; padding-right: 10px; }
+    .statusbar .fb-destaque small { display: none; }
+  }
 </style>
 <style id="identidade-style"></style>
 <script>
@@ -1936,7 +2029,6 @@
     </div>
 
     <div class="fb-actions">
-      <button class="fb-destaque" id="fb-destaque" type="button" hidden></button>
       <input type="file" id="file-input" accept=".csv,text/csv" />
     </div>
 
@@ -2170,7 +2262,7 @@
         <span class="rel-hero-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
         <div>
           <h2>Central de relatórios</h2>
-          <p>Todos os relatórios seguem o período e o turno escolhidos na barra de filtros acima. Visualize na tela ou baixe em Excel (planilha formatada, com filtros) ou PDF (pronto para imprimir e enviar).</p>
+          <p>Clique em <strong>Visualizar</strong>, <strong>Excel</strong> ou <strong>PDF</strong>: antes de gerar, você escolhe o período (dia, semana, mês ou ano) e o turno. O Excel vem formatado e com filtros; o PDF, pronto para imprimir e enviar.</p>
           <div class="rel-escopo" id="rel-escopo"></div>
           <div class="rel-aviso rel-hero-aviso" role="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.5v5.5M12 16.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Os tempos dos relatórios já descontam os intervalos de refeição e as paradas programadas (feriado, folga, reunião, manutenção…): eles não contam como tempo disponível nem como tempo parado. Só “Ciclos registrados” mostra a duração bruta de cada ciclo.</span></div>
         </div>
@@ -2555,6 +2647,7 @@
     <span class="dados-aviso"><span class="period-note" id="dados-note"></span><button class="aviso-x" id="dados-note-x" type="button" hidden title="Dispensar o aviso de ciclos sem data/hora (ele só volta se surgirem ciclos sem hora novos)" aria-label="Dispensar aviso de ciclos sem data/hora">×</button></span>
     <button class="ro-note" id="ro-note" type="button" hidden title="Este aparelho só visualiza. Alterações são feitas no computador do painel — ou clique para informar o PIN.">🔒 Somente leitura</button>
   </div>
+  <button class="fb-destaque" id="fb-destaque" type="button" hidden></button>
   <div class="sb-right">
     <div class="sync-bar" id="sync-bar" hidden>
       <button class="sync-toggle" id="sync-toggle" type="button" aria-expanded="false" aria-controls="sync-pop" title="Detalhes da sincronização com o controlador">
@@ -2649,6 +2742,51 @@
       <button class="btn ghost" id="sp-cancelar" type="button">Cancelar</button>
       <button class="btn primary" id="sp-marcar" type="button">Marcar Sem produção</button>
       <button class="btn primary" id="sp-voltar" type="button">Voltar a Com produção</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gerar relatorio: escolher periodo e turno antes de visualizar/baixar -->
+<div class="modal-overlay" id="relf-overlay">
+  <div class="modal relf-modal" role="dialog" aria-modal="true" aria-labelledby="relf-titulo">
+    <div class="modal-head">
+      <div><div class="modal-title" id="relf-titulo">Gerar relatório</div><div class="relv-sub">Escolha o período e o turno do relatório</div></div>
+      <button class="modal-close" id="relf-fechar" type="button" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="relf-bloco">
+        <span class="relf-rot">Período</span>
+        <div class="segmented relf-per" id="relf-per">
+          <button class="segmented-btn" type="button" data-per="dia">Dia</button>
+          <button class="segmented-btn" type="button" data-per="semana">Semana</button>
+          <button class="segmented-btn" type="button" data-per="mes">Mês</button>
+          <button class="segmented-btn" type="button" data-per="ano">Ano</button>
+        </div>
+      </div>
+      <div class="relf-atalhos" id="relf-atalhos"></div>
+      <div class="relf-bloco">
+        <span class="relf-rot">Data</span>
+        <div class="relf-data">
+          <div class="period-nav relf-nav">
+            <button type="button" id="relf-ant" aria-label="Período anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span class="period-label" id="relf-rotulo">—</span>
+            <button type="button" id="relf-prox" aria-label="Próximo período"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <input class="input mono relf-escolha" id="relf-escolha" type="date" aria-label="Escolher a data" />
+        </div>
+      </div>
+      <div class="relf-bloco">
+        <span class="relf-rot">Turno</span>
+        <select class="select relf-turno" id="relf-turno"></select>
+      </div>
+      <div class="relf-resumo" id="relf-resumo"></div>
+    </div>
+    <div class="modal-foot relf-foot">
+      <button class="btn ghost" id="relf-cancelar" type="button">Cancelar</button>
+      <span class="spacer"></span>
+      <button class="btn" id="relf-ver" type="button" data-relf-acao="ver">Visualizar</button>
+      <button class="btn rel-excel" id="relf-excel" type="button" data-relf-acao="excel">Excel</button>
+      <button class="btn rel-pdf" id="relf-pdf" type="button" data-relf-acao="pdf">PDF</button>
     </div>
   </div>
 </div>
@@ -3844,7 +3982,12 @@
       nav.style.display = "none";
     } else {
       nav.style.display = "flex";
-      $("#period-label").textContent = formatarRotuloPeriodo(periodoSelecionado, dataReferencia);
+      let rotulo = formatarRotuloPeriodo(periodoSelecionado, dataReferencia);
+      if (periodoSelecionado === "dia") rotulo = `${dataReferencia.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}, ${rotulo}`;
+      const atual = periodoEhAtual();
+      if (atual) rotulo += ` · ${{ dia: "hoje", semana: "esta semana", mes: "este mês", ano: "este ano" }[periodoSelecionado] || ""}`;
+      $("#period-label").textContent = rotulo;
+      nav.classList.toggle("is-custom", !atual);
     }
 
     $("#period-note").textContent = usingRealTime
@@ -3893,6 +4036,8 @@
     else chips.push(chipResumo("Turno", `${turnoNome(selectedShift)} (${turnoHorario(selectedShift)})`, "is-custom"));
     alvo.replaceChildren(...chips);
     const padrao = !usingRealTime || (periodoSelecionado === "dia" && periodoEhAtual() && selectedShift === "all");
+    const selT = document.getElementById("shift-select");
+    if (selT) selT.classList.toggle("is-custom", usingRealTime && selectedShift !== "all");
     document.getElementById("fs-reset").hidden = padrao;
     escreverUrlFiltros();
   }
@@ -7518,8 +7663,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     // 1) maquina parada alem do limite
     if (alertas && alertas.length) {
       // uma linha so (sem legenda); os detalhes ficam no tooltip
-      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `${machineName(alertas[0].id)} parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
-        detalhe: "", dica: alertas.map((x) => `${machineName(x.id)} parada há ${fmtHaQuanto(x.al.ms)}`).join("\n"),
+      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
+        detalhe: "", dica: alertas.map((x) => `"${machineName(x.id)}" parada há ${fmtHaQuanto(x.al.ms)}`).join("\n"),
         acao: () => irParaVisaoGeral("#machine-grid") };
     }
     const agora = Date.now();
@@ -8513,12 +8658,12 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     };
     const html = RELATORIOS.map((rel) => {
       const info = rapido[rel.id];
-      const indisp = info === null;
+      const indisp = false; // o periodo e escolhido na janela "Gerar relatorio"
       return `<article class="rel-card${indisp ? " indisponivel" : ""}" style="--rc:${rel.cor}">
         <div class="rel-card-topo"><span class="rel-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${rel.icone}</svg></span>
           <div><h3>${escaparHtml(rel.titulo)}</h3><p>${escaparHtml(rel.desc)}</p></div></div>
         <ul class="rel-itens">${rel.itens.map((i) => `<li>${escaparHtml(i)}</li>`).join("")}</ul>
-        <div class="rel-info">${indisp ? escaparHtml("Escolha Dia, Semana, Mês ou Ano (precisa de turnos e horário real)") : escaparHtml(info)}</div>
+        <div class="rel-info">${info === null ? "Clique em um botão para escolher o período" : escaparHtml(info)}</div>
         <div class="rel-acoes">
           <button class="btn small ghost" type="button" data-rel-ver="${rel.id}"${indisp ? " disabled" : ""}>Visualizar</button>
           <button class="btn small rel-excel" type="button" data-rel-baixar="${rel.id}" data-formato="excel"${indisp ? " disabled" : ""}>Excel</button>
@@ -8902,18 +9047,120 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     }
   }
   document.addEventListener("click", (ev) => {
+    // botoes da pagina: antes de gerar, a janela pede o periodo e o turno
     const ver = ev.target.closest("[data-rel-ver]");
-    if (ver) { abrirVisualizacao(ver.dataset.relVer); return; }
+    if (ver) { abrirFiltroRelatorio([ver.dataset.relVer], "ver"); return; }
     const b = ev.target.closest("[data-rel-baixar]");
-    if (b) { baixarRelatorio([b.dataset.relBaixar], b.dataset.formato, b); return; }
+    if (b) { abrirFiltroRelatorio([b.dataset.relBaixar], b.dataset.formato); return; }
     const todos = ev.target.closest("[data-rel-todos]");
-    if (todos) {
-      const ids = RELATORIOS.filter((r) => !document.querySelector(`[data-rel-ver="${r.id}"][disabled]`)).map((r) => r.id);
-      baixarRelatorio(ids, todos.dataset.relTodos, todos);
-    }
+    if (todos) { abrirFiltroRelatorio(RELATORIOS.map((r) => r.id), todos.dataset.relTodos); return; }
     const daTela = ev.target.closest("[data-relv-baixar]");
     if (daTela && relAberto) baixarRelatorio([relAberto], daTela.dataset.relvBaixar, daTela);
   });
+
+  // ---- janela "Gerar relatorio": periodo e turno antes de visualizar/baixar ----
+  // Comeca com o filtro atual; ao confirmar, o filtro escolhido passa tambem
+  // para a barra de filtros (a tela e o relatorio ficam iguais).
+  var relf = { ids: [], acao: "ver", per: "dia", ref: new Date(), turno: "all" };
+  function abrirFiltroRelatorio(ids, acao) {
+    relf = { ids, acao, per: usingRealTime && periodoSelecionado !== "tudo" ? periodoSelecionado : "dia", ref: new Date(dataReferencia), turno: selectedShift };
+    const um = ids.length === 1 ? RELATORIOS.find((r) => r.id === ids[0]) : null;
+    $("#relf-titulo").textContent = um ? `Gerar "${um.titulo}"` : "Gerar todos os relatórios";
+    $("#relf-turno").innerHTML = `<option value="all">Todos os turnos</option>` + turnos.map((t, i) => `<option value="${i}">${escaparHtml(t.nome)} (${t.inicio} – ${t.fim})</option>`).join("");
+    $("#relf-ver").hidden = !um; // "todos" so baixa
+    ["ver", "excel", "pdf"].forEach((a) => $(`#relf-${a}`).classList.toggle("destaque", a === acao));
+    renderFiltroRelatorio();
+    $("#relf-overlay").classList.add("visible");
+    setTimeout(() => { const b = $(`#relf-${acao}`); if (b && !b.hidden) b.focus(); }, 30);
+  }
+  function fecharFiltroRelatorio() { $("#relf-overlay").classList.remove("visible"); }
+  function atalhosRelatorio() {
+    const hoje = new Date();
+    const A = {
+      dia: [["Hoje", 0], ["Ontem", -1], ["Anteontem", -2]],
+      semana: [["Esta semana", 0], ["Semana passada", -1]],
+      mes: [["Este mês", 0], ["Mês passado", -1]],
+      ano: [["Este ano", 0], ["Ano passado", -1]]
+    }[relf.per] || [];
+    return A.map(([nome, k]) => ({ nome, ref: deslocarPeriodo(relf.per, hoje, k) }));
+  }
+  function renderFiltroRelatorio() {
+    const realtime = usingRealTime;
+    document.querySelectorAll("#relf-per [data-per]").forEach((b) => { b.classList.toggle("active", b.dataset.per === relf.per); b.disabled = !realtime; });
+    const [ini] = limitesPeriodo(relf.per, relf.ref);
+    $("#relf-atalhos").innerHTML = realtime ? atalhosRelatorio().map((a, i) => {
+      const [ai] = limitesPeriodo(relf.per, a.ref);
+      return `<button type="button" data-relf-atalho="${i}" class="${+ai === +ini ? "ativo" : ""}">${escaparHtml(a.nome)}</button>`;
+    }).join("") : "";
+    let rot = realtime ? formatarRotuloPeriodo(relf.per, relf.ref) : "Todo o histórico carregado";
+    if (realtime && relf.per === "dia") rot = `${relf.ref.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}, ${rot}`;
+    $("#relf-rotulo").textContent = rot;
+    const esc = $("#relf-escolha");
+    const tipo = relf.per === "mes" ? "month" : relf.per === "ano" ? "number" : "date";
+    if (esc.type !== tipo) esc.type = tipo;
+    if (tipo === "number") { esc.min = "2020"; esc.max = String(new Date().getFullYear()); esc.value = String(relf.ref.getFullYear()); }
+    else { esc.removeAttribute("min"); esc.max = tipo === "month" ? chaveDia(Date.now()).slice(0, 7) : chaveDia(Date.now()); esc.value = tipo === "month" ? chaveDia(+relf.ref).slice(0, 7) : chaveDia(+relf.ref); }
+    esc.hidden = !realtime;
+    $("#relf-ant").disabled = $("#relf-prox").disabled = !realtime;
+    $("#relf-turno").value = String(relf.turno);
+    $("#relf-turno").disabled = !realtime;
+    // resumo: o que vai sair (e quantos ciclos o periodo tem)
+    const ciclos = realtime ? comPeriodo(relf.per, relf.ref, () => records.length, relf.turno) : todosRegistros.length;
+    const nomeTurno = relf.turno === "all" || !realtime ? "Todos os turnos" : `${turnoNome(relf.turno)} (${turnoHorario(relf.turno)})`;
+    const NOME = { dia: "Dia", semana: "Semana", mes: "Mês", ano: "Ano" };
+    const box = $("#relf-resumo");
+    box.className = "relf-resumo" + (ciclos ? "" : " vazio");
+    box.innerHTML = ciclos
+      ? `Vai gerar: <strong>${escaparHtml(realtime ? `${NOME[relf.per]} · ${rot}` : rot)}</strong> · ${escaparHtml(nomeTurno)} · ${ciclos.toLocaleString("pt-BR")} ciclos no período`
+      : `Nenhum ciclo em <strong>${escaparHtml(rot)}</strong>${relf.turno !== "all" ? ` (${escaparHtml(nomeTurno)})` : ""}. Escolha outro período — o relatório sairia vazio.`;
+  }
+  function confirmarFiltroRelatorio(acao, botao) {
+    const { ids } = relf;
+    if (usingRealTime) {
+      periodoSelecionado = relf.per;
+      dataReferencia = new Date(relf.ref);
+      selectedShift = relf.turno;
+      const sel = $("#shift-select"); if (sel) sel.value = String(selectedShift);
+      aplicarFiltroPeriodo();
+      atualizarBarraPeriodo();
+      renderAll();
+    }
+    fecharFiltroRelatorio();
+    if (acao === "ver") abrirVisualizacao(ids[0]);
+    else baixarRelatorio(ids, acao, botao);
+  }
+  $("#relf-per").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-per]");
+    if (!b || b.dataset.per === relf.per) return;
+    relf.per = b.dataset.per;
+    if (limitesPeriodo(relf.per, relf.ref)[0] > new Date()) relf.ref = new Date();
+    renderFiltroRelatorio();
+  });
+  $("#relf-atalhos").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-relf-atalho]");
+    if (!b) return;
+    relf.ref = atalhosRelatorio()[Number(b.dataset.relfAtalho)].ref;
+    renderFiltroRelatorio();
+  });
+  $("#relf-ant").addEventListener("click", () => { relf.ref = deslocarPeriodo(relf.per, relf.ref, -1); renderFiltroRelatorio(); });
+  $("#relf-prox").addEventListener("click", () => {
+    const prox = deslocarPeriodo(relf.per, relf.ref, 1);
+    if (limitesPeriodo(relf.per, prox)[0] <= new Date()) { relf.ref = prox; renderFiltroRelatorio(); }
+  });
+  $("#relf-escolha").addEventListener("change", (ev) => {
+    const v = ev.target.value;
+    let d = null;
+    if (relf.per === "ano" && /^\d{4}$/.test(v)) d = new Date(Number(v), 0, 15);
+    else if (relf.per === "mes" && /^\d{4}-\d{2}$/.test(v)) d = new Date(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, 15);
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) d = new Date(msDeChave(v) + 12 * 3600000);
+    if (d && !isNaN(d)) { relf.ref = d > new Date() ? new Date() : d; renderFiltroRelatorio(); }
+  });
+  $("#relf-turno").addEventListener("change", (ev) => { relf.turno = ev.target.value === "all" ? "all" : Number(ev.target.value); renderFiltroRelatorio(); });
+  document.querySelectorAll("[data-relf-acao]").forEach((b) => b.addEventListener("click", () => confirmarFiltroRelatorio(b.dataset.relfAcao, b)));
+  $("#relf-cancelar").addEventListener("click", fecharFiltroRelatorio);
+  $("#relf-fechar").addEventListener("click", fecharFiltroRelatorio);
+  $("#relf-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relf-overlay") fecharFiltroRelatorio(); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fecharFiltroRelatorio(); });
   $("#relv-fechar").addEventListener("click", fecharVisualizacao);
   $("#relv-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relv-overlay") fecharVisualizacao(); });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fecharVisualizacao(); });
@@ -10336,6 +10583,15 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (ev.target.closest("#cfg-tema")) { $("#theme-toggle").click(); setTimeout(renderConfiguracoesPagina, 0); }
   });
   ABRIR_POPUP.configuracoes = () => mostrarView("configuracoes", true);
+  // a barra de filtros fica presa logo abaixo do menu superior (altura medida)
+  (function medirMenuSuperior() {
+    const topo = document.querySelector(".topnav");
+    if (!topo) return;
+    const medir = () => document.documentElement.style.setProperty("--topnav-h", `${topo.offsetHeight}px`);
+    medir();
+    window.addEventListener("resize", medir);
+    if (window.ResizeObserver) new ResizeObserver(medir).observe(topo);
+  })();
 
   ABRIR_POPUP["pagina-turnos"] = () => mostrarView("turnos", true); // pagina Turnos (antes era item do menu superior)
   setInterval(() => { if (!document.hidden && viewAtual === "esp") carregarDiagnosticoEsp(); }, 10000);
