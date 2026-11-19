@@ -1060,16 +1060,11 @@
   .tabela-rolagem { overflow-x: auto; }
 
   /* Alerta de maquina parada */
-  .machine-card.is-alerta { border-color: var(--st-parado); box-shadow: 0 0 0 3px var(--critical-wash); animation: alerta-pulso 2s ease-in-out infinite; }
+  .machine-card.is-alerta { border-color: color-mix(in srgb, var(--st-parado) 55%, var(--border)); }
   @keyframes alerta-pulso { 50% { box-shadow: 0 0 0 6px var(--critical-wash); } }
   .machine-live.is-alerta { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 40%, var(--border)); background: var(--critical-wash); }
   .machine-live.is-alerta .live-dot { background: var(--critical); }
-  .alerta-faixa { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--critical) 40%, var(--border)); background: var(--critical-wash); color: var(--ink-900); font-size: 13px; }
-  .alerta-faixa[hidden] { display: none; }
-  .alerta-faixa strong { color: var(--critical); }
-  .alerta-faixa .alerta-cfg { margin-left: auto; }
   .kpi-dots span.alerta { background: var(--st-parado); color: #fff; border-color: transparent; }
-  @media (prefers-reduced-motion: reduce) { .machine-card.is-alerta { animation: none; } }
 
   /* Modo TV (chao de fabrica) - tema escuro proprio, legivel de longe */
   .tv-overlay {
@@ -1959,7 +1954,6 @@
        VIEW: VISAO GERAL
        =================================================================== -->
   <section class="view active" id="view-visao" data-titulo="Visão geral" data-desc="Indicadores consolidados, rendimento, linha do tempo e ranking das máquinas">
-    <div class="alerta-faixa" id="alerta-faixa" role="alert" hidden></div>
     <section class="panel">
       <div class="panel-head">
         <div class="panel-title-wrap">
@@ -7485,8 +7479,6 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     } catch (e) { /* sem audio */ }
   }
   function renderAlertas() {
-    const faixa = $("#alerta-faixa");
-    if (!faixa) return;
     try { persistirRetornosAutomaticos(); } catch (e) { /* nunca derruba os alertas */ }
     const lista = MACHINE_IDS.map((id) => ({ id, al: maquinaEmAlerta(id) })).filter((x) => x.al);
     if (!alertasAtivos) alertasAtivos = new Set();
@@ -7505,12 +7497,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
         if (live.innerHTML !== html) live.innerHTML = html;
       }
     });
+    // um aviso so: o destaque da barra de filtros (a antiga faixa vermelha do topo saiu)
     renderDestaque(lista);
-    if (!lista.length) { faixa.hidden = true; return; }
-    const html = `<strong>⚠ Máquina parada:</strong> ` + lista.map((x) => `${escaparHtml(machineName(x.id))} há <strong>${fmtHaQuanto(x.al.ms)}</strong>`).join(" · ") +
-      `<button class="btn small ghost alerta-cfg" type="button" data-abrir-popup="alertas">Configurar alerta</button>`;
-    if (faixa.innerHTML !== html) faixa.innerHTML = html;
-    faixa.hidden = false;
   }
   // ---- Aviso de destaque na barra de filtros ----
   // Um item por vez, do mais urgente para o menos: maquina parada em alerta,
@@ -7529,8 +7517,9 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   function calcularDestaque(alertas) {
     // 1) maquina parada alem do limite
     if (alertas && alertas.length) {
-      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `${machineName(alertas[0].id)} parada há ${fmtHaQuanto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
-        detalhe: alertas.length === 1 ? "Parada além do limite do alerta, dentro do turno" : alertas.map((x) => `${machineName(x.id)} há ${fmtHaQuanto(x.al.ms)}`).join(" · "),
+      // uma linha so (sem legenda); os detalhes ficam no tooltip
+      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `${machineName(alertas[0].id)} parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
+        detalhe: "", dica: alertas.map((x) => `${machineName(x.id)} parada há ${fmtHaQuanto(x.al.ms)}`).join("\n"),
         acao: () => irParaVisaoGeral("#machine-grid") };
     }
     const agora = Date.now();
@@ -7566,10 +7555,10 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     try { d = calcularDestaque(alertas); } catch (e) { d = null; }
     if (!d) { bt.hidden = true; acaoDestaque = null; return; }
     const html = `<span class="dq-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICO_DQ[d.ico]}</svg></span>` +
-      `<span class="dq-txt"><strong>${escaparHtml(d.titulo)}</strong><small>${escaparHtml(d.detalhe)}</small></span>`;
+      `<span class="dq-txt"><strong>${escaparHtml(d.titulo)}</strong>${d.detalhe ? `<small>${escaparHtml(d.detalhe)}</small>` : ""}</span>`;
     if (bt.innerHTML !== html) bt.innerHTML = html;
     bt.className = `fb-destaque ${d.nivel}`;
-    bt.title = `${d.titulo}\n${d.detalhe}`;
+    bt.title = d.dica || (d.detalhe ? `${d.titulo}\n${d.detalhe}` : d.titulo);
     bt.style.cursor = d.acao ? "pointer" : "default";
     acaoDestaque = d.acao;
     bt.hidden = false;

@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.5.1 — alerta de máquina parada mais discreto (app 1.5.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.
+
+- **Visão geral**: saiu a faixa vermelha "Máquina parada" do topo, que
+  repetia o aviso de destaque da barra de filtros (este continua, um aviso
+  por vez). O cartão da máquina em alerta não pulsa mais: fica só com a borda
+  vermelha fina e o selo "⚠ Parada 23 min". O aviso de destaque ficou em
+  uma linha só ("Enfestadeira 2 parada · 23 min" / "2 máquinas paradas",
+  detalhes no tooltip).
+
+
 ## 1.5.0 — máquinas Com produção / Sem produção (app 1.5.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel e a sincronização mudaram: na VPS, `git pull` (precisa da 1.5.0 lá
