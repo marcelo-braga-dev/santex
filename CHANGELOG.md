@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.2.1 — linha do tempo com tempo parado (app 1.2.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto
+recebe ao reabrir (não precisa baixar outro `.exe`); no notebook, `.exe` novo.
+
+- **Linha do tempo por máquina**: o tooltip de cada ciclo mostra o tempo
+  ligado, a parada antes dele e os totais do período (ligada / parada); os
+  trechos vazios (paradas) também têm tooltip, com horário e tempo parado
+  (mesma regra da "Análise de paradas"); a faixa dos turnos mostra o nome e
+  o horário de cada turno.
+
+
 ## 1.2.0 — edição remota (app 1.2.0 · firmware 3.0, sem mudança)
 
 Quem está fora da empresa também altera a configuração de forma permanente,
@@ -56,11 +68,6 @@ sem precisar do computador da fábrica. Ver `docs/nuvem-vps.md`, "Edição remot
   - alterações feitas por aparelho da rede local com PIN aparecem como
     "rede local (IP)" na auditoria;
   - lista de IPs com senha errada não cresce sem limite.
-- **Linha do tempo por máquina**: o tooltip de cada ciclo mostra o tempo
-  ligado, a parada antes dele e os totais do período (ligada / parada); os
-  trechos vazios (paradas) também têm tooltip, com horário e tempo parado
-  (mesma regra da "Análise de paradas"); a faixa dos turnos mostra o nome e
-  o horário de cada turno.
 
 
 ## 1.1.0 — em desenvolvimento (app 1.1.0 · firmware 3.0)
