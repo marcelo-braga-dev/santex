@@ -76,6 +76,23 @@ class TesteBanco(unittest.TestCase):
         # taxa na auditoria em metros por hora (guardada em m/min)
         self.assertIn("2000 m/h", nuvem.resumo_item("maquina:1", {"nome": "E1", "metrosPorMin": 2000 / 60}))
 
+    def test_logo_da_empresa_validado_e_sincronizado(self):
+        # 1.4.0: logo/icone so PNG/JPEG/WebP (SVG pode rodar script); chave geral e sincronizada
+        import nuvem
+        from banco_dados import imagem_do_logo, normalizar_extras
+        png = "data:image/png;base64,iVBORw0KGgo="
+        b = novo_banco()
+        b.salvar_extras("s", normalizar_extras({"logo": {"logo": png, "icone": "data:image/svg+xml;base64,PHN2Zz4=",
+                                                          "atualizadoEm": "2026-11-19T10:00:00Z", "extra": 1}}))
+        ex = b.obter_extras("outro_setor")  # vale para o painel inteiro (todos os setores)
+        self.assertEqual(ex["logo"], {"logo": png, "atualizadoEm": "2026-11-19T10:00:00Z"})
+        self.assertEqual(imagem_do_logo(ex, "logo"), (b"\x89PNG\r\n\x1a\n", "image/png"))
+        self.assertIsNone(imagem_do_logo(ex, "icone"))
+        self.assertTrue(nuvem.chave_item_valida("extras:logo"))
+        self.assertEqual(nuvem.itens_atuais(b, "s")["extras:logo"]["logo"], png)
+        b.salvar_extras("s", normalizar_extras({"logo": {}}))  # voltar ao padrao
+        self.assertIsNone(imagem_do_logo(b.obter_extras("s"), "logo"))
+
     def test_ciclo_wifi_sem_hora_sai_sem_horario(self):
         b = novo_banco()
         b.gravar_ciclo_remoto("s", "AA-01", 1, 1, 1, "?", "?", 5.0, "SEM_HORA")  # hora = download

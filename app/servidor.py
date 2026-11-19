@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.3.1"
+APP_VERSAO = "1.4.0"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -63,7 +63,7 @@ import backup_banco  # noqa: E402 (precisa do sys.path.insert acima)
 import monitor_serial  # noqa: E402
 import monitor_wifi  # noqa: E402
 import nuvem  # noqa: E402
-from banco_dados import BancoDados, NOME_ARQUIVO  # noqa: E402
+from banco_dados import BancoDados, NOME_ARQUIVO, imagem_do_logo  # noqa: E402
 from monitor_serial import SETOR_PADRAO  # noqa: E402
 
 banco = BancoDados(os.path.join(dir_dados_usuario(), NOME_ARQUIVO))
@@ -331,8 +331,8 @@ class Handler(BaseHTTPRequestHandler):
         if not MODO_NUVEM:
             return True
         caminho = urlparse(self.path).path
-        if self.command in ("GET", "HEAD") and caminho == "/assets/logo.png":
-            return True  # o logo aparece na propria tela de login
+        if self.command in ("GET", "HEAD") and caminho in ("/assets/logo.png", "/assets/icone-empresa.png"):
+            return True  # o logo e o icone aparecem na propria tela de login
         if self._sessao_valida():
             return True
         if self.command in ("GET", "HEAD") and caminho in ("/", "/index.html"):
@@ -612,6 +612,39 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(dados)
 
+    def _responder_logo_empresa(self, caminho_url):
+        """Logo enviado em Identidade visual (config_extra "logo"): substitui o
+        assets/logo.png em todo lugar (painel, PDF, login da VPS, programa
+        remoto). O icone do navegador e o enviado ou, sem ele, o proprio logo.
+        Devolve False quando nao ha logo guardado (serve o arquivo padrao)."""
+        try:
+            extras = banco.obter_extras(SETOR_PADRAO)
+        except Exception:  # noqa: BLE001 - banco indisponivel: arquivo padrao
+            return False
+        img = None
+        if caminho_url == "/assets/icone-empresa.png":
+            img = imagem_do_logo(extras, "icone")
+        if img is None:
+            img = imagem_do_logo(extras, "logo")
+        if img is None:
+            if caminho_url != "/assets/icone-empresa.png":
+                return False
+            caminho_padrao = os.path.join(PAINEL_DIR, "assets", "logo.png")
+            if not os.path.isfile(caminho_padrao):
+                return False
+            with open(caminho_padrao, "rb") as arquivo:
+                img = (arquivo.read(), "image/png")
+        dados, tipo = img
+        self.send_response(200)
+        self.send_header("Content-Type", tipo)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(dados)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(dados)
+        return True
+
     def _responder_estatico(self, caminho_url):
         """Serve o painel (index.html, assets/logo.png, ...) direto da
         pasta painel/ - e como o painel passa a ser aberto, em vez de
@@ -619,6 +652,8 @@ class Handler(BaseHTTPRequestHandler):
         webviews impoem a paginas abertas como arquivo local."""
         if caminho_url == "/":
             caminho_url = "/index.html"
+        if caminho_url in ("/assets/logo.png", "/assets/icone-empresa.png") and self._responder_logo_empresa(caminho_url):
+            return
 
         alvo = os.path.normpath(os.path.join(PAINEL_DIR, unquote(caminho_url).lstrip("/")))
         partes = os.path.relpath(alvo, PAINEL_DIR).split(os.sep)

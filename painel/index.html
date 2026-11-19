@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <title>Painel de Produção</title>
+<link rel="icon" id="favicon" href="assets/icone-empresa.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script>
   // Tema escolhido antes do primeiro desenho (evita "piscar" claro -> escuro).
@@ -406,6 +407,9 @@
     position: absolute; top: calc(100% + 10px); right: 0; z-index: 70;
     min-width: 290px; background: var(--surface-raised); border: 1px solid var(--border-strong);
     border-radius: 14px; box-shadow: var(--shadow-lg); padding: 6px; display: none;
+    /* nunca maior que a tela: rola por dentro (a altura exata e ajustada ao abrir) */
+    max-height: calc(100vh - var(--nav-h) - 16px); max-height: calc(100dvh - var(--nav-h) - 16px);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
   }
   .menu.open { display: block; animation: menu-in 0.14s ease-out; }
   @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
@@ -1093,22 +1097,95 @@
   .tv-barra > span { display: block; height: 100%; border-radius: 999px; background: var(--st-ligado); }
   .tv-barra > i { position: absolute; top: -5px; bottom: -5px; width: 3px; border-radius: 2px; background: var(--ink-900); }
 
-  /* Relatorio do periodo: na tela (janela) e na impressao (so ele) */
-  .relatorio-modal { max-width: 900px; }
-  .relatorio { display: flex; flex-direction: column; gap: 10px; }
-  .relatorio h4 { margin: 10px 0 0; font-family: var(--font-display); font-size: 14px; }
-  .rel-cab { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 2px solid var(--accent); }
-  .rel-titulo { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
-  @media print {
-    body.imprimindo-relatorio > *:not(#relatorio-overlay) { display: none !important; }
-    body.imprimindo-relatorio { background: #fff !important; }
-    body.imprimindo-relatorio #relatorio-overlay { position: static; display: block; background: none; backdrop-filter: none; padding: 0; }
-    body.imprimindo-relatorio .relatorio-modal { max-width: none; max-height: none; overflow: visible; border: 0; box-shadow: none; animation: none; }
-    body.imprimindo-relatorio .relatorio-modal::before, body.imprimindo-relatorio .modal-head, body.imprimindo-relatorio .modal-foot { display: none; }
-    body.imprimindo-relatorio .relatorio, body.imprimindo-relatorio .relatorio * { color: #111 !important; }
-    body.imprimindo-relatorio .stat { background: #f5f5f5 !important; border-color: #ddd !important; }
-    body.imprimindo-relatorio .tabela-simples tr { break-inside: avoid; }
-  }
+  /* Aviso de destaque na barra de filtros (lugar do antigo "Exportar Excel"):
+     so aparece quando ha algo importante; um item por vez, o mais urgente */
+  .fb-actions:has(.fb-destaque:not([hidden])) { padding-left: 12px; padding-right: 16px; }
+  .fb-destaque { display: flex; align-items: center; gap: 11px; max-width: 280px; min-width: 0; padding: 9px 14px 9px 10px; border-radius: 12px; text-align: left; cursor: pointer; font: inherit; color: var(--ink-900); border: 1px solid var(--dc-borda, var(--border-strong)); background: var(--dc-fundo, var(--surface-sunken)); transition: transform .12s ease, box-shadow .15s ease; animation: destaque-in .25s ease-out; }
+  .fb-destaque[hidden] { display: none; }
+  .fb-destaque:hover { box-shadow: 0 6px 18px var(--dc-fundo, rgba(0,0,0,.08)); transform: translateY(-1px); }
+  .fb-destaque .dq-ico { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 10px; color: #fff; background: var(--dc-cor, var(--ink-600)); }
+  .fb-destaque .dq-txt { display: flex; flex-direction: column; min-width: 0; }
+  .fb-destaque strong { font-size: 13px; line-height: 1.25; color: var(--dc-cor, var(--ink-900)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fb-destaque small { font-size: 11.5px; color: var(--ink-600); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .fb-destaque.critico { --dc-cor: var(--critical); --dc-fundo: var(--critical-wash); --dc-borda: color-mix(in srgb, var(--critical) 40%, var(--border)); }
+  .fb-destaque.critico .dq-ico { animation: alerta-pulso 2s ease-in-out infinite; }
+  .fb-destaque.atencao { --dc-cor: var(--warning); --dc-fundo: color-mix(in srgb, var(--warning) 12%, transparent); --dc-borda: color-mix(in srgb, var(--warning) 40%, var(--border)); }
+  .fb-destaque.info { --dc-cor: var(--accent); --dc-fundo: var(--accent-wash); --dc-borda: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+  @keyframes destaque-in { from { opacity: 0; transform: translateY(-3px); } }
+  @media (max-width: 760px) { .fb-destaque { max-width: none; width: 100%; } }
+  /* sem aviso, a area do aviso nao ocupa espaco (no celular ela vira uma faixa propria) */
+  .fb-actions:not(:has(.fb-destaque:not([hidden]))) { padding: 0; border: 0; min-height: 0; }
+
+  /* Logo da empresa e icone do navegador (Identidade visual) */
+  .logo-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 22px; }
+  .logo-bloco { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .logo-bloco .id-label { margin: 0; }
+  .logo-previas { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; }
+  .logo-previa { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 92px; padding: 14px; border-radius: 12px; border: 1px solid var(--border); }
+  .logo-previa.claro { background: repeating-conic-gradient(#f1f5f9 0 25%, #ffffff 0 50%) 0 0 / 16px 16px; }
+  .logo-previa.claro img { max-width: 100%; max-height: 64px; object-fit: contain; }
+  .logo-previa.marca { flex-direction: column; background: var(--nav-bg); color: var(--ink-900); font-size: 11px; font-weight: 600; }
+  .logo-previa.marca .brand-logo-wrap { display: inline-flex; padding: 6px 10px; border-radius: 10px; background: #fff; }
+  .logo-previa.marca img { max-height: 30px; max-width: 120px; object-fit: contain; }
+  .logo-aba { display: flex; align-items: flex-end; gap: 18px; min-height: 92px; padding: 14px 14px 0; border-radius: 12px; border: 1px solid var(--border); background: linear-gradient(#dfe3ea, #e8ebf0); }
+  :root[data-theme="dark"] .logo-aba { background: linear-gradient(#1f2430, #262c39); }
+  .logo-aba-guia { display: flex; align-items: center; gap: 9px; width: min(240px, 100%); padding: 9px 12px; border-radius: 10px 10px 0 0; background: var(--surface-card); font-size: 12px; color: var(--ink-900); box-shadow: 0 -1px 0 var(--border); }
+  .logo-aba-guia img { width: 16px; height: 16px; flex: none; }
+  .logo-aba-guia span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logo-aba-guia i { font-style: normal; color: var(--ink-400); }
+  .logo-aba-tamanhos { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .logo-aba-tamanhos img { border-radius: 6px; background: var(--surface-card); padding: 4px; border: 1px solid var(--border); }
+  #logo-icone-32 { width: 40px; height: 40px; } #logo-icone-16 { width: 24px; height: 24px; }
+  .logo-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .logo-status { margin-top: 12px; font-size: 12.5px; font-weight: 600; min-height: 18px; }
+  .logo-status.ok { color: var(--good); } .logo-status.erro { color: var(--critical); }
+
+  /* Central de relatorios */
+  .rel-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface-card)), var(--surface-card) 60%); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.05)); }
+  .rel-hero-texto { display: flex; gap: 16px; align-items: flex-start; min-width: 0; flex: 1 1 520px; }
+  .rel-hero-ico { display: grid; place-items: center; width: 52px; height: 52px; flex: none; border-radius: 14px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--glow-accent); }
+  .rel-hero h2 { margin: 0; font-family: var(--font-display); font-size: 21px; letter-spacing: -0.01em; }
+  .rel-hero p { margin: 4px 0 10px; color: var(--ink-600); font-size: 13px; max-width: 760px; line-height: 1.5; }
+  .rel-escopo { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rel-hero-acoes { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .rel-hero-acoes > div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .rel-hero-rotulo { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-400); }
+  .btn.rel-excel { background: linear-gradient(135deg, var(--excel), var(--excel-2)); border-color: transparent; color: #fff; }
+  .btn.rel-excel:hover { filter: brightness(1.1); color: #fff; }
+  .btn.rel-pdf { background: linear-gradient(135deg, #dc2626, #b91c1c); border-color: transparent; color: #fff; }
+  .btn.rel-pdf:hover { filter: brightness(1.1); color: #fff; }
+  .rel-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; }
+  .rel-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px 18px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--surface-card); overflow: hidden; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .rel-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, var(--rc), color-mix(in srgb, var(--rc) 40%, transparent)); }
+  .rel-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--rc) 40%, var(--border)); }
+  .rel-card.indisponivel { opacity: .6; }
+  .rel-card.indisponivel:hover { transform: none; box-shadow: none; }
+  .rel-card-topo { display: flex; gap: 12px; align-items: flex-start; }
+  .rel-ico { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 12px; color: var(--rc); background: color-mix(in srgb, var(--rc) 13%, transparent); border: 1px solid color-mix(in srgb, var(--rc) 28%, transparent); }
+  .rel-card h3 { margin: 1px 0 3px; font-family: var(--font-display); font-size: 15.5px; }
+  .rel-card p { margin: 0; font-size: 12.5px; color: var(--ink-600); line-height: 1.45; }
+  .rel-itens { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .rel-itens li { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; color: var(--ink-600); background: var(--surface-sunken); border: 1px solid var(--border); }
+  .rel-info { margin-top: auto; padding: 9px 11px; border-radius: 10px; font-size: 12px; font-weight: 600; color: var(--ink-900); background: color-mix(in srgb, var(--rc) 7%, var(--surface-sunken)); border: 1px dashed color-mix(in srgb, var(--rc) 30%, var(--border)); }
+  .rel-card.indisponivel .rel-info { font-weight: 500; color: var(--ink-600); }
+  .rel-acoes { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+  .rel-aviso { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; padding: 11px 14px; border-radius: 10px; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: color-mix(in srgb, var(--warning) 70%, var(--ink-900)); background: color-mix(in srgb, var(--warning) 13%, var(--surface-card)); border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border)); border-left: 4px solid var(--warning); }
+  .rel-aviso svg { flex: none; color: var(--warning); margin-top: 1px; }
+  .rel-hero-aviso { margin: 10px 0 0; }
+  .modal.relv-modal { max-width: min(1180px, 96vw); }
+  .modal.relv-modal::before { background: linear-gradient(90deg, var(--rc, var(--accent)), color-mix(in srgb, var(--rc, var(--accent)) 40%, transparent)); }
+  .relv-head { position: sticky; top: 0; z-index: 2; background: var(--surface-card); }
+  .relv-sub { font-size: 12px; color: var(--ink-600); margin-top: 2px; }
+  .relv-botoes { display: flex; gap: 8px; align-items: center; }
+  #relv-corpo h4 { margin: 12px 0 6px; font-family: var(--font-display); font-size: 14px; color: var(--rc, var(--accent)); }
+  .rel-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; margin: 4px 0 8px; }
+  .rel-graficos img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+  .rel-tabela thead th { background: var(--surface-sunken); position: sticky; top: 0; }
+  .rel-tabela tr.total td { font-weight: 700; border-top: 2px solid var(--rc, var(--accent)); background: color-mix(in srgb, var(--rc, var(--accent)) 8%, transparent); }
+  .rel-tabela tr.subtotal td { font-weight: 700; background: color-mix(in srgb, var(--rc, var(--accent)) 9%, var(--surface-sunken)); border-bottom: 1.5px solid color-mix(in srgb, var(--rc, var(--accent)) 45%, transparent); }
+  .rel-tabela td.bom { color: var(--good); font-weight: 700; background: var(--good-wash); }
+  .rel-tabela td.ruim { color: var(--critical); font-weight: 700; background: var(--critical-wash); }
+  @media (max-width: 640px) { .rel-hero-acoes { align-items: stretch; } .rel-hero-acoes > div { justify-content: stretch; } .rel-hero-acoes .btn { flex: 1; } .relv-head { flex-wrap: wrap; } }
 
   /* Toque (celular): o tooltip aberto por toque some ao tocar fora */
   @media (hover: none) { .chart-wrap svg rect, .chart-wrap svg circle { cursor: pointer; } }
@@ -1604,6 +1681,10 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Desempenho
       </button>
+      <button class="nav-link" type="button" data-view="relatorios">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Relatórios
+      </button>
     </nav>
 
     <div class="topnav-right">
@@ -1631,10 +1712,6 @@
             <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
             <span>Alerta de máquina parada<small>Destaque e som quando uma máquina fica parada no turno</small></span>
           </button>
-          <button class="menu-item" type="button" role="menuitem" data-abrir="relatorio">
-            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <span>Relatório do período<small>Resumo pronto para imprimir ou salvar em PDF</small></span>
-          </button>
           <div class="menu-sep"></div>
           <div class="menu-section">Aparência</div>
           <button class="menu-item" type="button" role="menuitem" data-abrir="modo-tv">
@@ -1651,7 +1728,7 @@
           </button>
           <button class="menu-item" type="button" role="menuitem" data-abrir="identidade">
             <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 100 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 005-5C21 6.5 17 3 12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7.5" cy="11" r="1.3" fill="currentColor"/><circle cx="10.5" cy="7" r="1.3" fill="currentColor"/><circle cx="15" cy="7.5" r="1.3" fill="currentColor"/></svg></span>
-            <span>Identidade visual<small>Paleta de cores do painel</small></span>
+            <span>Identidade visual<small>Logo, ícone do navegador e cores do painel</small></span>
           </button>
           <div class="menu-sep"></div>
           <div class="menu-section">Conexão</div>
@@ -1743,14 +1820,7 @@
     </div>
 
     <div class="fb-actions">
-      <button class="btn excel lg" id="export-excel-btn" type="button" title="Baixar planilha com os dados filtrados">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="18" height="18" rx="3" fill="currentColor" fill-opacity="0.18"/>
-          <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.6"/>
-          <path d="M8.3 8.3l7.4 7.4M15.7 8.3l-7.4 7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        Exportar Excel
-      </button>
+      <button class="fb-destaque" id="fb-destaque" type="button" hidden></button>
       <input type="file" id="file-input" accept=".csv,text/csv" />
     </div>
 
@@ -1977,6 +2047,31 @@
   </section>
 
   <!-- ===================================================================
+       VIEW: RELATORIOS (central de relatorios - Excel e PDF)
+       =================================================================== -->
+  <section class="view" id="view-relatorios" data-titulo="Relatórios" data-desc="Central de relatórios: visualize e baixe em Excel ou PDF">
+    <section class="rel-hero">
+      <div class="rel-hero-texto">
+        <span class="rel-hero-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        <div>
+          <h2>Central de relatórios</h2>
+          <p>Todos os relatórios seguem o período e o turno escolhidos na barra de filtros acima. Visualize na tela ou baixe em Excel (planilha formatada, com filtros) ou PDF (pronto para imprimir e enviar).</p>
+          <div class="rel-escopo" id="rel-escopo"></div>
+          <div class="rel-aviso rel-hero-aviso" role="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.5v5.5M12 16.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Os tempos dos relatórios já descontam os intervalos de refeição e as paradas programadas (feriado, folga, reunião, manutenção…): eles não contam como tempo disponível nem como tempo parado. Só “Ciclos registrados” mostra a duração bruta de cada ciclo.</span></div>
+        </div>
+      </div>
+      <div class="rel-hero-acoes">
+        <span class="rel-hero-rotulo">Todos os relatórios num arquivo só</span>
+        <div>
+          <button class="btn rel-excel" type="button" data-rel-todos="excel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M8.3 8.3l7.4 7.4M15.7 8.3l-7.4 7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Excel completo</button>
+          <button class="btn rel-pdf" type="button" data-rel-todos="pdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg> PDF completo</button>
+        </div>
+      </div>
+    </section>
+    <div class="rel-grade" id="rel-grade"></div>
+  </section>
+
+  <!-- ===================================================================
        VIEW: TURNOS
        =================================================================== -->
   <section class="view" id="view-turnos" data-titulo="Turnos e calendário" data-desc="Horários dos turnos, refeição, calendário, motivos de parada e histórico de configurações">
@@ -2125,7 +2220,51 @@
   <!-- ===================================================================
        VIEW: IDENTIDADE VISUAL (aberta pelo menu Configuracoes)
        =================================================================== -->
-  <section class="view" id="view-identidade" data-titulo="Identidade visual" data-desc="Paleta de cores do painel">
+  <section class="view" id="view-identidade" data-titulo="Identidade visual" data-desc="Logo, ícone e paleta de cores do painel">
+    <section class="panel" id="logo-painel">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1.8" stroke="currentColor" stroke-width="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5L20 17" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+          <div>
+            <div class="panel-title">Logo da empresa e ícone do navegador</div>
+            <div class="panel-hint">O logo aparece no topo do painel, na tela de abertura, nos relatórios em PDF e Excel, na tela de login do acesso remoto e no programa para Windows. Vale para todos os aparelhos e salva na hora</div>
+          </div>
+        </div>
+        <span class="id-dirty" id="logo-estado"></span>
+      </div>
+      <div class="panel-body">
+        <div class="logo-grade">
+          <div class="logo-bloco">
+            <div class="id-label">Logo</div>
+            <div class="logo-previas">
+              <div class="logo-previa claro"><img data-logo-empresa src="assets/logo.png" alt="Logo atual" /></div>
+              <div class="logo-previa marca scope-brand"><span class="brand-logo-wrap"><img data-logo-empresa src="assets/logo.png" alt="" /></span><span>no menu superior</span></div>
+            </div>
+            <div class="cfg-nota">PNG, JPG ou WebP (de preferência PNG com fundo transparente, na horizontal). Até 8 MB — o painel reduz o tamanho sozinho.</div>
+            <div class="logo-acoes">
+              <button class="btn primary" type="button" id="logo-enviar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M12 4l-4 4M12 4l4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg> Enviar logo</button>
+              <button class="btn ghost" type="button" id="logo-padrao">Voltar ao logo padrão</button>
+              <input type="file" id="logo-arquivo" accept="image/png,image/jpeg,image/webp" hidden />
+            </div>
+          </div>
+          <div class="logo-bloco">
+            <div class="id-label">Ícone do navegador (favicon)</div>
+            <div class="logo-aba" aria-hidden="true">
+              <span class="logo-aba-guia"><img id="logo-icone-previa" alt="" /><span>Painel de Produção</span><i>×</i></span>
+              <span class="logo-aba-tamanhos"><img id="logo-icone-32" alt="" /><img id="logo-icone-16" alt="" /></span>
+            </div>
+            <div class="cfg-nota">Imagem quadrada e simples (o símbolo da marca, sem texto). Sem ícone próprio, o painel monta um a partir do logo.</div>
+            <div class="logo-acoes">
+              <button class="btn" type="button" id="icone-enviar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V4M12 4l-4 4M12 4l4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg> Enviar ícone</button>
+              <button class="btn ghost" type="button" id="icone-auto">Usar o logo (automático)</button>
+              <input type="file" id="icone-arquivo" accept="image/png,image/jpeg,image/webp" hidden />
+            </div>
+          </div>
+        </div>
+        <div class="logo-status" id="logo-status" role="status"></div>
+      </div>
+    </section>
+
     <div class="grid-12">
       <section class="panel span-7">
         <div class="panel-head">
@@ -2299,18 +2438,18 @@
   </div>
 </div>
 
-<!-- Relatorio do periodo (imprimir / PDF) -->
-<div class="modal-overlay" id="relatorio-overlay">
-  <div class="modal relatorio-modal" role="dialog" aria-modal="true" aria-labelledby="relatorio-title">
-    <div class="modal-head">
-      <div class="modal-title" id="relatorio-title">Relatório do período</div>
-      <button class="modal-close" id="relatorio-close" type="button" aria-label="Fechar">&times;</button>
+<!-- Visualizacao de um relatorio -->
+<div class="modal-overlay" id="relv-overlay">
+  <div class="modal relv-modal" role="dialog" aria-modal="true" aria-labelledby="relv-titulo">
+    <div class="modal-head relv-head">
+      <div><div class="modal-title" id="relv-titulo">Relatório</div><div class="relv-sub" id="relv-sub"></div></div>
+      <div class="relv-botoes">
+        <button class="btn small rel-excel" type="button" data-relv-baixar="excel">Excel</button>
+        <button class="btn small rel-pdf" type="button" data-relv-baixar="pdf">PDF</button>
+        <button class="modal-close" id="relv-fechar" type="button" aria-label="Fechar">&times;</button>
+      </div>
     </div>
-    <div class="modal-body" id="relatorio-corpo"></div>
-    <div class="modal-foot">
-      <button class="btn ghost" id="relatorio-fechar" type="button">Fechar</button>
-      <button class="btn primary" id="relatorio-imprimir" type="button">Imprimir / salvar PDF</button>
-    </div>
+    <div class="modal-body" id="relv-corpo"></div>
   </div>
 </div>
 
@@ -5575,6 +5714,7 @@
     renderTimeline();
     renderHourlyProduction();
     if (viewAtual === "desempenho") renderDesempenho();
+    if (viewAtual === "relatorios") renderRelatoriosPagina();
     renderCfgTurnos(false);
     renderTable();
     updateSelectionHints();
@@ -5795,6 +5935,7 @@
         // identidade visual: o servidor manda; servidor sem ela leva a deste navegador
         if (dados.extras.visual) aplicarVisualDoServidor(dados.extras.visual);
         else enviarConfigParaServidor({ extras: { visual: visualAtual() } });
+        aplicarLogoEmpresa(dados.extras.logo || null); // logo da empresa (geral, sincronizado)
         try { localStorage.setItem(extrasKey(), JSON.stringify(extras)); } catch (e) { /* ok sem localStorage */ }
         if (faltando.length) saveExtras(faltando);
         atribuirTurnos(todosRegistros);
@@ -6157,317 +6298,10 @@
     consultarAoVivo();
   });
 
-  // ---------------------------------------------------------------------
-  // Exportação para Excel — exporta exatamente o que a tabela está
-  // mostrando na tela agora (período + máquina do seletor + busca + filtro
-  // de alertas), mais uma aba de resumo por máquina para o gestor.
-  // ---------------------------------------------------------------------
+  // Data/hora no nome dos arquivos baixados (relatorios)
   function rotuloArquivoData() {
     const d = new Date();
     return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}_${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
-  }
-
-  function rotuloPeriodoAtual() {
-    if (!usingRealTime || periodoSelecionado === "tudo") return "Todo o histórico carregado";
-    const nomes = { dia: "Dia", semana: "Semana", mes: "Mês", ano: "Ano" };
-    return `${nomes[periodoSelecionado]} — ${formatarRotuloPeriodo(periodoSelecionado, dataReferencia)}`;
-  }
-
-  function montarPlanilhaExcel() {
-    const registrosFiltrados = records; // periodo + turno filtrados, todas as maquinas - base das visoes comparativas
-    const registrosEscopo = recordsForSelection(); // periodo + maquina do seletor - base da auditoria de alertas
-    const registrosExibidos = currentFiltered(); // periodo + maquina + busca + alertas - replica exata da tabela na tela
-
-    const metaS = metaPeriodoS();
-    const metaPct = metaRendimentoPct();
-
-    const cabecalho = [
-      [`Painel de Produção — ${setorAtual.nome}`],
-      [`Período: ${rotuloPeriodoAtual()}`],
-      [`Turno: ${selectedShift === "all" ? "Todos" : `${turnoNome(selectedShift)} (${turnoHorario(selectedShift)})`}`],
-      [`Máquina no detalhamento: ${selectedMachine === "all" ? "Todas" : machineName(selectedMachine)}`],
-      [`Gerado em: ${new Date().toLocaleString("pt-BR")}`],
-      []
-    ];
-
-    // ---- "Registros": replica exata da tabela mostrada na tela ----
-    const linhasRegistros = registrosExibidos.map((r) => {
-      const metros = metrosProduzidos(r.duracaoS, r.maquina, r.tsIni === null ? undefined : r.tsIni);
-      const dataHora = usingRealTime && r.tsIni !== null ? new Date(r.tsIni) : null;
-      return {
-        "Máquina": machineName(r.maquina),
-        "Ciclo": r.ciclo,
-        "Data": dataHora ? dataHora.toLocaleDateString("pt-BR") : "—",
-        "Dia da semana": dataHora ? dataHora.toLocaleDateString("pt-BR", { weekday: "long" }) : "—",
-        "Turno": r.turnoIdx !== null ? turnoNome(r.turnoIdx) : "—",
-        "Início": r.iniLabel,
-        "Fim": r.fimLabel,
-        "Duração": fmtDuration(r.duracaoS),
-        "Duração (min)": Math.round((r.duracaoS / 60) * 10) / 10,
-        "Status": r.status.label,
-        "Observação (bruta)": r.obsRaw || "",
-        "Produção (m)": metros !== null ? Math.round(metros * 10) / 10 : ""
-      };
-    });
-
-    // ---- "Por Máquina": cada máquina numa coluna (individual) + coluna
-    // "Total" no final (geral) - cada linha e um indicador. ----
-    const round1 = (v) => Math.round(v * 10) / 10;
-
-    const dadosPorMaquina = MACHINE_IDS.map((id) => {
-      const subset = recordsForMachine(id);
-      const stats = computeStats(subset, id);
-      const alertas = subset.filter((r) => r.status.key !== "good").length;
-      const duracoesMin = subset.map((r) => r.duracaoS / 60);
-      const tempoLigadoMin = stats ? stats.tempoLigadoS / 60 : 0;
-      return {
-        id,
-        ciclos: stats ? stats.ciclos : 0,
-        alertas,
-        tempoLigadoMin,
-        tempoParadoMin: stats ? stats.tempoParadoS / 60 : 0,
-        rendimento: stats ? stats.disponibilidadePct : 0,
-        mediaMin: stats && stats.ciclos > 0 ? tempoLigadoMin / stats.ciclos : 0,
-        maiorMin: duracoesMin.length ? Math.max(...duracoesMin) : 0,
-        menorMin: duracoesMin.length ? Math.min(...duracoesMin) : 0,
-        producaoM: stats ? stats.producaoM : null,
-        taxa: machineRate(id)
-      };
-    });
-
-    const totalCiclos = dadosPorMaquina.reduce((a, d) => a + d.ciclos, 0);
-    const totalAlertasPM = dadosPorMaquina.reduce((a, d) => a + d.alertas, 0);
-    const totalTempoLigadoMin = dadosPorMaquina.reduce((a, d) => a + d.tempoLigadoMin, 0);
-    const totalTempoParadoMin = dadosPorMaquina.reduce((a, d) => a + d.tempoParadoMin, 0);
-    const totalProducaoPM = dadosPorMaquina.reduce((a, d) => a + (d.producaoM || 0), 0);
-    const rendimentoMedioPM = dadosPorMaquina.reduce((a, d) => a + d.rendimento, 0) / dadosPorMaquina.length;
-    const mediaGeralMin = totalCiclos > 0 ? totalTempoLigadoMin / totalCiclos : 0;
-    const maioresMin = dadosPorMaquina.map((d) => d.maiorMin).filter((v) => v > 0);
-    const menoresMin = dadosPorMaquina.map((d) => d.menorMin).filter((v) => v > 0);
-    const progressoMedioMeta = metaS > 0 ? (totalTempoLigadoMin * 60 / (metaS * dadosPorMaquina.length)) * 100 : 0;
-
-    const indicadoresPorMaquina = [
-      { label: "Ciclos", valores: dadosPorMaquina.map((d) => d.ciclos), total: totalCiclos },
-      { label: "Ciclos com alerta", valores: dadosPorMaquina.map((d) => d.alertas), total: totalAlertasPM },
-      { label: "% ciclos com alerta", valores: dadosPorMaquina.map((d) => (d.ciclos > 0 ? Math.round((d.alertas / d.ciclos) * 100) : 0)), total: totalCiclos > 0 ? Math.round((totalAlertasPM / totalCiclos) * 100) : 0 },
-      { label: "Tempo ligado (min)", valores: dadosPorMaquina.map((d) => round1(d.tempoLigadoMin)), total: round1(totalTempoLigadoMin) },
-      { label: "Tempo parado (min)", valores: dadosPorMaquina.map((d) => round1(d.tempoParadoMin)), total: round1(totalTempoParadoMin) },
-      { label: "Rendimento (%)", valores: dadosPorMaquina.map((d) => Math.round(d.rendimento)), total: Math.round(rendimentoMedioPM) },
-      { label: "Duração média/ciclo (min)", valores: dadosPorMaquina.map((d) => round1(d.mediaMin)), total: round1(mediaGeralMin) },
-      { label: "Ciclo mais longo (min)", valores: dadosPorMaquina.map((d) => (d.maiorMin > 0 ? round1(d.maiorMin) : "—")), total: maioresMin.length ? round1(Math.max(...maioresMin)) : "—" },
-      { label: "Ciclo mais curto (min)", valores: dadosPorMaquina.map((d) => (d.menorMin > 0 ? round1(d.menorMin) : "—")), total: menoresMin.length ? round1(Math.min(...menoresMin)) : "—" },
-      { label: "Produção/min configurada", valores: dadosPorMaquina.map((d) => (d.taxa > 0 ? d.taxa : "—")), total: "—" },
-      { label: "Produção estimada (m)", valores: dadosPorMaquina.map((d) => (d.producaoM !== null ? round1(d.producaoM) : "—")), total: round1(totalProducaoPM) },
-      { label: "Meta de rendimento (% do disponível)", valores: dadosPorMaquina.map(() => round1(metaPct)), total: round1(metaPct) },
-      { label: "Meta no filtro (h ligada)", valores: dadosPorMaquina.map(() => round1(metaS / 3600)), total: round1(metaS / 3600) },
-      { label: "Progresso da meta (%)", valores: dadosPorMaquina.map((d) => (metaS > 0 ? Math.round(((d.tempoLigadoMin * 60) / metaS) * 100) : 0)), total: Math.round(progressoMedioMeta) }
-    ];
-
-    const cabecalhoPorMaquina = ["Indicador", ...MACHINE_IDS.map((id) => machineName(id)), "Total / Geral"];
-    const linhasPorMaquinaAoa = indicadoresPorMaquina.map((ind) => [ind.label, ...ind.valores, ind.total]);
-
-    // ---- "Resumo Executivo": totais gerais + ranking de rendimento ----
-    const statsGerais = computeStats(registrosFiltrados);
-    const totalAlertas = registrosFiltrados.filter((r) => r.status.key !== "good").length;
-    const totalProducao = MACHINE_IDS.reduce((acc, id) => {
-      const stats = computeStats(recordsForMachine(id), id);
-      const m = stats ? stats.producaoM : null;
-      return acc + (m || 0);
-    }, 0);
-    const rendimentoMedio = MACHINE_IDS.reduce((acc, id) => {
-      const stats = computeStats(recordsForMachine(id), id);
-      return acc + (stats ? stats.disponibilidadePct : 0);
-    }, 0) / MACHINE_IDS.length;
-
-    const linhasRanking = MACHINE_IDS
-      .map((id) => {
-        const stats = computeStats(recordsForMachine(id), id);
-        return { id, pct: stats ? stats.disponibilidadePct : 0 };
-      })
-      .sort((a, b) => b.pct - a.pct)
-      .map((r, i) => ({
-        "Posição": i + 1,
-        "Máquina": machineName(r.id),
-        "Rendimento (%)": Math.round(r.pct),
-        "Situação vs. meta": r.pct >= metaPct ? "Acima da meta" : "Abaixo da meta"
-      }));
-
-    // ---- "Por Hora": cruzamento hora x máquina, tempo ligado em minutos ----
-    const bucketsHora = calcularBucketsPorHora(registrosFiltrados);
-    const linhasPorHora = bucketsHora.map((b) => {
-      const linha = { Hora: b.mediaPorDia ? `${b.label} (média/dia)` : b.label };
-      let total = 0;
-      MACHINE_IDS.forEach((id) => {
-        const min = Math.round((b.valores[id] / 60) * 10) / 10;
-        linha[machineName(id)] = min;
-        total += min;
-      });
-      linha["Total (min)"] = Math.round(total * 10) / 10;
-      return linha;
-    });
-
-    // ---- "Por Dia": cruzamento data x máquina - só existe com data/hora real ----
-    let linhasPorDia = [];
-    // Com turnos: mesma base dos cartoes - por dia, o ligado dentro das
-    // janelas de turno (inicio -> fim ou agora) e o disponivel do dia.
-    const jExcel = janelaDisponivel();
-    const basesExcel = {};
-    if (jExcel) MACHINE_IDS.forEach((id) => { basesExcel[id] = registrosBaseMaquina(id); });
-    const ligadoNaJanelaPorMaquina = (janelas) =>
-      Object.fromEntries(MACHINE_IDS.map((id) => [id, ligadoNaJanelaS(basesExcel[id], janelas)]));
-    if (jExcel) {
-      const porDiaJ = new Map();
-      jExcel.janelas.forEach((w) => {
-        const d = new Date(w.inicio);
-        const chave = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        if (!porDiaJ.has(chave)) porDiaJ.set(chave, []);
-        porDiaJ.get(chave).push(w);
-      });
-      linhasPorDia = [...porDiaJ.entries()].sort((a, b) => a[0] - b[0]).map(([dia, janelas]) => {
-        const valores = ligadoNaJanelaPorMaquina(janelas);
-        const dispS = janelas.reduce((a, w) => a + (w.fim - w.inicio) / 1000, 0);
-        const linha = { Data: new Date(dia).toLocaleDateString("pt-BR"), "Disponível por máquina (min)": round1(dispS / 60) };
-        let total = 0;
-        MACHINE_IDS.forEach((id) => {
-          const min = round1(valores[id] / 60);
-          linha[machineName(id)] = min;
-          total += min;
-        });
-        linha["Total (min)"] = round1(total);
-        return linha;
-      });
-    } else if (usingRealTime) {
-      const porDia = new Map();
-      registrosFiltrados.forEach((r) => {
-        if (r.tsIni === null) return;
-        const dataStr = new Date(r.tsIni).toLocaleDateString("pt-BR");
-        if (!porDia.has(dataStr)) porDia.set(dataStr, Object.assign(Object.fromEntries(MACHINE_IDS.map((id) => [id, 0])), { ts: r.tsIni }));
-        porDia.get(dataStr)[r.maquina] += r.duracaoS;
-      });
-      linhasPorDia = [...porDia.entries()]
-        .sort((a, b) => a[1].ts - b[1].ts)
-        .map(([dataStr, valores]) => {
-          const linha = { Data: dataStr };
-          let total = 0;
-          MACHINE_IDS.forEach((id) => {
-            const min = Math.round((valores[id] / 60) * 10) / 10;
-            linha[machineName(id)] = min;
-            total += min;
-          });
-          linha["Total (min)"] = Math.round(total * 10) / 10;
-          return linha;
-        });
-    }
-
-    // ---- "Por Turno" e "Por Dia e Turno": mesmos numeros do painel
-    // "Producao por turno" (todos os turnos do periodo, sem o filtro de turno) ----
-    const resumoTurnos = calcularResumoTurnos(registrosPeriodo);
-    const linhasPorTurno = resumoTurnos.map((t) => {
-      const linha = { "Turno": t.nome, "Horário": t.horario, "Ciclos": t.ciclos };
-      MACHINE_IDS.forEach((id) => { linha[`${machineName(id)} (min)`] = round1(t.porMaquina[id].tempoLigadoS / 60); });
-      linha["Total ligado (min)"] = round1(t.tempoLigadoS / 60);
-      linha["Ocupação (%)"] = t.ocupacaoPct !== null ? Math.round(t.ocupacaoPct) : "—";
-      linha["Produção estimada (m)"] = t.producaoM !== null ? round1(t.producaoM) : "—";
-      return linha;
-    });
-
-    const jTodos = janelaDisponivel("all");
-    if (jTodos && !jExcel) MACHINE_IDS.forEach((id) => { basesExcel[id] = registrosBaseMaquina(id); });
-    const porDiaTurno = new Map();
-    if (jTodos) {
-      // uma linha por janela de turno: ligado dentro dela e o disponivel
-      jTodos.janelas.forEach((w) => {
-        const d = new Date(w.inicio);
-        const dia = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        porDiaTurno.set(`${dia}|${w.idx}`, { dia, idx: w.idx, valores: ligadoNaJanelaPorMaquina([w]), dispS: (w.fim - w.inicio) / 1000 });
-      });
-    } else registrosPeriodo.forEach((r) => {
-      if (r.diaProducao === null) return;
-      const chave = `${r.diaProducao}|${r.turnoIdx}`;
-      if (!porDiaTurno.has(chave)) porDiaTurno.set(chave, { dia: r.diaProducao, idx: r.turnoIdx, valores: Object.fromEntries(MACHINE_IDS.map((id) => [id, 0])) });
-      porDiaTurno.get(chave).valores[r.maquina] += r.duracaoS;
-    });
-    const ordemTurno = (idx) => (idx === FORA_DE_TURNO ? turnos.length + 1 : idx === HORA_EXTRA ? turnos.length : idx);
-    const linhasPorDiaTurno = [...porDiaTurno.values()]
-      .sort((a, b) => a.dia - b.dia || ordemTurno(a.idx) - ordemTurno(b.idx))
-      .map((g) => {
-        const linha = { "Dia de produção": new Date(g.dia).toLocaleDateString("pt-BR"), "Turno": turnoNome(g.idx) };
-        if (g.dispS !== undefined) linha["Disponível por máquina (min)"] = round1(g.dispS / 60);
-        let total = 0;
-        MACHINE_IDS.forEach((id) => {
-          const min = round1(g.valores[id] / 60);
-          linha[machineName(id)] = min;
-          total += min;
-        });
-        linha["Total (min)"] = round1(total);
-        return linha;
-      });
-
-    // ---- "Alertas": auditoria dos ciclos com problema, dentro do periodo + maquina do seletor ----
-    const linhasAlertas = registrosEscopo
-      .filter((r) => r.status.key !== "good")
-      .map((r) => ({
-        "Máquina": machineName(r.maquina),
-        "Ciclo": r.ciclo,
-        "Início": r.iniLabel,
-        "Fim": r.fimLabel,
-        "Duração": fmtDuration(r.duracaoS),
-        "Status": r.status.label,
-        "Observação (bruta)": r.obsRaw || ""
-      }));
-
-    // ---- Monta tudo numa unica pagina/aba, secao por secao, em vez de varias abas ----
-    const ws = XLSX.utils.aoa_to_sheet(cabecalho);
-    const addTitulo = (texto) => XLSX.utils.sheet_add_aoa(ws, [[], [texto]], { origin: -1 });
-
-    addTitulo("RESUMO EXECUTIVO — INDICADORES GERAIS (TODAS AS MÁQUINAS)");
-    XLSX.utils.sheet_add_aoa(ws, [
-      ["Total de ciclos", statsGerais ? statsGerais.ciclos : 0],
-      ["Tempo ligado (soma das máquinas)", statsGerais ? fmtDuration(statsGerais.tempoLigadoS) : "—"],
-      ["Rendimento médio entre máquinas (%)", Math.round(rendimentoMedio)],
-      ["Produção total estimada (m)", Math.round(totalProducao * 10) / 10],
-      ["Ciclos com alerta", totalAlertas]
-    ], { origin: -1 });
-
-    addTitulo("RANKING DE RENDIMENTO");
-    XLSX.utils.sheet_add_json(ws, linhasRanking, { origin: -1 });
-
-    addTitulo("POR MÁQUINA — INDIVIDUAL POR COLUNA E TOTAL/GERAL AO FINAL");
-    XLSX.utils.sheet_add_aoa(ws, [cabecalhoPorMaquina, ...linhasPorMaquinaAoa], { origin: -1 });
-
-    if (linhasPorTurno.length) {
-      addTitulo("PRODUÇÃO POR TURNO — TEMPO LIGADO POR MÁQUINA (MINUTOS)");
-      XLSX.utils.sheet_add_json(ws, linhasPorTurno, { origin: -1 });
-    }
-    if (linhasPorDiaTurno.length) {
-      addTitulo("TEMPO LIGADO POR DIA DE PRODUÇÃO E TURNO (MINUTOS)");
-      XLSX.utils.sheet_add_json(ws, linhasPorDiaTurno, { origin: -1 });
-    }
-
-    addTitulo("TEMPO LIGADO POR HORA — CRUZAMENTO HORA × MÁQUINA (MINUTOS)");
-    XLSX.utils.sheet_add_json(ws, linhasPorHora, { origin: -1 });
-
-    if (linhasPorDia.length) {
-      addTitulo("TEMPO LIGADO POR DIA — CRUZAMENTO DATA × MÁQUINA (MINUTOS)");
-      XLSX.utils.sheet_add_json(ws, linhasPorDia, { origin: -1 });
-    }
-
-    addTitulo("ALERTAS — CICLOS COM PROBLEMA (CURTO OU RECUPERADO APÓS QUEDA)");
-    if (linhasAlertas.length) {
-      XLSX.utils.sheet_add_json(ws, linhasAlertas, { origin: -1 });
-    } else {
-      XLSX.utils.sheet_add_aoa(ws, [["Nenhum ciclo com alerta no período/máquina selecionado."]], { origin: -1 });
-    }
-
-    addTitulo("REGISTROS DETALHADOS — O QUE ESTÁ NA TELA AGORA");
-    XLSX.utils.sheet_add_json(ws, linhasRegistros, { origin: -1 });
-
-    ws["!cols"] = [{ wch: 30 }, ...Array.from({ length: 11 }, () => ({ wch: 17 }))];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Painel de Produção");
-
-    return wb;
   }
 
   // Salva um arquivo para o usuario: dentro do Artifact hospedado no
@@ -6502,64 +6336,6 @@
     // gravaria um arquivo vazio/falho.
     setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
     return true;
-  }
-
-  // SheetJS (planilha Excel) carregada sob demanda: antes ela vinha num
-  // <script> comum antes do codigo do painel - sem internet (ou com a rede
-  // lenta), a abertura inteira ficava esperando, com a tela parada.
-  // Primeiro a copia local (painel/assets - funciona sem internet, ex. na
-  // fabrica); se o arquivo nao estiver la, a mesma versao pela internet.
-  const URLS_XLSX = [
-    "assets/xlsx.full.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
-  ];
-  let promessaXlsx = null;
-  function carregarScriptXlsx(url) {
-    return new Promise((resolver, rejeitar) => {
-      const script = document.createElement("script");
-      script.src = url;
-      script.async = true;
-      const limite = setTimeout(() => { script.remove(); rejeitar(new Error("tempo esgotado")); }, 20000);
-      script.onload = () => { clearTimeout(limite); typeof XLSX !== "undefined" ? resolver() : rejeitar(new Error("biblioteca inválida")); };
-      script.onerror = () => { clearTimeout(limite); script.remove(); rejeitar(new Error("sem conexão")); };
-      document.head.appendChild(script);
-    });
-  }
-  function carregarXlsx() {
-    if (typeof XLSX !== "undefined") return Promise.resolve();
-    if (!promessaXlsx) {
-      promessaXlsx = URLS_XLSX.reduce((anterior, url) => anterior.catch(() => carregarScriptXlsx(url)), Promise.reject(new Error("inicio")))
-        .catch((erro) => { promessaXlsx = null; throw erro; });
-    }
-    return promessaXlsx;
-  }
-
-  async function exportarExcel() {
-    if (!todosRegistros.length) {
-      alert("Ainda não há dados carregados para exportar.");
-      return;
-    }
-    if (typeof XLSX === "undefined") {
-      const botao = $("#export-excel-btn");
-      const html = botao.innerHTML;
-      botao.disabled = true;
-      botao.innerHTML = '<span class="btn-spinner"></span> Preparando…';
-      try {
-        await carregarXlsx();
-      } catch (erro) {
-        alert("Não foi possível carregar a ferramenta de exportação para Excel (" + erro.message + "). Verifique a conexão com a internet e tente novamente.");
-        return;
-      } finally {
-        botao.disabled = false;
-        botao.innerHTML = html;
-      }
-    }
-
-    const wb = montarPlanilhaExcel();
-    const nomeArquivo = `producao_${rotuloArquivoData()}.xlsx`;
-    const arrayBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    await salvarArquivoParaUsuario(nomeArquivo, blob);
   }
 
   // Baixa uma copia "crua" dos dados por tras do painel - busca a versao
@@ -6598,10 +6374,20 @@
     $("#config-menu").classList.remove("open");
     $("#config-menu-btn").setAttribute("aria-expanded", "false");
   }
+  // Altura do menu = espaco ate o fim da janela (rola por dentro quando nao cabe)
+  function ajustarAlturaMenu() {
+    const menu = $("#config-menu");
+    if (!menu.classList.contains("open")) return;
+    menu.style.maxHeight = "";
+    const topo = menu.getBoundingClientRect().top;
+    menu.style.maxHeight = `${Math.max(160, window.innerHeight - topo - 12)}px`;
+  }
+  window.addEventListener("resize", ajustarAlturaMenu);
   $("#config-menu-btn").addEventListener("click", (ev) => {
     ev.stopPropagation();
     const aberto = $("#config-menu").classList.toggle("open");
     $("#config-menu-btn").setAttribute("aria-expanded", String(aberto));
+    if (aberto) { $("#config-menu").scrollTop = 0; ajustarAlturaMenu(); }
   });
   document.querySelectorAll("#config-menu [data-abrir]").forEach((item) => {
     item.addEventListener("click", () => {
@@ -6631,7 +6417,6 @@
     });
   }
 
-  $("#export-excel-btn").addEventListener("click", exportarExcel);
   $("#backup-btn").addEventListener("click", () => { baixarBackupBancoDados(); fecharMenuAcoes(); });
   $("#upload-btn").addEventListener("click", () => { fecharMenuAcoes(); $("#file-input").click(); });
   $("#fs-reset").addEventListener("click", restaurarFiltros);
@@ -7343,12 +7128,92 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
         if (live.innerHTML !== html) live.innerHTML = html;
       }
     });
+    renderDestaque(lista);
     if (!lista.length) { faixa.hidden = true; return; }
     const html = `<strong>⚠ Máquina parada:</strong> ` + lista.map((x) => `${escaparHtml(machineName(x.id))} há <strong>${fmtHaQuanto(x.al.ms)}</strong>`).join(" · ") +
       `<button class="btn small ghost alerta-cfg" type="button" data-abrir-popup="alertas">Configurar alerta</button>`;
     if (faixa.innerHTML !== html) faixa.innerHTML = html;
     faixa.hidden = false;
   }
+  // ---- Aviso de destaque na barra de filtros ----
+  // Um item por vez, do mais urgente para o menos: maquina parada em alerta,
+  // dados sem atualizar durante o turno, meta do turno em risco, paradas
+  // longas de hoje sem motivo. Nada importante = o espaco fica vazio.
+  var acaoDestaque = null;
+  var ICO_DQ = {
+    parada: '<rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>',
+    sinal: '<path d="M2 8.5a15 15 0 0120 0M5 12a10 10 0 0114 0M8.5 15.5a5 5 0 017 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    meta: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="2" fill="none"/>',
+    motivo: '<path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/>'
+  };
+  function irParaVisaoGeral(seletor) {
+    mostrarView("visao", true);
+    if (seletor) setTimeout(() => { const el = document.querySelector(seletor); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60);
+  }
+  function calcularDestaque(alertas) {
+    // 1) maquina parada alem do limite
+    if (alertas && alertas.length) {
+      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `${machineName(alertas[0].id)} parada há ${fmtHaQuanto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
+        detalhe: alertas.length === 1 ? "Parada além do limite do alerta, dentro do turno" : alertas.map((x) => `${machineName(x.id)} há ${fmtHaQuanto(x.al.ms)}`).join(" · "),
+        acao: () => irParaVisaoGeral("#machine-grid") };
+    }
+    const agora = Date.now();
+    const noTurno = usingRealTime && classificarTurnoTs(agora).idx !== FORA_DE_TURNO;
+    // 2) dados sem atualizar durante o turno
+    if (noTurno && servidorOnline && estadoAoVivo) {
+      if (!estadoAoVivo.rodando) {
+        return { nivel: "atencao", ico: "sinal", titulo: modoNuvem ? "Controlador sem enviar dados" : "Leitura do controlador pausada",
+          detalhe: modoNuvem ? "O painel não está recebendo os ciclos agora" : "Os dados não estão atualizando — clique em Ativar no rodapé",
+          acao: () => { const t = document.getElementById("sync-toggle"); if (t && !t.closest("[hidden]")) t.click(); } };
+      }
+      if (MACHINE_IDS.every((id) => maquinaLigadaAgora(id) === null)) {
+        return { nivel: "atencao", ico: "sinal", titulo: "Sem sinal das máquinas", detalhe: "O controlador não informou o estado das máquinas nos últimos segundos",
+          acao: () => { const t = document.getElementById("sync-toggle"); if (t && !t.closest("[hidden]")) t.click(); } };
+      }
+    } else if (noTurno && !servidorOnline && todosRegistros.length && (CONTROLE_URL.startsWith("http"))) {
+      return { nivel: "atencao", ico: "sinal", titulo: "Servidor fora do ar", detalhe: "O painel está mostrando os últimos dados carregados", acao: null };
+    }
+    // 3) meta do turno em risco (so com o periodo atual e o turno correndo)
+    const j = janelaDisponivel();
+    if (j && j.emAndamento && periodoEhAtual() && records.length) {
+      const g = resumoGeralAtual(), n = MACHINE_IDS.length || 1;
+      const restanteS = Math.max(0, (j.totalCompletoS || 0) - j.totalS);
+      if (g.metaS > 0 && restanteS > 15 * 60) {
+        const projecao = Math.min(100, ((g.ligadoS / n + (g.rend / 100) * restanteS) / g.metaS) * 100);
+        if (projecao < 90) {
+          return { nivel: "atencao", ico: "meta", titulo: "Meta do turno em risco",
+            detalhe: `No ritmo atual o turno fecha com ${Math.round(projecao)}% da meta (rendimento ${Math.round(g.rend)}%, meta ${Math.round(metaRendimentoPct())}%)`,
+            acao: () => irParaVisaoGeral(".kpi-grid") };
+        }
+      }
+    }
+    // 4) paradas longas de hoje sem motivo (so quem pode marcar)
+    if (podeEditar && usingRealTime && periodoSelecionado === "dia" && periodoEhAtual()) {
+      const longas = paradasDoResumo(resumoJanelas()).filter((p) => p.durS > 1800 && !p.emAndamento && !motivoDe(p.id, p.inicio));
+      if (longas.length) {
+        return { nivel: "info", ico: "motivo", titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} longa${longas.length > 1 ? "s" : ""} sem motivo`,
+          detalhe: "Acima de 30 min hoje — clique numa parada da linha do tempo para marcar", acao: () => irParaVisaoGeral("#timeline-wrap") };
+      }
+    }
+    return null;
+  }
+  function renderDestaque(alertas) {
+    const bt = document.getElementById("fb-destaque");
+    if (!bt) return;
+    let d = null;
+    try { d = calcularDestaque(alertas); } catch (e) { d = null; }
+    if (!d) { bt.hidden = true; acaoDestaque = null; return; }
+    const html = `<span class="dq-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICO_DQ[d.ico]}</svg></span>` +
+      `<span class="dq-txt"><strong>${escaparHtml(d.titulo)}</strong><small>${escaparHtml(d.detalhe)}</small></span>`;
+    if (bt.innerHTML !== html) bt.innerHTML = html;
+    bt.className = `fb-destaque ${d.nivel}`;
+    bt.title = `${d.titulo}\n${d.detalhe}`;
+    bt.style.cursor = d.acao ? "pointer" : "default";
+    acaoDestaque = d.acao;
+    bt.hidden = false;
+  }
+  document.getElementById("fb-destaque").addEventListener("click", () => { if (acaoDestaque) acaoDestaque(); });
+
   function abrirAlertas() {
     const c = cfgAlerta();
     $("#alertas-ativo").value = c.ativo ? "1" : "0";
@@ -7417,56 +7282,10 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   $("#tv-sair").addEventListener("click", fecharTV);
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
-    fecharTV(); fecharMotivo(); fecharAlertas(); fecharRelatorio();
+    fecharTV(); fecharMotivo(); fecharAlertas();
   });
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) fecharTV(); });
   ABRIR_POPUP["modo-tv"] = abrirTV;
-
-  // ---- Relatorio do periodo (imprimir / PDF) ----
-  function renderRelatorio() {
-    const g = resumoGeralAtual();
-    const n = MACHINE_IDS.length || 1;
-    const R = resumoJanelas();
-    const periodo = !usingRealTime || periodoSelecionado === "tudo" ? "Todo o histórico" : (atualizarResumoFiltros(), $("#fs-chips") ? $("#fs-chips").innerText.replace(/\s*\n\s*/g, " · ") : formatarRotuloPeriodo(periodoSelecionado, dataReferencia));
-    const tab = (cab, linhas) => `<table class="tabela-simples"><thead><tr>${cab.map((c, i) => `<th${i ? ' class="num"' : ""}>${c}</th>`).join("")}</tr></thead><tbody>${linhas.map((l) => `<tr>${l.map((c, i) => `<td${i ? ' class="num"' : ""}>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-    let html = `<div class="relatorio">` +
-      `<div class="rel-cab"><div><div class="rel-titulo">${escaparHtml(nomeEmpresa() || "Painel de Produção")} — ${escaparHtml(setorAtual.nome || "")}</div><div class="motivo-resumo">${escaparHtml(periodo)}</div></div><div class="motivo-resumo">Gerado em ${new Date().toLocaleString("pt-BR")}</div></div>` +
-      `<div class="stat-row">` + [
-        ["Tempo ligado", fmtDuration(g.ligadoS / n), "média por máquina"],
-        ["Tempo parado", g.comJanela ? fmtDuration(g.paradoS / n) : "—", "média por máquina"],
-        ["Rendimento", `${Math.round(g.rend)}%`, `meta ${Math.round(metaRendimentoPct())}%`],
-        ["Meta cumprida", `${Math.round(g.metaProg)}%`, "do tempo ligado esperado"],
-        ["Produção estimada", g.producao !== null ? fmtMetros(g.producao) : "—", "tempo ligado × taxa"]
-      ].map(([a, b, c]) => `<div class="stat"><span>${a}</span><strong>${b}</strong><small>${c}</small></div>`).join("") + `</div>`;
-    html += `<h4>Por máquina</h4>` + tab(["Máquina", "Ligado", "Parado", "Rendimento", "Produção"], MACHINE_IDS.map((id) => {
-      const st = computeStats(registrosComAndamento(id), id);
-      return [escaparHtml(machineName(id)), st ? fmtDuration(st.tempoLigadoS) : "—", st && !st.semJanela ? fmtDuration(st.tempoParadoS) : "—",
-        st && !st.semJanela ? `${Math.round(st.disponibilidadePct)}%` : "—", st && st.producaoM !== null ? fmtMetros(st.producaoM) : "—"];
-    }));
-    if (R && R.linhas.length) {
-      const todas = paradasDoResumo(R).sort((a, b) => b.durS - a.durS);
-      html += `<h4>Maiores paradas</h4>` + (todas.length ? tab(["Máquina", "Quando", "Duração", "Motivo"], todas.slice(0, 10).map((pz) => {
-        const mt = motivoDe(pz.id, pz.inicio);
-        return [escaparHtml(machineName(pz.id)), `${ddmmDe(pz.inicio)} ${hhmmDe(pz.inicio)}–${pz.emAndamento ? "agora" : hhmmDe(pz.fim)}`, fmtDuration(pz.durS), mt ? escaparHtml(mt.nome + (mt.obs ? ` (${mt.obs})` : "")) : "—"];
-      })) : `<div class="cfg-nota">Nenhuma parada de 1 min ou mais.</div>`);
-      const grupos = new Map();
-      todas.forEach((pz) => { const mt = motivoDe(pz.id, pz.inicio); const k = mt ? mt.nome : "Sem motivo marcado"; grupos.set(k, (grupos.get(k) || 0) + pz.durS); });
-      const totP = todas.reduce((a, pz) => a + pz.durS, 0) || 1;
-      if (todas.length) html += `<h4>Paradas por motivo</h4>` + tab(["Motivo", "Tempo", "%"], [...grupos.entries()].sort((a, b) => b[1] - a[1]).map(([k, s]) => [escaparHtml(k), fmtDuration(s), `${Math.round((s / totP) * 100)}%`]));
-    }
-    html += `</div>`;
-    $("#relatorio-corpo").innerHTML = html;
-  }
-  function abrirRelatorio() { renderRelatorio(); $("#relatorio-overlay").classList.add("visible"); }
-  function fecharRelatorio() { $("#relatorio-overlay").classList.remove("visible"); document.body.classList.remove("imprimindo-relatorio"); }
-  $("#relatorio-close").addEventListener("click", fecharRelatorio);
-  $("#relatorio-fechar").addEventListener("click", fecharRelatorio);
-  $("#relatorio-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relatorio-overlay") fecharRelatorio(); });
-  $("#relatorio-imprimir").addEventListener("click", () => {
-    document.body.classList.add("imprimindo-relatorio");
-    setTimeout(() => { window.print(); document.body.classList.remove("imprimindo-relatorio"); }, 50);
-  });
-  ABRIR_POPUP["relatorio"] = abrirRelatorio;
 
   // ---- Tooltips por toque (celular/tablet) ----
   var toqueAtual = null;
@@ -7477,6 +7296,1275 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     toqueAtual = alvo || null;
     if (alvo) alvo.dispatchEvent(new MouseEvent("mouseenter"));
   }, { passive: true });
+
+
+  // =====================================================================
+  // 1.4.0 - CENTRAL DE RELATORIOS (aba "Relatorios")
+  // Cada relatorio e montado como dados neutros (resumo + secoes com
+  // colunas tipadas) e o mesmo conteudo vira: visualizacao na tela,
+  // Excel formatado (ExcelJS) e PDF (jsPDF + AutoTable). Todos seguem o
+  // filtro de periodo e turno da barra de filtros.
+  // Bibliotecas em painel/assets (funcionam sem internet), carregadas so
+  // quando alguem baixa um relatorio; se faltar a copia local, a mesma
+  // versao pela internet.
+  // =====================================================================
+  var LIBS_RELATORIO = {
+    excel: [["assets/exceljs.min.js", "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"]],
+    pdf: [["assets/jspdf.umd.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"],
+          ["assets/jspdf.plugin.autotable.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"]]
+  };
+  var promessasLib = {};
+  function carregarUmScript(url) {
+    return new Promise((ok, falha) => {
+      const sc = document.createElement("script");
+      sc.src = url; sc.async = false;
+      const limite = setTimeout(() => { sc.remove(); falha(new Error("tempo esgotado")); }, 30000);
+      sc.onload = () => { clearTimeout(limite); ok(); };
+      sc.onerror = () => { clearTimeout(limite); sc.remove(); falha(new Error("sem conexão")); };
+      document.head.appendChild(sc);
+    });
+  }
+  function carregarLibRelatorio(tipo) {
+    const pronto = tipo === "excel" ? typeof window.ExcelJS !== "undefined"
+      : !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable);
+    if (pronto) return Promise.resolve();
+    if (!promessasLib[tipo]) {
+      promessasLib[tipo] = LIBS_RELATORIO[tipo].reduce((anterior, urls) => anterior.then(() =>
+        urls.reduce((p, url) => p.catch(() => carregarUmScript(url)), Promise.reject(new Error("inicio")))), Promise.resolve())
+        .catch((e) => { promessasLib[tipo] = null; throw e; });
+    }
+    return promessasLib[tipo];
+  }
+
+  // ---- tipos de coluna: como cada valor aparece na tela/PDF e no Excel ----
+  //   txt | int | dur (segundos) | pct (0-100) | m (metros) | mh (m/h) | data | hora | datahora (ms)
+  function fmtCelula(v, tipo) {
+    if (v === null || v === undefined || v === "") return "—";
+    if (typeof v === "string" && tipo !== "txt") return v; // rotulo (ex.: "Total") numa coluna de numero/data
+    switch (tipo) {
+      case "int": return Number(v).toLocaleString("pt-BR");
+      case "dur": return v < 1 ? "0s" : v < 60 ? `${Math.round(v)}s` : fmtDuration(Math.round(v));
+      case "pct": return `${Math.round(v)}%`;
+      case "pp": return `${v > 0 ? "+" : ""}${Math.round(v)} pp`;
+      case "m": return `${Math.round(v).toLocaleString("pt-BR")} m`;
+      case "mh": return `${Math.round(v).toLocaleString("pt-BR")} m/h`;
+      case "data": return new Date(v).toLocaleDateString("pt-BR");
+      case "hora": return hhmmDe(v);
+      case "datahora": return `${new Date(v).toLocaleDateString("pt-BR")} ${hhmmDe(v)}`;
+      default: return String(v);
+    }
+  }
+  var NUMFMT_EXCEL = { int: "#,##0", dur: "[h]:mm:ss", pct: "0%", pp: '+0" pp";-0" pp";0" pp"', m: '#,##0" m"', mh: '#,##0" m/h"',
+    data: "dd/mm/yyyy", hora: "hh:mm", datahora: "dd/mm/yyyy hh:mm" };
+  // data/hora local -> numero de serie do Excel (sem fuso)
+  function serialExcel(ms) {
+    const d = new Date(ms);
+    return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()) / 86400000) + 25569;
+  }
+  function valorExcel(v, tipo) {
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v === "string") return v;
+    if (tipo === "dur") return v / 86400;
+    if (tipo === "pct") return v / 100;
+    if (tipo === "data" || tipo === "hora" || tipo === "datahora") return serialExcel(v);
+    return v;
+  }
+  var NUMERICOS = new Set(["int", "dur", "pct", "pp", "m", "mh", "data", "hora", "datahora"]);
+  var A_DIREITA = new Set(["int", "dur", "pct", "pp", "m", "mh"]); // datas e horas ficam a esquerda
+  // celula da linha de total: campo vazio fica em branco (sem "—")
+  function fmtTotal(v, tipo) { return v === "" ? "" : fmtCelula(v, tipo); }
+  // repete data/dia so na 1a linha de cada bloco (tela e PDF; o Excel mantem tudo para filtrar)
+  function valorAgrupado(s, linhas, li, ci) {
+    if (!s.agrupar || !s.agrupar.includes(ci) || li === 0) return null;
+    const ant = linhas[li - 1], at = linhas[li];
+    return s.agrupar.every((k) => ant[k] === at[k]) ? "" : null;
+  }
+
+  // ---- contexto do filtro (cabecalho de todo relatorio) ----
+  function contextoRelatorio() {
+    const NOME_PERIODO = { dia: "Dia", semana: "Semana", mes: "Mês", ano: "Ano" };
+    let periodo = "Todo o histórico carregado";
+    if (usingRealTime && periodoSelecionado !== "tudo") {
+      periodo = `${NOME_PERIODO[periodoSelecionado]}: ${formatarRotuloPeriodo(periodoSelecionado, dataReferencia)}`;
+      if (periodoSelecionado === "dia") {
+        const ds = dataReferencia.toLocaleDateString("pt-BR", { weekday: "long" });
+        periodo += ` (${ds})`;
+      }
+    }
+    const turno = selectedShift === "all" || !usingRealTime ? "Todos os turnos" : `${turnoNome(selectedShift)} (${turnoHorario(selectedShift)})`;
+    return { empresa: nomeEmpresa() || "Painel de Produção", setor: setorAtual.nome || "", periodo, turno, gerado: new Date() };
+  }
+  // nome do arquivo diz o periodo do relatorio (nao a hora em que foi baixado)
+  function rotuloPeriodoArquivo() {
+    if (!usingRealTime || periodoSelecionado === "tudo") return "historico";
+    const [ini] = limitesPeriodo(periodoSelecionado, dataReferencia);
+    const d = chaveDia(+ini);
+    const base = periodoSelecionado === "dia" ? d : periodoSelecionado === "semana" ? `semana_${d}` : periodoSelecionado === "mes" ? d.slice(0, 7) : d.slice(0, 4);
+    return base + (selectedShift !== "all" ? `_${String(turnoNome(selectedShift)).normalize("NFD").replace(/[^\w]+/g, "").toLowerCase() || "turno" + (selectedShift + 1)}` : "");
+  }
+  function nomeArquivoRelatorio(rel, ext) {
+    return `${rel.arquivo || rel.id}_${rotuloPeriodoArquivo()}.${ext}`;
+  }
+  var SEM_JANELA = "Precisa do horário real dos ciclos e de turnos cadastrados (filtro Dia, Semana, Mês ou Ano).";
+
+
+  // ---- graficos dos relatorios (desenhados em canvas: o mesmo PNG vai
+  // para a visualizacao, o PDF e o Excel). Fundo branco sempre (impressao).
+  //   { tipo: "colunas" | "barrasH" | "linhas", titulo, categorias, unidade,
+  //     series: [{ nome, cor, cores?, valores }], empilhado?, meta? }
+  function corMaquinaHex(id) { return hexDaCor(`var(${MACHINE_META[id].colorVar})`, "#64748b"); }
+  var COR_LIGADO = "#16a34a", COR_PARADO = "#dc2626";
+  function fmtEixo(v, unidade) {
+    if (unidade === "pct") return `${Math.round(v)}%`;
+    if (unidade === "dur") { if (v <= 0) return "0"; const h = v / 3600; return h >= 1 ? `${(Math.round(h * 10) / 10).toLocaleString("pt-BR")}h` : `${Math.round(v / 60)}min`; }
+    if (unidade === "m") return v >= 10000 ? `${(Math.round(v / 100) / 10).toLocaleString("pt-BR")} mil` : Math.round(v).toLocaleString("pt-BR");
+    return Math.round(v).toLocaleString("pt-BR");
+  }
+  function fmtValorGrafico(v, unidade) {
+    if (unidade === "dur") return fmtDuration(Math.round(v));
+    if (unidade === "m") return `${Math.round(v).toLocaleString("pt-BR")} m`;
+    if (unidade === "pct") return `${Math.round(v)}%`;
+    return Math.round(v).toLocaleString("pt-BR");
+  }
+  function tetoBonito(v) {
+    if (!(v > 0)) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+    return ([1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((d) => n <= d + 1e-9) || 10) * p;
+  }
+  function desenharGrafico(g, W, H) {
+    const esc = 2, c = document.createElement("canvas");
+    c.width = W * esc; c.height = H * esc;
+    const x = c.getContext("2d");
+    x.scale(esc, esc);
+    x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H);
+    const FONTE = '"Segoe UI", Arial, sans-serif';
+    const escuro = "#1f2937", cinza = "#6b7280", grade = "#e5e7eb";
+    x.fillStyle = escuro; x.font = `600 13px ${FONTE}`; x.textBaseline = "alphabetic";
+    x.fillText(g.titulo, 2, 15);
+    // legenda (quando ha mais de uma serie, ou meta)
+    let topo = 26;
+    const itens = (g.series.length > 1 ? g.series.map((sr) => ({ nome: sr.nome, cor: sr.cor })) : []);
+    if (g.meta !== undefined && g.meta !== null) itens.push({ nome: `Meta ${Math.round(g.meta)}%`, cor: escuro, tracejado: true });
+    if (itens.length) {
+      x.font = `11px ${FONTE}`;
+      let lx = 2, ly = topo + 8;
+      itens.forEach((it) => {
+        const w = x.measureText(it.nome).width + 26;
+        if (lx + w > W) { lx = 2; ly += 16; }
+        if (it.tracejado) { x.strokeStyle = it.cor; x.lineWidth = 1.5; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(lx, ly - 4); x.lineTo(lx + 14, ly - 4); x.stroke(); x.setLineDash([]); }
+        else { x.fillStyle = it.cor; x.fillRect(lx, ly - 9, 12, 10); }
+        x.fillStyle = cinza; x.fillText(it.nome, lx + 17, ly);
+        lx += w;
+      });
+      topo = ly + 8;
+    }
+    const cats = g.categorias, nC = cats.length, nS = g.series.length;
+    const total = (i) => g.series.reduce((a, sr) => a + (sr.valores[i] || 0), 0);
+    let maxV = 0;
+    for (let i = 0; i < nC; i++) maxV = Math.max(maxV, g.empilhado ? total(i) : Math.max(...g.series.map((sr) => sr.valores[i] || 0)));
+    if (g.meta) maxV = Math.max(maxV, g.meta);
+    // eixo em 4 divisoes redondas (horas inteiras para tempo; ate 100% para porcentagem)
+    if (g.unidade === "pct") maxV = Math.min(100, Math.max(20, tetoBonito((maxV * 1.08) / 4) * 4));
+    else if (g.unidade === "dur") maxV = Math.max(1, tetoBonito((maxV * 1.08) / 3600 / 4)) * 4 * 3600;
+    else maxV = Math.max(4, tetoBonito((maxV * 1.08) / 4) * 4);
+    x.font = `11px ${FONTE}`;
+    if (g.tipo === "barrasH") {
+      const rotW = Math.min(W * 0.32, Math.max(...cats.map((t) => x.measureText(t).width)) + 10);
+      const pad = { l: rotW + 4, r: 70, t: topo + 4, b: 18 };
+      const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+      const passo = ih / Math.max(1, nC), alt = Math.min(26, passo * (g.empilhado || nS === 1 ? 0.62 : 0.8));
+      const X = (v) => pad.l + (Math.max(0, v) / maxV) * iw;
+      for (let k = 0; k <= 4; k++) {
+        const gx = pad.l + (iw * k) / 4;
+        x.strokeStyle = grade; x.lineWidth = 1; x.beginPath(); x.moveTo(gx, pad.t); x.lineTo(gx, pad.t + ih); x.stroke();
+        x.fillStyle = cinza; x.textAlign = "center"; x.fillText(fmtEixo((maxV * k) / 4, g.unidade), gx, H - 4);
+      }
+      cats.forEach((cat, i) => {
+        const cy = pad.t + passo * i + passo / 2;
+        x.fillStyle = escuro; x.textAlign = "right"; x.textBaseline = "middle";
+        let rot = cat; while (x.measureText(rot).width > rotW - 6 && rot.length > 3) rot = rot.slice(0, -2) + "…";
+        x.fillText(rot, pad.l - 8, cy);
+        if (g.empilhado) {
+          let acc = 0;
+          g.series.forEach((sr) => { const v = sr.valores[i] || 0; if (v > 0) { x.fillStyle = (sr.cores && sr.cores[i]) || sr.cor; x.fillRect(X(acc), cy - alt / 2, Math.max(1, X(acc + v) - X(acc)), alt); } acc += v; });
+          x.fillStyle = escuro; x.textAlign = "left"; x.fillText(fmtValorGrafico(acc, g.unidade), X(acc) + 6, cy);
+        } else {
+          const h1 = alt / nS;
+          g.series.forEach((sr, si) => {
+            const v = sr.valores[i];
+            if (v === null || v === undefined) return;
+            const y0 = cy - alt / 2 + si * h1;
+            x.fillStyle = (sr.cores && sr.cores[i]) || sr.cor;
+            x.fillRect(pad.l, y0, Math.max(1, X(v) - pad.l), h1 - (nS > 1 ? 2 : 0));
+            x.fillStyle = escuro; x.textAlign = "left"; x.fillText(fmtValorGrafico(v, g.unidade), X(v) + 6, y0 + h1 / 2);
+          });
+        }
+        x.textBaseline = "alphabetic";
+      });
+      if (g.meta) {
+        const mx = X(g.meta);
+        x.strokeStyle = escuro; x.lineWidth = 1.6; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(mx, pad.t - 2); x.lineTo(mx, pad.t + ih); x.stroke(); x.setLineDash([]);
+      }
+    } else {
+      const pad = { l: 46, r: 10, t: topo + 6, b: 34 };
+      const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+      const Y = (v) => pad.t + ih - (Math.max(0, Math.min(v, maxV)) / maxV) * ih;
+      for (let k = 0; k <= 4; k++) {
+        const gy = pad.t + (ih * k) / 4;
+        x.strokeStyle = grade; x.lineWidth = 1; x.beginPath(); x.moveTo(pad.l, gy); x.lineTo(W - pad.r, gy); x.stroke();
+        x.fillStyle = cinza; x.textAlign = "right"; x.textBaseline = "middle"; x.fillText(fmtEixo(maxV * (1 - k / 4), g.unidade), pad.l - 6, gy);
+      }
+      x.textBaseline = "alphabetic";
+      const passo = iw / Math.max(1, nC);
+      const pular = Math.max(1, Math.ceil(nC / Math.max(1, Math.floor(iw / 46))));
+      cats.forEach((cat, i) => {
+        if (i % pular && i !== nC - 1) return;
+        x.fillStyle = cinza; x.textAlign = "center";
+        let rot = cat; while (x.measureText(rot).width > passo * pular - 4 && rot.length > 3) rot = rot.slice(0, -2) + "…";
+        x.fillText(rot, pad.l + passo * i + passo / 2, H - 16);
+      });
+      if (g.tipo === "linhas") {
+        g.series.forEach((sr) => {
+          x.strokeStyle = sr.cor; x.lineWidth = 2.2; x.beginPath();
+          let aberto = false;
+          sr.valores.forEach((v, i) => { if (v === null || v === undefined) { aberto = false; return; } const px = pad.l + passo * i + passo / 2; if (aberto) x.lineTo(px, Y(v)); else x.moveTo(px, Y(v)); aberto = true; });
+          x.stroke();
+          sr.valores.forEach((v, i) => { if (v === null || v === undefined) return; x.fillStyle = sr.cor; x.beginPath(); x.arc(pad.l + passo * i + passo / 2, Y(v), nC > 31 ? 2 : 3.2, 0, Math.PI * 2); x.fill(); });
+        });
+      } else {
+        const largura = Math.min(46, passo * 0.7);
+        cats.forEach((_, i) => {
+          const cx = pad.l + passo * i + passo / 2;
+          if (g.empilhado) {
+            let acc = 0;
+            g.series.forEach((sr) => { const v = sr.valores[i] || 0; if (v > 0) { x.fillStyle = (sr.cores && sr.cores[i]) || sr.cor; x.fillRect(cx - largura / 2, Y(acc + v), largura, Y(acc) - Y(acc + v)); } acc += v; });
+            if (nC <= 16 && acc > 0) { x.fillStyle = escuro; x.textAlign = "center"; x.font = `600 10px ${FONTE}`; x.fillText(fmtEixo(acc, g.unidade), cx, Y(acc) - 4); x.font = `11px ${FONTE}`; }
+          } else {
+            const w1 = largura / nS;
+            g.series.forEach((sr, si) => {
+              const v = sr.valores[i];
+              if (v === null || v === undefined) return;
+              const bx = cx - largura / 2 + si * w1;
+              x.fillStyle = (sr.cores && sr.cores[i]) || sr.cor;
+              x.fillRect(bx, Y(v), Math.max(1, w1 - (nS > 1 ? 1.5 : 0)), pad.t + ih - Y(v));
+              if (nC * nS <= 18) { x.fillStyle = escuro; x.textAlign = "center"; x.font = `600 10px ${FONTE}`; x.fillText(fmtEixo(v, g.unidade), bx + w1 / 2, Y(v) - 4); x.font = `11px ${FONTE}`; }
+            });
+          }
+        });
+      }
+      if (g.meta) {
+        const my = Y(g.meta);
+        x.strokeStyle = escuro; x.lineWidth = 1.6; x.setLineDash([5, 4]); x.beginPath(); x.moveTo(pad.l, my); x.lineTo(W - pad.r, my); x.stroke(); x.setLineDash([]);
+      }
+    }
+    return c.toDataURL("image/png");
+  }
+
+  // ---- os relatorios ----
+  function relResumo() {
+    const g = resumoGeralAtual(), n = MACHINE_IDS.length || 1, meta = metaRendimentoPct();
+    const resumo = [
+      ["Tempo ligado", fmtDuration(g.ligadoS / n), "média por máquina"],
+      ["Tempo parado", g.comJanela ? fmtDuration(g.paradoS / n) : "—", "média por máquina"],
+      ["Rendimento", g.comJanela ? `${Math.round(g.rend)}%` : "—", `meta ${Math.round(meta)}%`],
+      ["Meta cumprida", `${Math.round(g.metaProg)}%`, "do tempo ligado esperado"],
+      ["Produção estimada", g.producao !== null ? `${Math.round(g.producao).toLocaleString("pt-BR")} m` : "—", "tempo ligado × taxa"],
+      ["Ciclos", records.length.toLocaleString("pt-BR"), "no filtro"]
+    ];
+    const metaS = metaPeriodoS();
+    const porMaq = MACHINE_IDS.map((id) => {
+      const st = computeStats(registrosComAndamento(id), id);
+      const ok = st && !st.semJanela;
+      return [machineName(id), st ? st.tempoLigadoS : null, ok ? st.tempoParadoS : null, ok ? st.tempoDisponivelS : null,
+        ok ? st.disponibilidadePct : null, ok ? st.disponibilidadePct - meta : null,
+        st && metaS > 0 ? Math.min(100, (st.tempoLigadoS / metaS) * 100) : null,
+        st ? st.producaoM : null, taxaParaMH(machineRate(id)) || null, records.filter((r) => r.maquina === id).length];
+    });
+    const tot = (i) => porMaq.reduce((a, l) => a + (l[i] || 0), 0);
+    const secoes = [{
+      titulo: "Por máquina",
+      colunas: [{ t: "Máquina", tipo: "txt", larg: 22 }, { t: "Ligado", tipo: "dur" }, { t: "Parado", tipo: "dur" }, { t: "Disponível", tipo: "dur" },
+        { t: "Rendimento", tipo: "pct" }, { t: "vs meta", tipo: "pp" }, { t: "Meta cumprida", tipo: "pct" }, { t: "Produção", tipo: "m" },
+        { t: "Taxa", tipo: "mh" }, { t: "Ciclos", tipo: "int" }],
+      linhas: porMaq,
+      total: ["Total / média", tot(1), g.comJanela ? tot(2) : null, g.comJanela ? tot(3) : null, g.comJanela ? g.rend : null,
+        g.comJanela ? g.rend - meta : null, g.metaProg, g.producao, null, records.length],
+      destaque: (linha, ci) => (ci === 5 && linha[5] !== null ? (linha[5] >= 0 ? "bom" : "ruim") : null)
+    }];
+    const turnosR = calcularResumoTurnos(records).filter((t) => (t.idx !== FORA_DE_TURNO || t.tempoLigadoS > 0) && (t.dias > 0 || t.tempoLigadoS > 0));
+    if (turnosR.length) {
+      secoes.push({
+        titulo: "Por turno",
+        colunas: [{ t: "Turno", tipo: "txt", larg: 22 }, { t: "Horário", tipo: "txt" }, { t: "Dias", tipo: "int" }, { t: "Ciclos", tipo: "int" },
+          { t: "Ligado (soma)", tipo: "dur" }, { t: "Ocupação", tipo: "pct" }, { t: "Produção", tipo: "m" }],
+        linhas: turnosR.map((t) => [t.nome, t.horario, t.dias, typeof t.ciclos === "number" ? t.ciclos : null, t.tempoLigadoS, t.ocupacaoPct, t.producaoM])
+      });
+    }
+    const nomes = MACHINE_IDS.map((id) => machineName(id));
+    const graficos = g.comJanela ? [
+      { tipo: "barrasH", titulo: "Rendimento por máquina", categorias: nomes, unidade: "pct", meta,
+        series: [{ nome: "Rendimento", cor: "#2563eb", cores: MACHINE_IDS.map(corMaquinaHex), valores: porMaq.map((l) => l[4]) }] },
+      { tipo: "barrasH", empilhado: true, titulo: "Tempo ligada × parada por máquina", categorias: nomes, unidade: "dur",
+        series: [{ nome: "Ligada", cor: COR_LIGADO, valores: porMaq.map((l) => l[1]) }, { nome: "Parada", cor: COR_PARADO, valores: porMaq.map((l) => l[2]) }] }
+    ] : [];
+    return { resumo, secoes, graficos,
+      nota: "Rendimento = tempo ligada ÷ tempo disponível de cada máquina; \"Total / média\" usa a média simples entre as máquinas (o mesmo número dos cartões da Visão geral)." };
+  }
+
+  function linhasDoResumo() {
+    const R = resumoJanelas();
+    return R && R.linhas.length ? R : null;
+  }
+  function relProducaoDiaria() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const dias = new Map();
+    R.linhas.forEach((ln) => {
+      if (!dias.has(ln.dia)) dias.set(ln.dia, {});
+      const d = dias.get(ln.dia);
+      MACHINE_IDS.forEach((id) => {
+        const m = ln.maquinas[id];
+        if (!m) return;
+        if (!d[id]) d[id] = { prod: null, lig: 0 };
+        d[id].lig += m.ligadoS;
+        if (m.producaoM !== null) d[id].prod = (d[id].prod || 0) + m.producaoM;
+      });
+    });
+    const chaves = [...dias.keys()].sort((a, b) => a - b);
+    const linhas = chaves.map((k) => {
+      const d = dias.get(k);
+      const prods = MACHINE_IDS.map((id) => (d[id] ? d[id].prod : null));
+      const total = prods.some((p) => p !== null) ? prods.reduce((a, p) => a + (p || 0), 0) : null;
+      return [k, new Date(k).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""), ...prods, total,
+        MACHINE_IDS.reduce((a, id) => a + (d[id] ? d[id].lig : 0), 0)];
+    });
+    const soma = (i) => linhas.reduce((a, l) => a + (l[i] || 0), 0);
+    const nM = MACHINE_IDS.length;
+    const totalProd = soma(2 + nM);
+    return {
+      resumo: [["Produção total", `${Math.round(totalProd).toLocaleString("pt-BR")} m`, `${linhas.length} dia(s) com turno`],
+        ["Média por dia", linhas.length ? `${Math.round(totalProd / linhas.length).toLocaleString("pt-BR")} m` : "—", "todas as máquinas"],
+        ["Melhor dia", linhas.length ? fmtCelula(linhas.reduce((a, l) => ((l[2 + nM] || 0) > (a[2 + nM] || 0) ? l : a))[0], "data") : "—",
+          linhas.length ? fmtCelula(Math.max(...linhas.map((l) => l[2 + nM] || 0)), "m") : ""]],
+      secoes: [{
+        titulo: "Produção por dia e máquina",
+        colunas: [{ t: "Data", tipo: "data", larg: 13 }, { t: "Dia", tipo: "txt", larg: 7 }, ...MACHINE_IDS.map((id) => ({ t: machineName(id), tipo: "m" })),
+          { t: "Total", tipo: "m" }, { t: "Ligado (soma)", tipo: "dur" }],
+        linhas,
+        total: ["Total", "", ...MACHINE_IDS.map((_, i) => soma(2 + i)), totalProd, soma(3 + nM)]
+      }],
+      graficos: [{ tipo: "colunas", empilhado: true, titulo: "Produção por dia (metros)", unidade: "m",
+        categorias: linhas.map((l) => ddmmDe(l[0])),
+        series: MACHINE_IDS.map((id, i) => ({ nome: machineName(id), cor: corMaquinaHex(id), valores: linhas.map((l) => l[2 + i]) })) }],
+      nota: "Produção estimada = tempo ligado dentro do turno × taxa (m/h) vigente em cada dia."
+    };
+  }
+
+  // Tempo ligado e parado por dia e maquina (parado = disponivel - ligado,
+  // a mesma regra dos cartoes: sem intervalos e paradas programadas)
+  function relTempoDiario() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const dias = new Map();
+    R.linhas.forEach((ln) => {
+      if (!dias.has(ln.dia)) dias.set(ln.dia, {});
+      const d = dias.get(ln.dia);
+      MACHINE_IDS.forEach((id) => {
+        const m = ln.maquinas[id];
+        if (!m) return;
+        if (!d[id]) d[id] = { lig: 0, disp: 0 };
+        d[id].lig += m.ligadoS; d[id].disp += m.dispS;
+      });
+    });
+    const chaves = [...dias.keys()].sort((a, b) => a - b);
+    const nM = MACHINE_IDS.length;
+    const linhas = chaves.map((k) => {
+      const d = dias.get(k);
+      const cel = [];
+      let lig = 0, disp = 0;
+      MACHINE_IDS.forEach((id) => {
+        const o = d[id];
+        cel.push(o ? o.lig : null, o ? Math.max(0, o.disp - o.lig) : null);
+        if (o) { lig += o.lig; disp += o.disp; }
+      });
+      return [k, new Date(k).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""), ...cel, lig, Math.max(0, disp - lig), disp,
+        disp > 0 ? Math.min(100, (lig / disp) * 100) : null];
+    });
+    const soma = (i) => linhas.reduce((a, l) => a + (l[i] || 0), 0);
+    const iLig = 2 + nM * 2, totLig = soma(iLig), totPar = soma(iLig + 1), totDisp = soma(iLig + 2);
+    // tabela principal "comprida": cada dia vira um bloco com uma linha por
+    // maquina e uma linha "Total do dia" destacada
+    const porDiaMaquina = [];
+    chaves.forEach((k, di) => {
+      const d = dias.get(k), larga = linhas[di];
+      MACHINE_IDS.forEach((id) => {
+        const o = d[id];
+        if (!o) return;
+        const par = Math.max(0, o.disp - o.lig);
+        porDiaMaquina.push([k, larga[1], machineName(id), o.lig, par, o.disp, o.disp > 0 ? Math.min(100, (o.lig / o.disp) * 100) : null]);
+      });
+      const sub = [k, larga[1], "Total do dia", larga[iLig], larga[iLig + 1], larga[iLig + 2], larga[iLig + 3]];
+      sub.subtotal = true;
+      porDiaMaquina.push(sub);
+    });
+    const porMaq = MACHINE_IDS.map((id, i) => ({ id, lig: soma(2 + i * 2), par: soma(3 + i * 2) }));
+    const maisParada = porMaq.reduce((a, m) => (!a || m.par > a.par ? m : a), null);
+    return {
+      resumo: [
+        ["Tempo ligado", fmtDuration(totLig), `soma das máquinas · ${linhas.length} dia(s)`],
+        ["Tempo parado", fmtDuration(totPar), "dentro do turno, sem intervalos"],
+        ["Média por máquina/dia", linhas.length && nM ? `${fmtDuration(Math.round(totLig / linhas.length / nM))} ligada` : "—", linhas.length && nM ? `${fmtDuration(Math.round(totPar / linhas.length / nM))} parada` : ""],
+        ["Rendimento", totDisp > 0 ? `${Math.round((totLig / totDisp) * 100)}%` : "—", "ligado ÷ disponível"],
+        ["Mais tempo parada", maisParada && maisParada.par > 0 ? machineName(maisParada.id) : "—", maisParada && maisParada.par > 0 ? fmtDuration(maisParada.par) : ""]
+      ],
+      secoes: [{
+        titulo: "Tempo ligado e parado por dia e máquina",
+        colunas: [{ t: "Data", tipo: "data", larg: 12 }, { t: "Dia", tipo: "txt", larg: 7 }, { t: "Máquina", tipo: "txt", larg: 22 },
+          { t: "Ligada", tipo: "dur" }, { t: "Parada", tipo: "dur" }, { t: "Disponível", tipo: "dur" }, { t: "Rendimento", tipo: "pct" }],
+        linhas: porDiaMaquina,
+        total: ["Total do período", "", "", totLig, totPar, totDisp, totDisp > 0 ? (totLig / totDisp) * 100 : null],
+        estiloLinha: (l) => (l.subtotal ? "subtotal" : null),
+        agrupar: [0, 1],
+        destaque: (l, ci) => (ci === 6 && l[6] !== null ? (l[6] >= metaEm(l[0]) ? "bom" : "ruim") : null)
+      }, {
+        titulo: "Resumo por máquina",
+        colunas: [{ t: "Máquina", tipo: "txt", larg: 20 }, { t: "Ligada", tipo: "dur" }, { t: "Parada", tipo: "dur" }, { t: "Disponível", tipo: "dur" }, { t: "Rendimento", tipo: "pct" }, { t: "Ligada por dia", tipo: "dur" }, { t: "Parada por dia", tipo: "dur" }],
+        linhas: porMaq.map((m) => [machineName(m.id), m.lig, m.par, m.lig + m.par, m.lig + m.par > 0 ? (m.lig / (m.lig + m.par)) * 100 : null,
+          linhas.length ? m.lig / linhas.length : null, linhas.length ? m.par / linhas.length : null]),
+        total: ["Todas", totLig, totPar, totDisp, totDisp > 0 ? (totLig / totDisp) * 100 : null, linhas.length ? totLig / linhas.length : null, linhas.length ? totPar / linhas.length : null]
+      }],
+      graficos: [
+        { tipo: "colunas", empilhado: true, titulo: "Ligado × parado por dia (todas as máquinas)", unidade: "dur", categorias: linhas.map((l) => ddmmDe(l[0])),
+          series: [{ nome: "Ligado", cor: COR_LIGADO, valores: linhas.map((l) => l[iLig]) }, { nome: "Parado", cor: COR_PARADO, valores: linhas.map((l) => l[iLig + 1]) }] },
+        { tipo: "barrasH", empilhado: true, titulo: "Ligada × parada por máquina (período)", unidade: "dur", categorias: porMaq.map((m) => machineName(m.id)),
+          series: [{ nome: "Ligada", cor: COR_LIGADO, valores: porMaq.map((m) => m.lig) }, { nome: "Parada", cor: COR_PARADO, valores: porMaq.map((m) => m.par) }] }
+      ],
+      nota: "Parada = tempo de turno disponível − tempo ligada (sem intervalos de refeição e paradas programadas; turno em andamento conta até agora). Rendimento do dia em verde = na meta do dia ou acima."
+    };
+  }
+
+  function relRendimentoDiario() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const dias = new Map();
+    R.linhas.forEach((ln) => {
+      if (!dias.has(ln.dia)) dias.set(ln.dia, {});
+      const d = dias.get(ln.dia);
+      MACHINE_IDS.forEach((id) => {
+        const m = ln.maquinas[id];
+        if (!m) return;
+        if (!d[id]) d[id] = { lig: 0, disp: 0 };
+        d[id].lig += m.ligadoS; d[id].disp += m.dispS;
+      });
+    });
+    const chaves = [...dias.keys()].sort((a, b) => a - b);
+    const pct = (o) => (o && o.disp > 0 ? Math.min(100, (o.lig / o.disp) * 100) : null);
+    const linhas = chaves.map((k) => {
+      const d = dias.get(k);
+      const vals = MACHINE_IDS.map((id) => pct(d[id]));
+      const lig = MACHINE_IDS.reduce((a, id) => a + (d[id] ? d[id].lig : 0), 0), disp = MACHINE_IDS.reduce((a, id) => a + (d[id] ? d[id].disp : 0), 0);
+      return [k, new Date(k).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""), ...vals, disp > 0 ? Math.min(100, (lig / disp) * 100) : null, metaEm(k)];
+    });
+    const nM = MACHINE_IDS.length;
+    // linha "Período": tempo ligado ÷ disponível do periodo inteiro (cada dia pesa pelo seu tempo de turno)
+    const somaMaq = MACHINE_IDS.map((id) => chaves.reduce((a, k) => { const o = dias.get(k)[id]; return o ? { lig: a.lig + o.lig, disp: a.disp + o.disp } : a; }, { lig: 0, disp: 0 }));
+    const medias = somaMaq.map(pct);
+    const tl = somaMaq.reduce((a, o) => ({ lig: a.lig + o.lig, disp: a.disp + o.disp }), { lig: 0, disp: 0 });
+    const geralPeriodo = pct(tl);
+    const acima = linhas.filter((l) => l[2 + nM] !== null && l[2 + nM] >= l[3 + nM]).length;
+    return {
+      resumo: [["Rendimento do período", geralPeriodo !== null ? `${Math.round(geralPeriodo)}%` : "—", "ligado ÷ disponível, todas as máquinas"],
+        ["Dias na meta", `${acima} de ${linhas.length}`, "rendimento geral ≥ meta do dia"],
+        ["Melhor máquina", medias.some((m) => m !== null) ? machineName(MACHINE_IDS[medias.indexOf(Math.max(...medias.filter((m) => m !== null)))]) : "—", "maior média no período"]],
+      secoes: [{
+        titulo: "Rendimento por dia (ligado ÷ disponível)",
+        colunas: [{ t: "Data", tipo: "data", larg: 13 }, { t: "Dia", tipo: "txt", larg: 7 }, ...MACHINE_IDS.map((id) => ({ t: machineName(id), tipo: "pct" })),
+          { t: "Geral", tipo: "pct" }, { t: "Meta", tipo: "pct" }],
+        linhas,
+        total: ["Período", "", ...medias, geralPeriodo, null],
+        destaque: (l, ci) => (ci >= 2 && ci < 3 + nM && l[ci] !== null && l[3 + nM] ? (l[ci] >= l[3 + nM] ? "bom" : "ruim") : null)
+      }],
+      graficos: [{ tipo: linhas.length > 1 ? "linhas" : "colunas", titulo: "Rendimento por dia e máquina", unidade: "pct", meta: metaRendimentoPct(),
+        categorias: linhas.map((l) => ddmmDe(l[0])),
+        series: MACHINE_IDS.map((id, i) => ({ nome: machineName(id), cor: corMaquinaHex(id), valores: linhas.map((l) => l[2 + i]) })) }],
+      nota: "Verde = na meta do dia ou acima; vermelho = abaixo. \"Período\" = tempo ligado ÷ disponível do período inteiro (cada dia pesa pelo seu tempo de turno)."
+    };
+  }
+
+  function relTurnos() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const linhas = [];
+    R.linhas.forEach((ln) => MACHINE_IDS.forEach((id) => {
+      const m = ln.maquinas[id];
+      if (!m) return;
+      linhas.push([ln.dia, turnoNome(ln.idx), ln.inicio, ln.correndo ? null : ln.fim, machineName(id), m.ligadoS, Math.max(0, m.dispS - m.ligadoS), m.dispS,
+        m.dispS > 0 ? Math.min(100, (m.ligadoS / m.dispS) * 100) : null, m.producaoM, m.paradas.length]);
+    }));
+    const soma = (i) => linhas.reduce((a, l) => a + (l[i] || 0), 0);
+    return {
+      resumo: [["Turnos no período", String(R.linhas.length), "dia × turno"], ["Ligado (soma)", fmtDuration(soma(5)), "todas as máquinas"],
+        ["Ocupação geral", soma(7) > 0 ? `${Math.round((soma(5) / soma(7)) * 100)}%` : "—", "ligado ÷ disponível"]],
+      secoes: [{
+        titulo: "Cada turno, máquina por máquina",
+        colunas: [{ t: "Data", tipo: "data", larg: 12 }, { t: "Turno", tipo: "txt", larg: 13 }, { t: "Início", tipo: "hora" }, { t: "Fim", tipo: "hora" },
+          { t: "Máquina", tipo: "txt", larg: 18 }, { t: "Ligado", tipo: "dur" }, { t: "Parado", tipo: "dur" }, { t: "Disponível", tipo: "dur" },
+          { t: "Rendimento", tipo: "pct" }, { t: "Produção", tipo: "m" }, { t: "Paradas", tipo: "int" }],
+        linhas,
+        total: ["Total", "", null, null, "", soma(5), soma(6), soma(7), soma(7) > 0 ? (soma(5) / soma(7)) * 100 : null, soma(9), soma(10)],
+        filtro: true
+      }],
+      graficos: (() => {
+        const idxs = [...new Set(R.linhas.map((ln) => ln.idx))].sort((a, b) => (a < 0 ? 99 : a) - (b < 0 ? 99 : b));
+        return [{ tipo: "colunas", titulo: "Rendimento por turno e máquina (período)", unidade: "pct", meta: metaRendimentoPct(), categorias: idxs.map((i) => turnoNome(i)),
+          series: MACHINE_IDS.map((id) => ({ nome: machineName(id), cor: corMaquinaHex(id), valores: idxs.map((ix) => {
+            let lig = 0, disp = 0;
+            R.linhas.filter((ln) => ln.idx === ix).forEach((ln) => { const m = ln.maquinas[id]; if (m) { lig += m.ligadoS; disp += m.dispS; } });
+            return disp > 0 ? Math.min(100, (lig / disp) * 100) : null; }) })) }];
+      })(),
+      nota: "Disponível = tempo de turno sem intervalos de refeição e paradas programadas. Turno em andamento conta até agora (fim em branco)."
+    };
+  }
+
+  function faixaParada(s) { return s > 1800 ? "acima de 30 min" : s > 300 ? "5 a 30 min" : "até 5 min"; }
+  function relParadas() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const todas = paradasDoResumo(R).sort((a, b) => a.inicio - b.inicio);
+    const totalS = todas.reduce((a, p) => a + p.durS, 0);
+    const maior = todas.reduce((a, p) => (!a || p.durS > a.durS ? p : a), null);
+    const comMotivo = todas.filter((p) => motivoDe(p.id, p.inicio)).length;
+    // tempo parado total do periodo (mesma conta do Resumo): o que sobra sao paradas de menos de 1 min
+    let paradoTotal = 0;
+    R.linhas.forEach((ln) => MACHINE_IDS.forEach((id) => { const m = ln.maquinas[id]; if (m) paradoTotal += Math.max(0, m.dispS - m.ligadoS); }));
+    const curtas = Math.max(0, paradoTotal - totalS);
+    const FAIXAS = [{ nome: "até 5 min", cor: "#94a3b8", max: 300 }, { nome: "5 a 30 min", cor: "#f59e0b", max: 1800 }, { nome: "acima de 30 min", cor: "#dc2626", max: Infinity }];
+    const porHora = Array.from({ length: 24 }, () => 0);
+    todas.forEach((p) => { porHora[new Date(p.inicio).getHours()]++; });
+    const horas = porHora.map((n, h) => ({ n, h })).filter((o) => o.n > 0);
+    const hMin = horas.length ? Math.min(...horas.map((o) => o.h)) : 0, hMax = horas.length ? Math.max(...horas.map((o) => o.h)) : 0;
+    return {
+      resumo: [["Paradas", todas.length.toLocaleString("pt-BR"), "de 1 min ou mais"], ["Tempo nessas paradas", fmtDuration(totalS), "soma de todas as máquinas"],
+        ["Paradas curtas", fmtDuration(Math.round(curtas)), "menos de 1 min, somadas (só entram no tempo parado total)"],
+        ["Duração média", todas.length ? fmtDuration(Math.round(totalS / todas.length)) : "—", "por parada"],
+        ["Maior parada", maior ? fmtDuration(maior.durS) : "—", maior ? `${machineName(maior.id)} · ${fmtCelula(maior.inicio, "datahora")}` : ""],
+        ["Com motivo", `${comMotivo} de ${todas.length}`, "marcadas na linha do tempo"]],
+      graficos: [
+        { tipo: "barrasH", empilhado: true, titulo: "Tempo parado por máquina e duração da parada", unidade: "dur", categorias: MACHINE_IDS.map((id) => machineName(id)),
+          series: FAIXAS.map((f, fi) => ({ nome: f.nome, cor: f.cor, valores: MACHINE_IDS.map((id) => todas.filter((p) => p.id === id && p.durS <= f.max && (fi === 0 || p.durS > FAIXAS[fi - 1].max)).reduce((a, p) => a + p.durS, 0)) })) },
+        { tipo: "colunas", titulo: "Paradas que começaram em cada hora", unidade: "int", categorias: Array.from({ length: hMax - hMin + 1 }, (_, i) => `${String(hMin + i).padStart(2, "0")}h`),
+          series: [{ nome: "Paradas", cor: COR_PARADO, valores: porHora.slice(hMin, hMax + 1) }] }
+      ],
+      secoes: [{
+        titulo: "Todas as paradas",
+        colunas: [{ t: "Data", tipo: "data", larg: 12 }, { t: "Turno", tipo: "txt", larg: 12 }, { t: "Máquina", tipo: "txt", larg: 18 },
+          { t: "Início", tipo: "hora" }, { t: "Fim", tipo: "hora" }, { t: "Duração", tipo: "dur" }, { t: "Intervalo descontado", tipo: "dur" },
+          { t: "Faixa", tipo: "txt", larg: 14 }, { t: "Motivo", tipo: "txt", larg: 24 }, { t: "Observação", tipo: "txt", larg: 28 }],
+        linhas: todas.map((p) => {
+          const mt = motivoDe(p.id, p.inicio);
+          const desc = Math.max(0, (p.fim - p.inicio) / 1000 - p.durS);
+          return [p.dia, turnoNome(p.idx), machineName(p.id), p.inicio, p.emAndamento ? null : p.fim, p.durS, desc >= 60 ? desc : null, faixaParada(p.durS), mt ? mt.nome : "", mt ? mt.obs : ""];
+        }),
+        total: ["Total", "", "", "", "", totalS, null, "", "", ""],
+        filtro: true,
+        destaque: (l, ci) => (ci === 5 && l[5] > 1800 ? "ruim" : null)
+      }],
+      nota: "Paradas dentro do turno, de 1 min ou mais. Quando a parada atravessa um intervalo de refeição ou parada programada, esse trecho não conta: \"Duração\" já vem sem ele e a coluna \"Intervalo descontado\" mostra quanto saiu (por isso Fim − Início pode ser maior que a duração). Fim em branco = parada em andamento."
+    };
+  }
+
+  function relMotivos() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const todas = paradasDoResumo(R);
+    const grupos = new Map();
+    todas.forEach((p) => {
+      const mt = motivoDe(p.id, p.inicio);
+      const k = mt ? mt.nome : "Sem motivo marcado";
+      if (!grupos.has(k)) grupos.set(k, { n: 0, s: 0, por: {} });
+      const g = grupos.get(k); g.n++; g.s += p.durS; g.por[p.id] = (g.por[p.id] || 0) + p.durS;
+    });
+    const totalS = todas.reduce((a, p) => a + p.durS, 0) || 1;
+    const lista = [...grupos.entries()].sort((a, b) => (a[0] === "Sem motivo marcado") - (b[0] === "Sem motivo marcado") || b[1].s - a[1].s);
+    let acum = 0;
+    const explicado = todas.filter((p) => motivoDe(p.id, p.inicio)).reduce((a, p) => a + p.durS, 0);
+    return {
+      resumo: [["Motivos usados", String(lista.filter(([k]) => k !== "Sem motivo marcado").length), "no período"],
+        ["Tempo explicado", `${Math.round((explicado / totalS) * 100)}%`, "do tempo parado tem motivo"],
+        ["Principal motivo", lista.length && lista[0][0] !== "Sem motivo marcado" ? lista[0][0] : "—", lista.length && lista[0][0] !== "Sem motivo marcado" ? fmtDuration(lista[0][1].s) : ""]],
+      secoes: [{
+        titulo: "Motivos (do maior para o menor tempo)",
+        colunas: [{ t: "Motivo", tipo: "txt", larg: 28 }, { t: "Paradas", tipo: "int" }, { t: "Tempo", tipo: "dur" }, { t: "% do parado", tipo: "pct" }, { t: "Acumulado", tipo: "pct" }],
+        linhas: lista.map(([k, g]) => { acum += g.s; return [k, g.n, g.s, (g.s / totalS) * 100, (acum / totalS) * 100]; }),
+        total: ["Total", todas.length, todas.reduce((a, p) => a + p.durS, 0), 100, null]
+      }, {
+        titulo: "Tempo parado por motivo e máquina",
+        colunas: [{ t: "Motivo", tipo: "txt", larg: 28 }, ...MACHINE_IDS.map((id) => ({ t: machineName(id), tipo: "dur" }))],
+        linhas: lista.map(([k, g]) => [k, ...MACHINE_IDS.map((id) => g.por[id] || null)])
+      }],
+      graficos: lista.length ? [{ tipo: "barrasH", titulo: "Tempo parado por motivo", unidade: "dur", categorias: lista.map(([k]) => k),
+        series: [{ nome: "Tempo", cor: "#94a3b8", cores: lista.map(([k]) => { const c = extras.motivos.catalogo.find((m) => m.nome === k); return c ? c.cor : "#cbd5e1"; }), valores: lista.map(([, g]) => g.s) }] }] : [],
+      nota: "O motivo é marcado clicando na parada, na linha do tempo da Visão geral."
+    };
+  }
+
+  function relDisciplina() {
+    const R = linhasDoResumo();
+    if (!R) return { vazio: SEM_JANELA };
+    const linhas = [];
+    R.linhas.filter((ln) => ln.idx !== HORA_EXTRA).forEach((ln) => MACHINE_IDS.forEach((id) => {
+      const m = ln.maquinas[id];
+      if (!m) return;
+      const primeira = m.ivs.length ? m.ivs[0][0] : null, ultima = m.ivs.length ? m.ivs[m.ivs.length - 1][1] : null;
+      linhas.push([ln.dia, turnoNome(ln.idx), machineName(id), ln.inicio, primeira, m.atrasoInicioS, ln.correndo ? null : ultima, ln.correndo ? null : (ln.fimTurno || ln.fim), m.antecipacaoFimS]);
+    }));
+    const at = linhas.map((l) => l[5]).filter((v) => v !== null), an = linhas.map((l) => l[8]).filter((v) => v !== null);
+    const med = (v) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
+    return {
+      resumo: [["Atraso médio na partida", at.length ? fmtDuration(med(at)) : "—", "do início do turno até ligar"],
+        ["Saída antecipada média", an.length ? fmtDuration(med(an)) : "—", "do desligamento até o fim do turno"],
+        ["Partidas com mais de 10 min", String(at.filter((v) => v > 600).length), `de ${at.length}`]],
+      secoes: [{
+        titulo: "Partida e encerramento de cada turno",
+        colunas: [{ t: "Data", tipo: "data", larg: 12 }, { t: "Turno", tipo: "txt", larg: 12 }, { t: "Máquina", tipo: "txt", larg: 18 },
+          { t: "Início do turno", tipo: "hora" }, { t: "1ª partida", tipo: "hora" }, { t: "Atraso", tipo: "dur" },
+          { t: "Último desligamento", tipo: "hora" }, { t: "Fim do turno", tipo: "hora" }, { t: "Saída antecipada", tipo: "dur" }],
+        linhas,
+        filtro: true,
+        destaque: (l, ci) => ((ci === 5 || ci === 8) && l[ci] !== null ? (l[ci] > 600 ? "ruim" : l[ci] < 300 ? "bom" : null) : null)
+      }],
+      graficos: (() => {
+        const media = (id, ci) => { const v = linhas.filter((l) => l[2] === machineName(id) && l[ci] !== null).map((l) => l[ci]); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+        return [{ tipo: "barrasH", titulo: "Atraso médio na partida e saída antecipada média", unidade: "dur", categorias: MACHINE_IDS.map((id) => machineName(id)),
+          series: [{ nome: "Atraso na partida", cor: "#f59e0b", valores: MACHINE_IDS.map((id) => media(id, 5)) }, { nome: "Saída antecipada", cor: "#7c3aed", valores: MACHINE_IDS.map((id) => media(id, 8)) }] }];
+      })(),
+      nota: "Sem contar intervalos. Verde = menos de 5 min; vermelho = mais de 10 min. Turno em andamento não tem saída antecipada."
+    };
+  }
+
+  function relCiclos() {
+    const regs = records.slice().sort((a, b) => (a.tsIni || 0) - (b.tsIni || 0));
+    if (!regs.length) return { vazio: "Nenhum ciclo no filtro selecionado." };
+    const totalS = regs.reduce((a, r) => a + r.duracaoS, 0);
+    let prod = null;
+    const linhas = regs.map((r) => {
+      const m = metrosProduzidos(r.duracaoS, r.maquina, r.tsIni === null ? undefined : r.tsIni);
+      if (m !== null) prod = (prod || 0) + m;
+      return [machineName(r.maquina), r.ciclo, usingRealTime ? turnoNome(r.turnoIdx) : "—", r.tsIni, r.tsFim, r.duracaoS, m, r.status ? r.status.label : ""];
+    });
+    return {
+      resumo: [["Ciclos", regs.length.toLocaleString("pt-BR"), "no filtro"], ["Tempo ligado (soma)", fmtDuration(totalS), "duração dos ciclos"],
+        ["Duração média", fmtDuration(Math.round(totalS / regs.length)), "por ciclo"], ["Com alerta", String(regs.filter((r) => r.status && r.status.key !== "good").length), "status diferente de Normal"]],
+      secoes: [{
+        titulo: "Ciclos registrados",
+        colunas: [{ t: "Máquina", tipo: "txt", larg: 18 }, { t: "Ciclo", tipo: "int" }, { t: "Turno", tipo: "txt", larg: 13 }, { t: "Início", tipo: "datahora", larg: 17 },
+          { t: "Fim", tipo: "datahora", larg: 17 }, { t: "Duração", tipo: "dur" }, { t: "Produção", tipo: "m" }, { t: "Status", tipo: "txt", larg: 24 }],
+        linhas,
+        total: ["Total", regs.length, "", null, null, totalS, prod, ""],
+        filtro: true,
+        destaque: (l, ci) => (ci === 7 && l[7] && l[7] !== "Normal" ? "ruim" : null)
+      }],
+      graficos: (() => {
+        const FX = [["até 30 s", 30], ["30 s–1 min", 60], ["1–2 min", 120], ["2–5 min", 300], ["5–10 min", 600], ["10–30 min", 1800], ["mais de 30 min", Infinity]];
+        const dist = FX.map(() => 0);
+        regs.forEach((r) => { dist[FX.findIndex(([, mx]) => r.duracaoS <= mx)]++; });
+        return [
+          { tipo: "colunas", titulo: "Ciclos por máquina", unidade: "int", categorias: MACHINE_IDS.map((id) => machineName(id)),
+            series: [{ nome: "Ciclos", cor: "#0f766e", cores: MACHINE_IDS.map(corMaquinaHex), valores: MACHINE_IDS.map((id) => regs.filter((r) => r.maquina === id).length) }] },
+          { tipo: "colunas", titulo: "Duração dos ciclos (quantos em cada faixa)", unidade: "int", categorias: FX.map(([n]) => n), series: [{ nome: "Ciclos", cor: "#0f766e", valores: dist }] }
+        ];
+      })(),
+      nota: "Duração bruta de cada ciclo, como gravada pelo controlador (pode passar do horário do turno).",
+      limitePdf: 4000
+    };
+  }
+
+  var RELATORIOS = [
+    { id: "resumo", arquivo: "resumo_executivo", titulo: "Resumo executivo", cor: "#e25508", desc: "Indicadores do período, cada máquina contra a meta e o resultado de cada turno.",
+      itens: ["Indicadores gerais", "Por máquina", "Por turno"], icone: '<path d="M4 19V9M10 19V5M16 19v-6M22 19H2" stroke-linecap="round"/>', montar: relResumo },
+    { id: "producao", arquivo: "producao_diaria", titulo: "Produção diária", cor: "#0d9488", desc: "Metros produzidos por dia e por máquina, com o total do período.",
+      itens: ["Produção por dia × máquina", "Total e média"], icone: '<path d="M3 17l5-5 4 4 8-8M15 8h5v5" stroke-linecap="round" stroke-linejoin="round"/>', montar: relProducaoDiaria },
+    { id: "tempo", arquivo: "tempo_ligado_parado", titulo: "Tempo ligado e parado", cor: "#16a34a", desc: "Quanto tempo cada máquina ficou ligada e parada em cada dia, com totais e rendimento.",
+      itens: ["Ligada × parada por dia", "Resumo por máquina"], icone: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9.5 2.5h5" stroke-linecap="round"/>', montar: relTempoDiario },
+    { id: "rendimento", arquivo: "rendimento_diario", titulo: "Rendimento diário", cor: "#2563eb", desc: "Rendimento de cada máquina dia a dia, contra a meta do dia.",
+      itens: ["Rendimento por dia × máquina", "Dias na meta"], icone: '<path d="M4 18a8 8 0 1116 0" stroke-linecap="round"/><path d="M12 18l4-6" stroke-linecap="round"/>', montar: relRendimentoDiario },
+    { id: "turnos", arquivo: "producao_por_turno", titulo: "Produção por turno", cor: "#7c3aed", desc: "Cada turno do período, máquina por máquina: ligado, parado, rendimento e produção.",
+      itens: ["Dia × turno × máquina", "Ocupação geral"], icone: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2" stroke-linecap="round"/>', montar: relTurnos },
+    { id: "paradas", arquivo: "paradas", titulo: "Paradas", cor: "#d0453a", desc: "Todas as paradas de 1 min ou mais, com duração, faixa e motivo marcado.",
+      itens: ["Lista completa", "Maior parada e médias"], icone: '<rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/>', montar: relParadas },
+    { id: "motivos", arquivo: "motivos_de_parada", titulo: "Motivos de parada", cor: "#ca8a04", desc: "Quanto tempo cada motivo tirou da produção, no total e por máquina.",
+      itens: ["Ranking de motivos", "Motivo × máquina"], icone: '<path d="M4 6h16M4 12h10M4 18h7" stroke-linecap="round"/><circle cx="18" cy="16" r="3"/>', montar: relMotivos },
+    { id: "disciplina", arquivo: "disciplina_de_turno", titulo: "Disciplina de turno", cor: "#475569", desc: "Atraso na primeira partida e saída antecipada de cada máquina em cada turno.",
+      itens: ["Partida × início do turno", "Desligamento × fim do turno"], icone: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6" stroke-linecap="round"/>', montar: relDisciplina },
+    { id: "ciclos", arquivo: "ciclos_registrados", titulo: "Ciclos registrados", cor: "#0f766e", desc: "Todos os ciclos do filtro, com turno, horário, duração, produção e status.",
+      itens: ["Lista completa de ciclos", "Totais"], icone: '<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M9 9.5V20"/>', montar: relCiclos }
+  ];
+  // Aviso no topo dos relatorios que usam o tempo de turno (todos menos
+  // Ciclos, que mostra a duracao bruta): evita somar intervalo como parada.
+  var AVISO_DESCONTOS = "Atenção: os intervalos de refeição e as paradas programadas (feriado, folga, reunião, manutenção…) já estão descontados. Eles não contam como tempo disponível nem como tempo parado — o tempo parado é só o de dentro do turno, fora desses intervalos.";
+  function montarRelatorio(rel) {
+    let dados;
+    try { dados = rel.montar(); } catch (e) { dados = { vazio: "Não foi possível montar este relatório (" + e.message + ")." }; }
+    const aviso = rel.id !== "ciclos" && !dados.vazio ? AVISO_DESCONTOS : "";
+    return { ...rel, ...dados, aviso, ctx: contextoRelatorio() };
+  }
+
+  // ---- pagina ----
+  function renderRelatoriosPagina() {
+    const grade = $("#rel-grade");
+    if (!grade) return;
+    const ctx = contextoRelatorio();
+    $("#rel-escopo").innerHTML = `<span class="fs-chip"><small>Período</small>${escaparHtml(ctx.periodo)}</span><span class="fs-chip"><small>Turno</small>${escaparHtml(ctx.turno)}</span><span class="fs-chip"><small>Setor</small>${escaparHtml(ctx.setor)}</span>`;
+    // numeros rapidos de cada cartao (o relatorio completo so e montado ao abrir/baixar)
+    const R = usingRealTime && periodoSelecionado !== "tudo" ? resumoJanelas() : null;
+    const temR = !!(R && R.linhas.length);
+    const g = resumoGeralAtual(), n = MACHINE_IDS.length || 1;
+    const paradas = temR ? paradasDoResumo(R) : [];
+    const diasN = temR ? new Set(R.linhas.map((l) => l.dia)).size : 0;
+    const rapido = {
+      resumo: g.comJanela ? `${Math.round(g.rend)}% de rendimento · ${fmtDuration(g.ligadoS / n)} ligada por máquina` : `${records.length} ciclos`,
+      producao: temR ? `${g.producao !== null ? fmtCelula(g.producao, "m") : "sem taxa"} em ${diasN} dia(s)` : null,
+      tempo: temR ? `${fmtDuration(g.ligadoS)} ligadas · ${g.comJanela ? fmtDuration(g.paradoS) : "—"} paradas` : null,
+      rendimento: temR ? `${diasN} dia(s) · meta ${Math.round(metaRendimentoPct())}%` : null,
+      turnos: temR ? `${R.linhas.length} turno(s) × ${n} máquinas` : null,
+      paradas: temR ? `${paradas.length} paradas · ${fmtDuration(paradas.reduce((a, p) => a + p.durS, 0))}` : null,
+      motivos: temR ? `${paradas.filter((p) => motivoDe(p.id, p.inicio)).length} de ${paradas.length} com motivo` : null,
+      disciplina: temR ? `${R.linhas.filter((l) => l.idx !== HORA_EXTRA).length} turno(s) analisados` : null,
+      ciclos: `${records.length.toLocaleString("pt-BR")} ciclos`
+    };
+    const html = RELATORIOS.map((rel) => {
+      const info = rapido[rel.id];
+      const indisp = info === null;
+      return `<article class="rel-card${indisp ? " indisponivel" : ""}" style="--rc:${rel.cor}">
+        <div class="rel-card-topo"><span class="rel-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${rel.icone}</svg></span>
+          <div><h3>${escaparHtml(rel.titulo)}</h3><p>${escaparHtml(rel.desc)}</p></div></div>
+        <ul class="rel-itens">${rel.itens.map((i) => `<li>${escaparHtml(i)}</li>`).join("")}</ul>
+        <div class="rel-info">${indisp ? escaparHtml("Escolha Dia, Semana, Mês ou Ano (precisa de turnos e horário real)") : escaparHtml(info)}</div>
+        <div class="rel-acoes">
+          <button class="btn small ghost" type="button" data-rel-ver="${rel.id}"${indisp ? " disabled" : ""}>Visualizar</button>
+          <button class="btn small rel-excel" type="button" data-rel-baixar="${rel.id}" data-formato="excel"${indisp ? " disabled" : ""}>Excel</button>
+          <button class="btn small rel-pdf" type="button" data-rel-baixar="${rel.id}" data-formato="pdf"${indisp ? " disabled" : ""}>PDF</button>
+        </div></article>`;
+    }).join("");
+    if (grade.innerHTML !== html) grade.innerHTML = html;
+  }
+
+  // ---- visualizacao na tela ----
+  function htmlRelatorio(r) {
+    if (r.vazio) return `<div class="empty-state">${escaparHtml(r.vazio)}</div>`;
+    const secao = (s) => {
+      const cab = s.colunas.map((c) => `<th class="${A_DIREITA.has(c.tipo) ? "num" : ""}">${escaparHtml(c.t)}</th>`).join("");
+      const linha = (l, total, li) => `<tr${total ? ' class="total"' : s.estiloLinha && s.estiloLinha(l) ? ` class="${s.estiloLinha(l)}"` : ""}>${l.map((v, ci) => {
+        const c = s.colunas[ci], d = !total && s.destaque ? s.destaque(l, ci) : null;
+        const ag = total ? null : valorAgrupado(s, s.linhas, li, ci);
+        return `<td class="${A_DIREITA.has(c.tipo) ? "num" : ""}${d ? " " + d : ""}">${escaparHtml(ag !== null ? ag : total ? fmtTotal(v, c.tipo) : fmtCelula(v, c.tipo))}</td>`;
+      }).join("")}</tr>`;
+      const max = 300;
+      const corpo = s.linhas.slice(0, max).map((l, li) => linha(l, false, li)).join("");
+      return `<h4>${escaparHtml(s.titulo)}</h4><div class="tabela-rolagem"><table class="tabela-simples rel-tabela"><thead><tr>${cab}</tr></thead><tbody>${corpo || `<tr><td colspan="${s.colunas.length}">Sem linhas.</td></tr>`}${s.total ? linha(s.total, true) : ""}</tbody></table></div>` +
+        (s.linhas.length > max ? `<div class="cfg-nota">Mostrando ${max} de ${s.linhas.length} linhas — o Excel e o PDF trazem todas.</div>` : "");
+    };
+    return (r.aviso ? `<div class="rel-aviso" role="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.5v5.5M12 16.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>${escaparHtml(r.aviso)}</span></div>` : "") +
+      `<div class="stat-row">${(r.resumo || []).map(([a, b, c]) => `<div class="stat"><span>${escaparHtml(a)}</span><strong>${escaparHtml(b)}</strong><small>${escaparHtml(c || "")}</small></div>`).join("")}</div>` +
+      ((r.graficos || []).length ? `<div class="rel-graficos">${r.graficos.map((g) => `<img alt="${escaparHtml(g.titulo)}" src="${desenharGrafico(g, r.graficos.length > 1 ? 560 : 1100, 280)}" />`).join("")}</div>` : "") +
+      (r.secoes || []).map(secao).join("") + (r.nota ? `<div class="cfg-nota" style="margin-top:10px">${escaparHtml(r.nota)}</div>` : "");
+  }
+  var relAberto = null;
+  function abrirVisualizacao(id) {
+    const rel = RELATORIOS.find((x) => x.id === id);
+    if (!rel) return;
+    relAberto = id;
+    const r = montarRelatorio(rel);
+    $("#relv-titulo").textContent = r.titulo;
+    $("#relv-sub").textContent = `${r.ctx.periodo} · ${r.ctx.turno} · Setor ${r.ctx.setor}`;
+    $("#relv-corpo").innerHTML = htmlRelatorio(r);
+    $("#relv-overlay").style.setProperty("--rc", rel.cor);
+    $("#relv-overlay").classList.add("visible");
+  }
+  function fecharVisualizacao() { $("#relv-overlay").classList.remove("visible"); relAberto = null; }
+
+  // ---- cores ----
+  function hexDaCor(v, padrao) {
+    const tmp = document.createElement("span");
+    tmp.style.color = v; document.body.appendChild(tmp);
+    const rgb = getComputedStyle(tmp).color; tmp.remove();
+    const m = rgb.match(/\d+(\.\d+)?/g);
+    if (!m || m.length < 3) return padrao;
+    return "#" + m.slice(0, 3).map((x) => Math.round(Number(x)).toString(16).padStart(2, "0")).join("");
+  }
+  function rgbDeHex(h) { return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); }
+  function clarear(h, f) { return "#" + rgbDeHex(h).map((c) => Math.round(c + (255 - c) * f).toString(16).padStart(2, "0")).join(""); }
+
+  // ---- Excel (ExcelJS) ----
+  function folhaExcel(wb, r, nomeAba, logoExcel) {
+    const cor = r.cor.replace("#", "").toUpperCase(), escuro = "1F2937", argb = (h) => "FF" + h.replace("#", "").toUpperCase();
+    const ws = wb.addWorksheet(nomeAba.slice(0, 31), { views: [{ showGridLines: false }],
+      pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } } });
+    ws.headerFooter.oddFooter = `&L${r.ctx.empresa} — ${r.titulo}&RPágina &P de &N`;
+    const nCols = Math.max(6, ...(r.secoes || []).map((s) => s.colunas.length));
+    const larguras = Array.from({ length: nCols }, () => 14);
+    (r.secoes || []).forEach((s) => s.colunas.forEach((c, i) => { larguras[i] = Math.max(larguras[i], c.larg || (c.tipo === "txt" ? 16 : 13)); }));
+    ws.columns = larguras.map((w) => ({ width: w }));
+    const borda = { style: "thin", color: { argb: "FFE5E7EB" } };
+    // faixa de titulo (com o logo: as 2 ultimas colunas ficam brancas para ele)
+    const comLogo = !!logoExcel && nCols >= 6;
+    ws.mergeCells(1, 1, 1, comLogo ? nCols - 2 : nCols);
+    if (comLogo) {
+      ws.mergeCells(1, nCols - 1, 1, nCols);
+      ws.getCell(1, nCols - 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+      const alturaPx = 36, larguraPx = Math.min(150, Math.round(alturaPx * logoExcel.prop));
+      ws.addImage(logoExcel.id, { tl: { col: nCols - 2 + 0.15, row: 0.1 }, ext: { width: larguraPx, height: alturaPx }, editAs: "oneCell" });
+    }
+    const t = ws.getCell(1, 1);
+    t.value = r.titulo; t.font = { name: "Calibri", size: 18, bold: true, color: { argb: "FFFFFFFF" } };
+    t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + cor } }; t.alignment = { vertical: "middle", indent: 1 };
+    ws.getRow(1).height = 34;
+    ws.mergeCells(2, 1, 2, nCols);
+    const sub = ws.getCell(2, 1);
+    sub.value = `${r.ctx.empresa}  ·  Setor ${r.ctx.setor}  ·  ${r.ctx.periodo}  ·  ${r.ctx.turno}  ·  gerado em ${r.ctx.gerado.toLocaleString("pt-BR")}`;
+    sub.font = { size: 10, color: { argb: "FF" + escuro } }; sub.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(clarear(r.cor, 0.88)) } };
+    sub.alignment = { vertical: "middle", indent: 1 }; ws.getRow(2).height = 20;
+    let lin = 4;
+    if (r.aviso) {
+      ws.mergeCells(lin, 1, lin, nCols);
+      const ca = ws.getCell(lin, 1);
+      ca.value = "⚠ " + r.aviso;
+      ca.font = { bold: true, size: 10, color: { argb: "FF92400E" } };
+      ca.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+      ca.alignment = { wrapText: true, vertical: "middle", indent: 1 };
+      ca.border = { left: { style: "thick", color: { argb: "FFD97706" } } };
+      ws.getRow(lin).height = 32;
+      lin += 2;
+    }
+    if (r.vazio) { ws.getCell(lin, 1).value = r.vazio; ws.getCell(lin, 1).font = { italic: true, color: { argb: "FF6B7280" } }; return ws; }
+    // indicadores: rotulo pequeno em cima, valor grande embaixo
+    const kpis = r.resumo || [];
+    kpis.forEach(([a, b, c], i) => {
+      const col = 1 + (i % nCols);
+      const rr = lin + Math.floor(i / nCols) * 3;
+      const ca = ws.getCell(rr, col), cb = ws.getCell(rr + 1, col), cc = ws.getCell(rr + 2, col);
+      ca.value = a.toUpperCase(); ca.font = { size: 8, bold: true, color: { argb: "FF6B7280" } };
+      cb.value = b; cb.font = { size: 14, bold: true, color: { argb: "FF" + escuro } };
+      cc.value = c || ""; cc.font = { size: 8, color: { argb: "FF9CA3AF" } };
+      [ca, cb, cc].forEach((x) => { x.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } }; x.alignment = { wrapText: true, vertical: "middle" }; });
+      ca.border = { top: { style: "medium", color: { argb: "FF" + cor } } };
+    });
+    if (kpis.length) lin += Math.ceil(kpis.length / nCols) * 3 + 1;
+    const graficos = r.graficos || [];
+    if (graficos.length) {
+      const pxCol = larguras.map((w) => Math.round(w * 7 + 5));
+      const totalPx = pxCol.reduce((a, b) => a + b, 0);
+      const porLin = graficos.length > 1 ? 2 : 1;
+      const wG = Math.min(porLin === 1 ? 900 : 560, Math.floor((totalPx - 20) / porLin)), hG = 280;
+      // coluna onde comeca o 2o grafico (acumulado de larguras >= largura do 1o + folga)
+      let colB = 0, acc = 0;
+      while (colB < pxCol.length && acc < wG + 16) { acc += pxCol[colB]; colB++; }
+      const linhasG = Math.ceil(hG / 20) + 1;
+      graficos.forEach((g, gi) => {
+        const col = gi % porLin, bloco = Math.floor(gi / porLin);
+        const id = wb.addImage({ base64: desenharGrafico(g, wG, hG), extension: "png" });
+        ws.addImage(id, { tl: { col: col === 0 ? 0 : colB, row: lin - 1 + bloco * linhasG }, ext: { width: wG, height: hG }, editAs: "oneCell" });
+      });
+      lin += Math.ceil(graficos.length / porLin) * linhasG + 1;
+    }
+    (r.secoes || []).forEach((s) => {
+      const ct = ws.getCell(lin, 1);
+      ct.value = s.titulo; ct.font = { size: 12, bold: true, color: { argb: "FF" + cor } };
+      ws.getRow(lin).height = 20; lin++;
+      const linCab = lin;
+      s.colunas.forEach((c, i) => {
+        const cel = ws.getCell(lin, i + 1);
+        cel.value = c.t; cel.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+        cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + escuro } };
+        cel.alignment = { vertical: "middle", horizontal: A_DIREITA.has(c.tipo) ? "right" : "left", wrapText: true };
+        cel.border = { bottom: borda };
+      });
+      ws.getRow(lin).height = 22; lin++;
+      s.linhas.forEach((l, li) => {
+        l.forEach((v, ci) => {
+          const c = s.colunas[ci], cel = ws.getCell(lin, ci + 1);
+          cel.value = valorExcel(v, c.tipo);
+          if (NUMFMT_EXCEL[c.tipo]) cel.numFmt = NUMFMT_EXCEL[c.tipo];
+          cel.alignment = { horizontal: A_DIREITA.has(c.tipo) ? "right" : "left", vertical: "middle" };
+          cel.border = { bottom: borda };
+          const d = s.destaque ? s.destaque(l, ci) : null;
+          if (s.estiloLinha && s.estiloLinha(l) === "subtotal") {
+            cel.font = { bold: true, color: { argb: "FF" + escuro } };
+            cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(clarear(r.cor, 0.9)) } };
+            cel.border = { bottom: { style: "thin", color: { argb: "FF" + cor } } };
+            if (d) cel.font = { bold: true, color: { argb: d === "bom" ? "FF15803D" : "FFB91C1C" } };
+          } else if (d) { cel.font = { bold: true, color: { argb: d === "bom" ? "FF15803D" : "FFB91C1C" } }; cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: d === "bom" ? "FFDCFCE7" : "FFFEE2E2" } }; }
+          else if (li % 2) cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+        });
+        lin++;
+      });
+      if (!s.linhas.length) { ws.getCell(lin, 1).value = "Sem linhas no filtro."; ws.getCell(lin, 1).font = { italic: true, color: { argb: "FF6B7280" } }; lin++; }
+      if (s.total) {
+        s.total.forEach((v, ci) => {
+          const c = s.colunas[ci], cel = ws.getCell(lin, ci + 1);
+          cel.value = valorExcel(v, c.tipo);
+          if (NUMFMT_EXCEL[c.tipo] && typeof v !== "string") cel.numFmt = NUMFMT_EXCEL[c.tipo];
+          cel.font = { bold: true, color: { argb: "FF" + escuro } };
+          cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(clarear(r.cor, 0.85)) } };
+          cel.alignment = { horizontal: A_DIREITA.has(c.tipo) ? "right" : "left" };
+          cel.border = { top: { style: "medium", color: { argb: "FF" + cor } } };
+        });
+        lin++;
+      }
+      if (s.filtro && s.linhas.length && (r.secoes || []).length === 1) {
+        ws.autoFilter = { from: { row: linCab, column: 1 }, to: { row: linCab + s.linhas.length, column: s.colunas.length } };
+        ws.views = [{ state: "frozen", ySplit: linCab, showGridLines: false }];
+      }
+      lin++;
+    });
+    if (r.nota) { ws.mergeCells(lin, 1, lin, nCols); const cn = ws.getCell(lin, 1); cn.value = r.nota; cn.font = { italic: true, size: 9, color: { argb: "FF6B7280" } }; cn.alignment = { wrapText: true }; ws.getRow(lin).height = 28; }
+    return ws;
+  }
+  async function gerarExcel(lista, nomeArquivo) {
+    await carregarLibRelatorio("excel");
+    const wb = new window.ExcelJS.Workbook();
+    wb.creator = "Painel de Produção"; wb.created = new Date();
+    let logoExcel = null;
+    const logo = await carregarLogo();
+    if (logo) {
+      const prop = await new Promise((ok) => { const im = new Image(); im.onload = () => ok(im.naturalWidth / im.naturalHeight || 3); im.onerror = () => ok(3); im.src = logo; });
+      logoExcel = { id: wb.addImage({ base64: logo, extension: "png" }), prop };
+    }
+    const usados = new Set();
+    lista.forEach((r) => {
+      let nome = r.titulo.replace(/[\\/?*[\]:]/g, "").slice(0, 31);
+      while (usados.has(nome)) nome = nome.slice(0, 29) + "_" + usados.size;
+      usados.add(nome);
+      folhaExcel(wb, r, nome, logoExcel);
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    await salvarArquivoParaUsuario(nomeArquivo, new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  }
+
+  // ---- PDF (jsPDF + AutoTable) ----
+  // fonte padrao do PDF (Helvetica) so tem o alfabeto latino: troca simbolos
+  function textoPdf(s) {
+    return String(s).replace(/−/g, "-").replace(/→/g, "->").replace(/≈/g, "~").replace(/≥/g, ">=").replace(/≤/g, "<=").replace(/[▲]/g, "+").replace(/[▼]/g, "-").replace(/×/g, "x").replace(/[^\x00-\xFF—–‘’“”•…]/g, "");
+  }
+  var logoDataUrl = null;
+  async function carregarLogo() {
+    if (logoDataUrl !== null && logoDataUrl !== undefined) return logoDataUrl;
+    logoDataUrl = await new Promise((ok) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const r = Math.min(1, 600 / img.naturalWidth, 240 / img.naturalHeight);
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(img.naturalWidth * r)); c.height = Math.max(1, Math.round(img.naturalHeight * r));
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          ok(c.toDataURL("image/png"));
+        } catch (e) { ok(""); }
+      };
+      img.onerror = () => ok("");
+      img.src = urlLogo();
+    });
+    return logoDataUrl;
+  }
+  async function gerarPdf(lista, nomeArquivo) {
+    await carregarLibRelatorio("pdf");
+    const logo = await carregarLogo();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 12;
+    const escuro = [31, 41, 55], cinza = [107, 114, 128];
+    const inicioRel = []; // [pagina, relatorio] de cada relatorio (cabecalho das paginas seguintes)
+    lista.forEach((r, ri) => {
+      if (ri) doc.addPage();
+      inicioRel.push([doc.internal.getNumberOfPages(), r]);
+      const cor = rgbDeHex(r.cor);
+      // faixa de titulo
+      doc.setFillColor(...cor); doc.rect(0, 0, W, 26, "F");
+      let xTit = M;
+      if (logo) {
+        doc.setFillColor(255, 255, 255); doc.roundedRect(M, 5, 34, 16, 2.5, 2.5, "F");
+        try { const p = doc.getImageProperties(logo); const h = 12, w = Math.min(30, (p.width / p.height) * h); doc.addImage(logo, "PNG", M + (34 - w) / 2, 7, w, h); } catch (e) { /* sem logo */ }
+        xTit = M + 40;
+      }
+      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+      doc.text(textoPdf(r.titulo), xTit, 13);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+      doc.text(textoPdf(`${r.ctx.empresa}  ·  Setor ${r.ctx.setor}  ·  ${r.ctx.periodo}  ·  ${r.ctx.turno}`), xTit, 19.5);
+      doc.setFontSize(8);
+      doc.text(textoPdf(`Gerado em ${r.ctx.gerado.toLocaleString("pt-BR")}`), W - M, 19.5, { align: "right" });
+      let y = 33;
+      if (r.aviso) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
+        const linhasAviso = doc.splitTextToSize(textoPdf(r.aviso), W - 2 * M - 12);
+        const hA = 5 + linhasAviso.length * 3.8;
+        doc.setFillColor(254, 243, 199); doc.setDrawColor(245, 158, 11); doc.roundedRect(M, y - 2, W - 2 * M, hA, 2, 2, "FD");
+        doc.setFillColor(217, 119, 6); doc.rect(M, y - 2, 1.4, hA, "F");
+        doc.setTextColor(146, 64, 14);
+        doc.text(linhasAviso, M + 6, y + 2.4);
+        y += hA + 5;
+      }
+      if (r.vazio) { doc.setTextColor(...cinza); doc.setFontSize(11); doc.text(textoPdf(r.vazio), M, y + 4); return; }
+      // indicadores
+      const kpis = r.resumo || [];
+      if (kpis.length) {
+        const gap = 4, porLinha = Math.min(kpis.length, 6), w = (W - 2 * M - gap * (porLinha - 1)) / porLinha, h = 19;
+        kpis.forEach(([a, b, c], i) => {
+          const x = M + (i % porLinha) * (w + gap), yy = y + Math.floor(i / porLinha) * (h + gap);
+          doc.setFillColor(248, 250, 252); doc.setDrawColor(229, 231, 235); doc.roundedRect(x, yy, w, h, 2, 2, "FD");
+          doc.setFillColor(...cor); doc.rect(x, yy + 2, 1.2, h - 4, "F");
+          doc.setTextColor(...cinza); doc.setFont("helvetica", "bold"); doc.setFontSize(7);
+          doc.text(textoPdf(a.toUpperCase()), x + 4, yy + 5.5, { maxWidth: w - 6 });
+          doc.setTextColor(...escuro); doc.setFontSize(13);
+          doc.text(textoPdf(b), x + 4, yy + 12.5, { maxWidth: w - 6 });
+          doc.setFont("helvetica", "normal"); doc.setTextColor(156, 163, 175); doc.setFontSize(7);
+          doc.text(textoPdf(c || ""), x + 4, yy + 16.8, { maxWidth: w - 6 });
+        });
+        y += Math.ceil(kpis.length / porLinha) * (h + gap) + 3;
+      }
+      const graficos = r.graficos || [];
+      if (graficos.length) {
+        const gapG = 5, porLin = graficos.length > 1 ? 2 : 1;
+        const wG = (W - 2 * M - gapG * (porLin - 1)) / porLin, hG = porLin === 1 ? 62 : 66;
+        graficos.forEach((g, gi) => {
+          const col = gi % porLin;
+          if (col === 0 && gi > 0) y += hG + gapG;
+          if (col === 0 && y + hG > H - 16) { doc.addPage(); y = 24; }
+          const xG = M + col * (wG + gapG);
+          const pxW = Math.round(wG * 4), pxH = Math.round(hG * 4);
+          doc.setDrawColor(229, 231, 235); doc.roundedRect(xG, y, wG, hG, 2, 2, "S");
+          try { doc.addImage(desenharGrafico(g, pxW, pxH), "PNG", xG + 1.5, y + 1.5, wG - 3, hG - 3); } catch (e) { /* sem grafico */ }
+        });
+        y += hG + 7;
+      }
+      (r.secoes || []).forEach((s) => {
+        if (y > H - 30) { doc.addPage(); y = 24; }
+        doc.setTextColor(...cor); doc.setFont("helvetica", "bold"); doc.setFontSize(11.5);
+        doc.text(textoPdf(s.titulo), M, y); y += 2.5;
+        let linhas = s.linhas;
+        let cortado = false;
+        if (r.limitePdf && linhas.length > r.limitePdf) { linhas = linhas.slice(0, r.limitePdf); cortado = true; }
+        const corpo = linhas.map((l, li) => l.map((v, ci) => { const ag = valorAgrupado(s, linhas, li, ci); return textoPdf(ag !== null ? ag : fmtCelula(v, s.colunas[ci].tipo)); }));
+        const estilos = {};
+        // numeros nunca quebram em duas linhas (largura minima); os titulos longos quebram
+        s.colunas.forEach((c, i) => { if (NUMERICOS.has(c.tipo)) estilos[i] = { halign: A_DIREITA.has(c.tipo) ? "right" : "left", minCellWidth: c.tipo === "dur" || c.tipo === "datahora" ? 17 : 13 }; });
+        doc.autoTable({
+          startY: y, margin: { left: M, right: M, top: 24, bottom: 14 },
+          head: [s.colunas.map((c) => textoPdf(c.t))],
+          body: corpo.length ? corpo : [[{ content: "Sem linhas no filtro.", colSpan: s.colunas.length, styles: { fontStyle: "italic", textColor: cinza } }]],
+          foot: s.total ? [s.total.map((v, ci) => textoPdf(fmtTotal(v, s.colunas[ci].tipo)))] : undefined,
+          showFoot: "lastPage",
+          theme: "plain",
+          styles: { font: "helvetica", fontSize: 8, cellPadding: { top: 1.8, bottom: 1.8, left: 2, right: 2 }, textColor: escuro, lineColor: [229, 231, 235], lineWidth: { bottom: 0.15 } },
+          headStyles: { fillColor: escuro, textColor: 255, fontStyle: "bold", fontSize: 8 },
+          footStyles: { fillColor: rgbDeHex(clarear(r.cor, 0.85)), textColor: escuro, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: estilos,
+          didParseCell: (d) => {
+            if (d.section !== "body") { if (A_DIREITA.has((s.colunas[d.column.index] || {}).tipo)) d.cell.styles.halign = "right"; return; }
+            const lin = linhas[d.row.index];
+            if (lin && s.estiloLinha && s.estiloLinha(lin) === "subtotal") {
+              d.cell.styles.fontStyle = "bold"; d.cell.styles.fillColor = rgbDeHex(clarear(r.cor, 0.9));
+              d.cell.styles.lineColor = rgbDeHex(r.cor); d.cell.styles.lineWidth = { bottom: 0.3 };
+            }
+            if (!s.destaque || !lin) return;
+            const dd = s.destaque(linhas[d.row.index], d.column.index);
+            if (dd) { d.cell.styles.textColor = dd === "bom" ? [21, 128, 61] : [185, 28, 28]; d.cell.styles.fontStyle = "bold"; d.cell.styles.fillColor = dd === "bom" ? [220, 252, 231] : [254, 226, 226]; }
+          }
+        });
+        y = doc.lastAutoTable.finalY + 8;
+        if (cortado) { doc.setTextColor(...cinza); doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.text(textoPdf(`PDF limitado a ${r.limitePdf} linhas de ${s.linhas.length} — o Excel traz todas.`), M, y - 4); }
+      });
+      if (r.nota) {
+        if (y > H - 15) { doc.addPage(); y = 24; }
+        doc.setTextColor(...cinza); doc.setFont("helvetica", "italic"); doc.setFontSize(8);
+        doc.text(textoPdf(r.nota), M, y, { maxWidth: W - 2 * M });
+      }
+    });
+    // rodape em todas as paginas; nas paginas de continuacao, cabecalho compacto com o logo
+    const total = doc.internal.getNumberOfPages();
+    let propLogo = 0;
+    if (logo) { try { const pr = doc.getImageProperties(logo); propLogo = pr.width / pr.height; } catch (e) { propLogo = 0; } }
+    for (let p = 1; p <= total; p++) {
+      doc.setPage(p);
+      const atual = inicioRel.filter(([pg]) => pg <= p).pop();
+      if (atual && atual[0] !== p) {
+        const rr = atual[1], corR = rgbDeHex(rr.cor);
+        doc.setFillColor(...corR); doc.rect(0, 0, W, 2.2, "F");
+        let xT = M;
+        if (propLogo) { const h = 9, w = Math.min(34, h * propLogo); try { doc.addImage(logo, "PNG", M, 6, w, h); xT = M + w + 5; } catch (e) { /* sem logo */ } }
+        doc.setTextColor(...escuro); doc.setFont("helvetica", "bold"); doc.setFontSize(10.5);
+        doc.text(textoPdf(rr.titulo), xT, 11.2);
+        doc.setFont("helvetica", "normal"); doc.setTextColor(...cinza); doc.setFontSize(8);
+        doc.text(textoPdf(`${rr.ctx.periodo}  ·  ${rr.ctx.turno}  ·  continuação`), W - M, 11.2, { align: "right" });
+        doc.setDrawColor(229, 231, 235); doc.line(M, 17.5, W - M, 17.5);
+      }
+      doc.setDrawColor(229, 231, 235); doc.line(M, H - 9, W - M, H - 9);
+      doc.setTextColor(...cinza); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+      const ctx0 = lista[0].ctx;
+      doc.text(textoPdf(ctx0.empresa === "Painel de Produção" ? `Painel de Produção · Setor ${ctx0.setor}` : `${ctx0.empresa} — Painel de Produção · Setor ${ctx0.setor}`), M, H - 5);
+      doc.text(`Página ${p} de ${total}`, W - M, H - 5, { align: "right" });
+    }
+    await salvarArquivoParaUsuario(nomeArquivo, doc.output("blob"));
+  }
+
+  // ---- downloads (com o botao mostrando que esta preparando) ----
+  async function baixarRelatorio(ids, formato, botao) {
+    const lista = ids.map((id) => RELATORIOS.find((x) => x.id === id)).filter(Boolean).map(montarRelatorio);
+    if (!lista.length) return;
+    const nome = lista.length === 1 ? nomeArquivoRelatorio(lista[0], formato === "excel" ? "xlsx" : "pdf")
+      : `relatorios_completos_${rotuloPeriodoArquivo()}.${formato === "excel" ? "xlsx" : "pdf"}`;
+    const html = botao ? botao.innerHTML : "";
+    if (botao) { botao.disabled = true; botao.innerHTML = '<span class="btn-spinner"></span> Gerando…'; }
+    try {
+      if (formato === "excel") await gerarExcel(lista, nome); else await gerarPdf(lista, nome);
+    } catch (e) {
+      alert(`Não foi possível gerar o ${formato === "excel" ? "Excel" : "PDF"} (${e.message}).`);
+    } finally {
+      if (botao) { botao.disabled = false; botao.innerHTML = html; }
+    }
+  }
+  document.addEventListener("click", (ev) => {
+    const ver = ev.target.closest("[data-rel-ver]");
+    if (ver) { abrirVisualizacao(ver.dataset.relVer); return; }
+    const b = ev.target.closest("[data-rel-baixar]");
+    if (b) { baixarRelatorio([b.dataset.relBaixar], b.dataset.formato, b); return; }
+    const todos = ev.target.closest("[data-rel-todos]");
+    if (todos) {
+      const ids = RELATORIOS.filter((r) => !document.querySelector(`[data-rel-ver="${r.id}"][disabled]`)).map((r) => r.id);
+      baixarRelatorio(ids, todos.dataset.relTodos, todos);
+    }
+    const daTela = ev.target.closest("[data-relv-baixar]");
+    if (daTela && relAberto) baixarRelatorio([relAberto], daTela.dataset.relvBaixar, daTela);
+  });
+  $("#relv-fechar").addEventListener("click", fecharVisualizacao);
+  $("#relv-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relv-overlay") fecharVisualizacao(); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fecharVisualizacao(); });
+  ABRIR_POPUP["relatorio"] = () => mostrarView("relatorios", true);
+
+
+  // =====================================================================
+  // 1.4.0 - LOGO DA EMPRESA E ICONE DO NAVEGADOR (Identidade visual)
+  // Guardado na configuracao geral (chave "logo", sincronizada com a VPS);
+  // o servidor entrega o logo em assets/logo.png (todo lugar que ja usava o
+  // logo troca junto) e o icone em assets/icone-empresa.png.
+  // =====================================================================
+  var logoInfo = null;    // { logo, icone, atualizadoEm } vindo do servidor
+  var logoVersao = null;  // muda a cada logo novo: forca o navegador a buscar de novo
+  function urlLogo() { return "assets/logo.png" + (logoVersao ? "?v=" + encodeURIComponent(logoVersao) : ""); }
+  function aplicarLogoEmpresa(info) {
+    info = info && typeof info === "object" && (info.logo || info.icone) ? info : null;
+    const v = info ? (info.atualizadoEm || "enviado") : "";
+    logoInfo = info;
+    if (v === logoVersao) { renderLogoCfg(); return; }
+    logoVersao = v;
+    document.querySelectorAll("img.brand-logo, img.as-logo, img[data-logo-empresa]").forEach((img) => { img.src = urlLogo(); });
+    logoDataUrl = null; // PDF/Excel buscam o logo novo
+    atualizarFavicon();
+    renderLogoCfg();
+  }
+  // Icone da aba: o enviado; sem ele, um quadrado montado do logo (inteiro, fundo branco)
+  var faviconAtual = "";
+  function atualizarFavicon() {
+    const link = document.getElementById("favicon");
+    const definir = (href) => { faviconAtual = href; if (link) link.href = href; renderLogoCfg(); };
+    if (logoInfo && logoInfo.icone) { definir("assets/icone-empresa.png?v=" + encodeURIComponent(logoVersao || "")); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"); c.width = c.height = 64;
+        const x = c.getContext("2d");
+        x.fillStyle = "#ffffff";
+        if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, 64, 64, 12); x.fill(); } else x.fillRect(0, 0, 64, 64);
+        const r = Math.min(56 / img.naturalWidth, 56 / img.naturalHeight);
+        const w = img.naturalWidth * r, h = img.naturalHeight * r;
+        x.drawImage(img, (64 - w) / 2, (64 - h) / 2, w, h);
+        definir(c.toDataURL("image/png"));
+      } catch (e) { definir(urlLogo()); }
+    };
+    img.onerror = () => {};
+    img.src = urlLogo();
+  }
+  function renderLogoCfg() {
+    const estado = document.getElementById("logo-estado");
+    if (!estado) return;
+    const quando = logoInfo && logoInfo.atualizadoEm && !isNaN(Date.parse(logoInfo.atualizadoEm)) ? new Date(logoInfo.atualizadoEm).toLocaleDateString("pt-BR") : "";
+    estado.hidden = false;
+    estado.textContent = logoInfo && logoInfo.logo ? `Logo próprio${quando ? ` · desde ${quando}` : ""}` : "Logo padrão";
+    ["logo-icone-previa", "logo-icone-32", "logo-icone-16"].forEach((id) => { const el = document.getElementById(id); if (el && faviconAtual && el.src !== faviconAtual) el.src = faviconAtual; });
+    const pode = podeEditar;
+    ["logo-enviar", "icone-enviar"].forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = !pode; });
+    const bp = document.getElementById("logo-padrao"); if (bp) bp.disabled = !pode || !(logoInfo && logoInfo.logo);
+    const bi = document.getElementById("icone-auto"); if (bi) bi.disabled = !pode || !(logoInfo && logoInfo.icone);
+  }
+  function statusLogo(texto, tipo) {
+    const el = document.getElementById("logo-status");
+    if (el) { el.textContent = texto; el.className = "logo-status" + (tipo ? " " + tipo : ""); }
+  }
+  function lerImagemArquivo(arquivo) {
+    return new Promise((ok, falha) => {
+      if (!/^image\/(png|jpeg|webp)$/.test(arquivo.type)) { falha(new Error("use uma imagem PNG, JPG ou WebP")); return; }
+      if (arquivo.size > 8 * 1024 * 1024) { falha(new Error("arquivo maior que 8 MB")); return; }
+      const url = URL.createObjectURL(arquivo);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); ok(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); falha(new Error("não foi possível abrir a imagem")); };
+      img.src = url;
+    });
+  }
+  // Reduz para caber em maxW x maxH (nunca aumenta); quadrado = centraliza num
+  // quadrado transparente. Tenta PNG; se passar do limite, WebP; e vai
+  // diminuindo ate caber.
+  function imagemParaDataUrl(img, maxW, maxH, quadrado, limite) {
+    let escala = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
+    for (let tentativa = 0; tentativa < 8; tentativa++) {
+      const w = Math.max(1, Math.round(img.naturalWidth * escala)), h = Math.max(1, Math.round(img.naturalHeight * escala));
+      const c = document.createElement("canvas");
+      c.width = quadrado ? Math.max(w, h) : w; c.height = quadrado ? Math.max(w, h) : h;
+      c.getContext("2d").drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+      let url = c.toDataURL("image/png");
+      if (url.length > limite) { const webp = c.toDataURL("image/webp", 0.9); if (webp.startsWith("data:image/webp") && webp.length < url.length) url = webp; }
+      if (url.length <= limite) return url;
+      escala *= 0.8;
+    }
+    throw new Error("imagem grande demais mesmo depois de reduzir");
+  }
+  async function salvarLogo(novo, mensagem) {
+    if (!podeEditar) { statusLogo("Somente leitura: o logo é trocado no computador da fábrica ou com a senha de edição.", "erro"); return; }
+    statusLogo("Salvando…");
+    try {
+      const res = await postControle("/config", { setor: setorAtual.id, extras: { logo: novo } });
+      if (!res.ok) throw new Error(`o servidor respondeu ${res.status}`);
+      aplicarLogoEmpresa(novo);
+      statusLogo(mensagem, "ok");
+    } catch (e) {
+      statusLogo(e.somenteLeitura ? "Somente leitura: sem permissão para alterar." : `Não foi possível salvar (${e.message}). O painel precisa estar aberto pelo aplicativo ou pelo acesso remoto.`, "erro");
+    }
+  }
+  async function enviarImagemLogo(arquivo, campo) {
+    try {
+      statusLogo("Preparando a imagem…");
+      const img = await lerImagemArquivo(arquivo);
+      const url = campo === "logo" ? imagemParaDataUrl(img, 900, 320, false, 560000) : imagemParaDataUrl(img, 256, 256, true, 180000);
+      const novo = { ...(logoInfo || {}), [campo]: url, atualizadoEm: new Date().toISOString() };
+      await salvarLogo(novo, campo === "logo" ? "Logo salvo — já aparece no painel, nos relatórios e no acesso remoto." : "Ícone salvo — aparece na aba do navegador.");
+    } catch (e) { statusLogo(`Não foi possível usar a imagem: ${e.message}.`, "erro"); }
+  }
+  (function ligarLogoCfg() {
+    const el = (id) => document.getElementById(id);
+    if (!el("logo-enviar")) return;
+    el("logo-enviar").addEventListener("click", () => el("logo-arquivo").click());
+    el("icone-enviar").addEventListener("click", () => el("icone-arquivo").click());
+    el("logo-arquivo").addEventListener("change", (ev) => { const f = ev.target.files[0]; ev.target.value = ""; if (f) enviarImagemLogo(f, "logo"); });
+    el("icone-arquivo").addEventListener("change", (ev) => { const f = ev.target.files[0]; ev.target.value = ""; if (f) enviarImagemLogo(f, "icone"); });
+    el("logo-padrao").addEventListener("click", () => {
+      if (!confirm("Voltar ao logo padrão em todo o painel e nos relatórios?")) return;
+      const novo = logoInfo && logoInfo.icone ? { icone: logoInfo.icone, atualizadoEm: new Date().toISOString() } : {};
+      salvarLogo(novo, "Logo padrão restaurado.");
+    });
+    el("icone-auto").addEventListener("click", () => {
+      const novo = logoInfo && logoInfo.logo ? { logo: logoInfo.logo, atualizadoEm: new Date().toISOString() } : {};
+      salvarLogo(novo, "O ícone agora é montado a partir do logo.");
+    });
+  })();
 
   // ---- Filtros no endereco (para mandar o link de um dia/turno) ----
   function escreverUrlFiltros() {
@@ -8026,7 +9114,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   // A view aberta fica gravada (volta nela ao reabrir o painel).
   // ---------------------------------------------------------------------
   const VIEW_KEY = "painel_view_atual";
-  const VIEWS = ["visao", "desempenho", "turnos", "esp", "identidade"];
+  const VIEWS = ["visao", "desempenho", "relatorios", "turnos", "esp", "identidade"];
   let viewAtual = null;
 
   function renderGraficos() {
@@ -8035,6 +9123,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     renderTimeline();
     renderHourlyProduction();
     if (viewAtual === "desempenho") renderDesempenho();
+    if (viewAtual === "relatorios") renderRelatoriosPagina();
     if (viewAtual === "turnos") renderCfgTurnos(false);
   }
 
@@ -8525,10 +9614,6 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   mostrarView(viewSalva, false);
   renderAll();
   TELA_CARREGANDO.interfacePronta();
-  // Biblioteca do Excel: baixada em segundo plano depois que o painel ja
-  // abriu (nunca mais bloqueia a abertura); se falhar, tenta de novo na
-  // hora de exportar.
-  setTimeout(() => carregarXlsx().catch(() => { /* sem internet agora - tenta ao exportar */ }), 4000);
   sincronizarConfigComServidor();
 })();
 </script>

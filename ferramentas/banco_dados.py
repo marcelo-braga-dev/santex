@@ -32,6 +32,8 @@ inclusive com o modo WAL ligado abaixo (mais resistente a fechamento
 abrupto do programa).
 """
 
+import base64
+import binascii
 import json
 import os
 import re
@@ -45,13 +47,45 @@ _HORA_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # Chaves aceitas em config_extra e o tamanho maximo do JSON de cada uma
 # (protecao contra lixo - o painel nunca chega perto disso).
 # "motivos" (1.3.0) = catalogo de motivos de parada + parada -> motivo marcado.
+# "logo" (1.4.0) = logo da empresa e icone do navegador (data URL de imagem).
 CHAVES_EXTRA = {"pausas": 20000, "calendario": 50000, "historico": 200000, "visual": 2000, "avisos": 2000,
-                "motivos": 600000}
+                "motivos": 600000, "logo": 800000}
 # Chaves que valem para o painel inteiro (nao por setor): "visual" = paleta
 # de cores (Identidade visual) e nome da empresa - iguais em todo aparelho
 # que abrir o painel. Ficam gravadas sob este "setor" fixo.
-CHAVES_GERAIS = {"visual"}
+CHAVES_GERAIS = {"visual", "logo"}
 SETOR_GERAL = "_geral"
+
+
+_RE_DATA_URL_IMAGEM = re.compile(r"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$")
+
+
+def normalizar_logo(valor):
+    """Logo da empresa: {"logo": data URL, "icone": data URL | None,
+    "atualizadoEm": texto}. So PNG/JPEG/WebP em base64 (nunca SVG: um SVG
+    servido pelo proprio painel poderia rodar script). {} = voltar ao padrao."""
+    if not isinstance(valor, dict):
+        return None
+    saida = {}
+    for campo in ("logo", "icone"):
+        v = valor.get(campo)
+        if isinstance(v, str) and _RE_DATA_URL_IMAGEM.match(v):
+            saida[campo] = v
+    if saida:
+        saida["atualizadoEm"] = str(valor.get("atualizadoEm", ""))[:40]
+    return saida
+
+
+def imagem_do_logo(extras, campo):
+    """(bytes, tipo) da imagem guardada em extras["logo"][campo], ou None."""
+    v = (extras.get("logo") or {}).get(campo) if isinstance(extras.get("logo"), dict) else None
+    m = _RE_DATA_URL_IMAGEM.match(v or "")
+    if not m:
+        return None
+    try:
+        return base64.b64decode(v.split(",", 1)[1], validate=True), "image/" + m.group(1)
+    except (ValueError, binascii.Error):
+        return None
 
 
 def normalizar_extras(extras):
@@ -63,6 +97,8 @@ def normalizar_extras(extras):
     saida = {}
     for chave, valor in extras.items():
         limite = CHAVES_EXTRA.get(chave)
+        if chave == "logo":
+            valor = normalizar_logo(valor)
         if not limite or not isinstance(valor, (dict, list)):
             continue
         texto = json.dumps(valor, ensure_ascii=False, separators=(",", ":"))

@@ -1,5 +1,74 @@
 # Histórico de versões
 
+## 1.4.0 — Central de relatórios, Excel e PDF (app 1.4.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto recebe
+ao reabrir; no notebook, `.exe` novo. Banco e sincronização sem mudança.
+
+- **Nova aba Relatórios** (ao lado de Desempenho): a central de relatórios do
+  painel. Nove relatórios, todos seguindo o período e o turno da barra de
+  filtros, cada um com **Visualizar** (na tela), **Excel** e **PDF**:
+  Resumo executivo, Produção diária, Tempo ligado e parado (por dia e
+  máquina, com totais e rendimento), Rendimento diário, Produção por turno,
+  Paradas, Motivos de parada, Disciplina de turno e Ciclos registrados.
+  **Excel completo** e **PDF completo** juntam todos num arquivo só.
+- **Excel formatado** (ExcelJS): faixa de título na cor do relatório,
+  indicadores, cabeçalho escuro, linhas alternadas, total destacado, valores
+  numéricos de verdade (durações em [h]:mm, %, metros, datas), destaque
+  verde/vermelho, filtro automático e cabeçalho congelado nas listas, pronto
+  para imprimir em paisagem.
+- **PDF** (jsPDF + AutoTable): A4 paisagem com o logo, cartões de
+  indicadores, tabelas com cabeçalho repetido em cada página e rodapé com
+  número de página.
+- Bibliotecas guardadas em `painel/assets` (funcionam sem internet na
+  fábrica; carregadas só ao baixar): `exceljs.min.js` 4.4.0,
+  `jspdf.umd.min.js` 2.5.1 e `jspdf.plugin.autotable.min.js` 3.8.4 (MIT).
+- Aviso no topo dos relatórios de tempo (tela, Excel e PDF): intervalos de
+  refeição e paradas programadas já estão descontados — não contam como
+  disponível nem como parado (só "Ciclos registrados" mostra a duração bruta).
+- "Tempo ligado e parado": tabela em blocos por dia — uma linha por máquina e
+  "Total do dia" destacado (data e dia só na 1ª linha do bloco na tela/PDF;
+  no Excel em todas, para filtrar); datas alinhadas à esquerda em todos.
+- **Logo da empresa e ícone do navegador** (Identidade visual): enviar o logo
+  (PNG/JPG/WebP, reduzido sozinho) e, opcionalmente, um ícone quadrado. O
+  logo vale para o painel inteiro e todos os aparelhos (chave nova `logo` na
+  configuração geral, sincronizada com a VPS) e aparece no topo do painel, na
+  tela de abertura, na prévia, nos relatórios PDF e Excel, na tela de login
+  da VPS e no programa remoto — o servidor passa a entregá-lo em
+  `assets/logo.png`. Ícone da aba: o enviado (`assets/icone-empresa.png`) ou,
+  sem ele, um quadrado montado a partir do logo. SVG não é aceito (poderia
+  rodar script).
+- **Gráficos nos relatórios** (na tela, no PDF e como imagem no Excel),
+  desenhados pelo próprio painel: rendimento e ligada × parada por máquina
+  (Resumo), produção por dia (Produção diária), ligado × parado por dia e por
+  máquina (Tempo), linhas de rendimento com a meta (Rendimento diário),
+  rendimento por turno (Produção por turno), tempo por faixa de duração e
+  paradas por hora do dia (Paradas), tempo por motivo (Motivos), atraso e
+  saída antecipada (Disciplina), ciclos por máquina e distribuição da duração
+  (Ciclos).
+- PDF: as páginas de continuação têm cabeçalho compacto com o logo, o nome do
+  relatório e o período.
+- Revisão dos cálculos: os totais batem entre os relatórios (tempo parado do
+  Resumo = Tempo ligado e parado = paradas de 1 min ou mais + paradas curtas).
+  Paradas ganhou a coluna "Intervalo descontado" (parada que atravessa o
+  almoço: a duração já vem sem ele) e o indicador "Paradas curtas"; Rendimento
+  diário usa o rendimento do período (ponderado pelo tempo de turno) no lugar
+  da média simples dos dias; o Resumo não lista turnos sem nada no período.
+- Nome dos arquivos diz o período (ex.: `paradas_semana_2026-11-15.pdf`,
+  `resumo_executivo_2026-11.xlsx`) em vez da hora do download; durações abaixo
+  de 1 min como "17s".
+- O antigo "Relatório do período" do menu ⚙ foi substituído pela aba.
+- Saiu o botão **Exportar Excel** da barra de filtros (planilha única sem
+  formatação) e a biblioteca `xlsx.full.min.js`; os downloads ficam na aba
+  Relatórios. No lugar, um **aviso de destaque** que só aparece quando há
+  algo importante, um por vez e do mais urgente: máquina parada além do
+  limite, dados sem atualizar no turno, meta do turno em risco, paradas
+  longas de hoje sem motivo. Clicar leva ao lugar certo.
+- **Menu ⚙ Configurações** com rolagem: passava da altura da tela e os
+  últimos itens ficavam inacessíveis; agora vai até o fim da janela e rola
+  por dentro.
+
+
 ## 1.3.1 — sem o mapa de calor e o Pareto de motivos (app 1.3.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto recebe

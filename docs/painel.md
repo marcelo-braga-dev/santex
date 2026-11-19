@@ -33,8 +33,14 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
   menu fica aberto para ver a troca); a escolha fica gravada.
 - **Seleção de setor** saiu da barra superior e é o primeiro campo da barra
   de filtros. Com um só setor cadastrado, aparece só o nome (sem lista).
-- **Exportar Excel** fica em destaque na barra de filtros (em telas
-  menores desce para a linha do resumo). **Importar dados** foi para
+- **Aviso de destaque** (1.4.0, no lugar do antigo "Exportar Excel"): à
+  direita da barra de filtros, só quando há algo importante — um item por
+  vez, do mais urgente: máquina parada além do limite do alerta (vermelho),
+  dados sem atualizar durante o turno (leitura pausada, sem sinal das
+  máquinas, servidor fora do ar), meta do turno em risco (projeção abaixo de
+  90% da meta) e paradas longas (> 30 min) de hoje sem motivo. Clicar leva
+  ao lugar certo (cartões, linha do tempo ou detalhes do controlador). Sem
+  nada importante, o espaço fica vazio. **Importar dados** fica em
   ⚙ → Dados (arrastar o CSV para a tela continua funcionando).
 - **Linha "Exibindo"**: resumo em texto do período e turno na tela. Quando
   o filtro sai do padrão (outro dia/semana/mês/ano ou um turno escolhido)
@@ -53,6 +59,7 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
 |---|---|
 | **Visão geral** | Faixa de **alerta** (máquina parada além do limite); os cartões **Rendimento por máquina**; a **Linha do tempo por máquina**; 5 KPIs (tempo ligado, tempo parado, rendimento com meta/comparação/minigráfico, produção estimada, ligadas agora); **ranking** de rendimento |
 | **Desempenho** | Tempo ligado por hora, **evolução do rendimento**, análise de paradas, **disciplina de turno**, **produção por turno** (gráfico + tabela), comparativo entre turnos e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
+| **Relatórios** (1.4.0) | Central de relatórios: 9 relatórios com Visualizar, Excel e PDF (e "completo" com todos) — ver "Central de relatórios" |
 | **Turnos e calendário** (⚙ Configurações → Turnos e calendário) | Cards de configuração: **Turnos cadastrados** (edição direta — ver abaixo), **Intervalo de refeição**, **Calendário e paradas programadas**, **Motivos de parada** e **Histórico de configurações** |
 | **Identidade visual** (⚙ → Aparência) | Editor da paleta da marca — ver abaixo |
 
@@ -169,7 +176,7 @@ e elas ficam só no navegador.
 | Desempenho → Disciplina de turno | Por máquina: atraso médio/pior na 1ª partida e saída antecipada média/pior (sem intervalos; verde < 5 min, vermelho > 10 min) |
 | ⚙ → Alerta de máquina parada | Por aparelho (localStorage): limite em minutos (padrão 15) e bipe. Só dentro do turno, fora de intervalos fixos/paradas programadas; na refeição flexível, só depois da duração máxima |
 | ⚙ → Modo TV | Tela cheia (Esc sai): estado e há quanto tempo de cada máquina, rendimento de hoje e a meta |
-| ⚙ → Relatório do período | Indicadores, por máquina, maiores paradas com motivo e paradas por motivo — Imprimir / salvar PDF |
+| Aba Relatórios (1.4.0) | Substitui o antigo "Relatório do período" do menu ⚙ — ver "Central de relatórios" abaixo |
 
 **Motivos de parada**: `extras.motivos = { catalogo: [{ id, nome, cor }], marcas:
 { "maquina|inicioEmSegundos": { m, obs } } }` (chave `motivos` de `config_extra`,
@@ -180,6 +187,52 @@ data e turno ficam em `#p=…&d=AAAA-MM-DD&t=all|N` (abrir o link aplica o filtr
 Base de todos: estrutura `resumoJanelas()` — um resumo por turno/dia e máquina (ligado,
 disponível, produção, paradas, almoço detectado), calculado com as
 mesmas regras dos cartões.
+
+### Central de relatórios (aba Relatórios, 1.4.0)
+
+Todos seguem o **período e o turno da barra de filtros**. Cada cartão mostra um
+número rápido do filtro e tem **Visualizar** (janela com as tabelas), **Excel** e
+**PDF**; no topo, **Excel completo** / **PDF completo** juntam todos (uma aba por
+relatório no Excel). Relatórios que dependem de turnos ficam desativados sem
+horário real ou no "todo o histórico".
+
+| Relatório | Conteúdo |
+|---|---|
+| Resumo executivo | Indicadores; por máquina (ligado, parado, disponível, rendimento, vs meta em pp, meta cumprida, produção, taxa m/h, ciclos); por turno |
+| Produção diária | Metros por dia × máquina, total e ligado (soma) |
+| Tempo ligado e parado | Por dia × máquina: tempo ligada e parada (disponível − ligado), totais, disponível e rendimento do dia (verde/vermelho contra a meta); resumo por máquina com média por dia |
+| Rendimento diário | Rendimento por dia × máquina, geral e meta do dia (verde/vermelho) |
+| Produção por turno | Cada dia × turno × máquina: ligado, parado, disponível, rendimento, produção, nº de paradas |
+| Paradas | Todas as paradas ≥ 1 min: data, turno, máquina, início, fim, duração, faixa, motivo, observação |
+| Motivos de parada | Ranking (nº, tempo, %, acumulado) e motivo × máquina |
+| Disciplina de turno | Início do turno, 1ª partida, atraso, último desligamento, fim, saída antecipada |
+| Ciclos registrados | Todos os ciclos do filtro (PDF limitado a 4.000 linhas; o Excel traz todos) |
+
+- **Excel** (ExcelJS 4.4.0): valores numéricos de verdade (durações `[h]:mm:ss`,
+  `%`, `m`, `m/h`, datas), cores do relatório, total destacado, filtro e
+  cabeçalho congelado nas listas, página em paisagem.
+- **PDF** (jsPDF 2.5.1 + AutoTable 3.8.4): A4 paisagem, logo, indicadores,
+  cabeçalho da tabela repetido por página e rodapé com página X de Y. A fonte
+  do PDF é a Helvetica: símbolos fora do alfabeto latino (→, ≈, ▲) viram texto.
+- As bibliotecas ficam em `painel/assets` e só carregam ao baixar (sem internet
+  funcionam; se o arquivo local faltar, tenta a mesma versão pelo cdnjs).
+- **Gráficos**: cada relatório traz `graficos` (`colunas`, `barrasH` ou
+  `linhas`, empilhado ou não, com meta tracejada); `desenharGrafico` desenha
+  num canvas branco e o mesmo PNG vai para a visualização, o PDF (até 2 por
+  linha, logo depois dos indicadores) e o Excel (imagem abaixo dos
+  indicadores).
+- **PDF**: páginas de continuação com cabeçalho compacto (logo, relatório e
+  período).
+- **Totais conferidos**: tempo parado do Resumo = Tempo ligado e parado =
+  paradas ≥ 1 min + "Paradas curtas" (relatório Paradas). Na lista de paradas,
+  "Intervalo descontado" mostra o trecho de refeição/parada programada que caiu
+  dentro da parada (a duração já vem sem ele).
+- Nome do arquivo: relatório + período (`paradas_semana_2026-11-15.pdf`,
+  `resumo_executivo_2026-11.xlsx`, `…_historico`) + turno, se filtrado.
+- Download: `salvarArquivoParaUsuario` (no `.exe`, "Salvar como" do Windows).
+- Código: `RELATORIOS` (lista), `relXxx()` (dados neutros: `resumo` + `secoes`
+  com colunas tipadas `txt/int/dur/pct/pp/m/mh/data/hora/datahora`),
+  `htmlRelatorio`, `folhaExcel`/`gerarExcel`, `gerarPdf`.
 
 ### Diagnóstico do controlador (⚙ → Diagnóstico do controlador)
 
@@ -262,6 +315,23 @@ direto nas células (mesmo padrão da edição direta):
 
 ### Identidade visual (⚙ Configurações → Aparência → Identidade visual)
 
+**Logo da empresa e ícone do navegador** (1.4.0, primeiro quadro da página):
+
+- **Enviar logo**: PNG, JPG ou WebP até 8 MB; o painel reduz para no máximo
+  900 × 320 px (PNG; WebP se ficar grande) e salva na hora. Vale para o painel
+  inteiro e todos os aparelhos: chave `logo` da configuração geral
+  (`config_extra`, setor `_geral`), sincronizada com a VPS (`extras:logo`).
+- O servidor entrega o logo enviado em `assets/logo.png` — o mesmo endereço do
+  logo padrão —, então trocam juntos: topo do painel, tela de abertura, prévia
+  da identidade, relatórios PDF (caixa branca na faixa do título) e Excel
+  (canto direito da faixa), tela de login da VPS e programa remoto.
+- **Ícone do navegador**: imagem quadrada (até 256 px) em
+  `assets/icone-empresa.png`; sem ela, o painel monta o ícone da aba a partir
+  do logo (fundo branco). **Voltar ao logo padrão** / **Usar o logo
+  (automático)** desfazem.
+- SVG não é aceito (um SVG servido pelo próprio painel poderia rodar script);
+  o servidor confere o tipo (`data:image/png|jpeg|webp;base64`).
+
 Página para editar as cores da marca, com aplicação ao vivo no painel
 inteiro:
 
@@ -300,7 +370,7 @@ ao trocar de aba (`mostrarView()` → `renderGraficos()`).
 | Forma | O que funciona | O que não funciona |
 |---|---|---|
 | **Arquivo local** (duplo clique) | Tudo, inclusive a atualização automática (via `controle_leitura_server.py` em `localhost`) | — |
-| **Link publicado (claude.ai)** | Gráficos, filtros, exportação Excel (usa a API de download da plataforma) | Atualização automática — a página hospedada roda numa sandbox sem acesso à rede local (o chip mostra "indisponível") |
+| **Link publicado (claude.ai)** | Gráficos, filtros, relatórios Excel/PDF (usa a API de download da plataforma) | Atualização automática — a página hospedada roda numa sandbox sem acesso à rede local (o chip mostra "indisponível") |
 
 ## Estrutura da página
 
@@ -365,11 +435,8 @@ script, `ABRIR_POPUP.<nome> = abrir...` + `ligarPopup("<prefixo>", fechar...)`.
   explica isso sem entrar em detalhe técnico. Volta sempre para "Dia" a
   cada novo arquivo carregado manualmente (não fica preso no último período
   navegado).
-- **Área de ações** (bloco destacado rotulado "AÇÕES"): os dois botões de
-  uso mais frequente ficam sempre visíveis —
-  - **Importar dados** (upload manual de arquivo CSV);
-  - **Exportar Excel** (verde, ícone de planilha — cor e ícone sugestivos
-    de propósito).
+- **Aviso de destaque** à direita (ver "Layout geral"): aparece só quando
+  há algo importante. Os downloads ficam na aba **Relatórios**.
 - **Importar dados** e **Backup dos dados** ficam no menu
   **⚙ Configurações**, seção "Dados" (ver abaixo).
 
@@ -421,7 +488,7 @@ No topo da página, à esquerda da logo, fica o seletor **Setor**. Trocar de
 setor:
 
 - troca o conjunto de máquinas mostrado em todos os cards/gráficos/tabela;
-- troca o nome exibido no título do painel e na exportação Excel;
+- troca o nome exibido no título do painel e nos relatórios;
 - **limpa os dados carregados na tela** (um CSV de um setor não faz sentido
   em outro — o usuário precisa carregar/gerar dados de novo para o setor
   recém-selecionado);
@@ -533,32 +600,10 @@ turnos cadastrados. Mudar o cadastro reclassifica todo o histórico na hora.
 
 ## Exportação Excel
 
-Gera um `.xlsx` **em uma única planilha** (sem abas), com as seções
-empilhadas, cada uma com um título. O cabeçalho já identifica o setor
-atual (`Painel de Produção — <nome do setor>`):
-
-1. **Resumo executivo** — indicadores gerais do período (todas as
-   máquinas do setor) + ranking de rendimento.
-2. **Por máquina** — modelo transposto: cada indicador numa linha, cada
-   máquina numa coluna, com coluna **Total/Geral** ao final (soma, média
-   ou extremo, dependendo do indicador).
-3. **Tempo ligado por hora** — cruzamento hora × máquina, em minutos.
-4. **Tempo ligado por dia** — cruzamento data × máquina (só aparece com
-   data real).
-5. **Produção por turno** e **Tempo ligado por dia de produção e turno** —
-   com os turnos cadastrados (só com data real). A coluna "Turno" dos
-   registros também usa o cadastro.
-6. **Alertas** — lista de ciclos com problema (curto/recuperado), dentro
-   do período e máquina selecionados no "Detalhamento".
-7. **Registros detalhados** — réplica exata do que a tabela mostra na
-   tela (mesmos filtros: período + máquina + busca + alertas).
-
-Usa a biblioteca [SheetJS](https://sheetjs.com/) (`xlsx`), carregada via
-CDN (`cdnjs.cloudflare.com`) **sob demanda** (`carregarXlsx()`): em segundo
-plano ~4 s depois que o painel abre, ou ao clicar em Exportar (o botão
-mostra "Preparando…"). Nunca bloqueia a abertura; sem internet, avisa na
-hora de exportar. Botão verde com ícone de planilha, no bloco
-"Ações" da toolbar.
+O botão **Exportar Excel** da barra de filtros (planilha única, sem
+formatação, SheetJS) saiu na 1.4.0: os downloads ficam na aba **Relatórios**
+(Excel formatado e PDF, um por relatório ou todos juntos) — ver "Central de
+relatórios". A biblioteca `xlsx.full.min.js` saiu de `painel/assets`.
 
 ## Backup dos dados
 
@@ -575,7 +620,7 @@ Nome do arquivo: `backup_producao_AAAAMMDD_HHMM.csv`.
 
 ## Download de arquivos: local vs. hospedado
 
-Tanto a exportação Excel quanto o backup usam a mesma lógica de salvamento
+Tanto os relatórios (Excel/PDF) quanto o backup usam a mesma lógica de salvamento
 (`salvarArquivoParaUsuario`):
 
 - **Página hospedada (claude.ai)**: usa a API de download da plataforma
