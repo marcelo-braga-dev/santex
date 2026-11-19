@@ -93,6 +93,20 @@ class TesteBanco(unittest.TestCase):
         b.salvar_extras("s", normalizar_extras({"logo": {}}))  # voltar ao padrao
         self.assertIsNone(imagem_do_logo(b.obter_extras("s"), "logo"))
 
+    def test_maquinas_sem_producao_salvas_e_sincronizadas(self):
+        # 1.5.0: periodos "Sem producao" por maquina = chave do setor, sincronizada com a VPS
+        import nuvem
+        from banco_dados import normalizar_extras
+        b = novo_banco()
+        sp = {"regra": {"minutos": 30, "pausaMax": 10},
+              "periodos": [{"id": "abc123", "maquina": 2, "inicio": 1795000000000, "fim": None, "origemFim": None, "motivo": "Manutenção"}]}
+        b.salvar_extras("s", normalizar_extras({"semProducao": sp}))
+        self.assertEqual(b.obter_extras("s")["semProducao"], sp)
+        self.assertNotIn("semProducao", b.obter_extras("outro"))  # por setor (nao e geral)
+        self.assertTrue(nuvem.chave_item_valida("extras:semProducao"))
+        self.assertEqual(nuvem.itens_atuais(b, "s")["extras:semProducao"], sp)
+        self.assertEqual(nuvem.nome_item("extras:semProducao"), "Máquinas sem produção")
+
     def test_ciclo_wifi_sem_hora_sai_sem_horario(self):
         b = novo_banco()
         b.gravar_ciclo_remoto("s", "AA-01", 1, 1, 1, "?", "?", 5.0, "SEM_HORA")  # hora = download

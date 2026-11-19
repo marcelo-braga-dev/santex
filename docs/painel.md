@@ -37,8 +37,7 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
   direita da barra de filtros, só quando há algo importante — um item por
   vez, do mais urgente: máquina parada além do limite do alerta (vermelho),
   dados sem atualizar durante o turno (leitura pausada, sem sinal das
-  máquinas, servidor fora do ar), meta do turno em risco (projeção abaixo de
-  90% da meta) e paradas longas (> 30 min) de hoje sem motivo. Clicar leva
+  máquinas, servidor fora do ar) e paradas longas (> 30 min) de hoje sem motivo. Clicar leva
   ao lugar certo (cartões, linha do tempo ou detalhes do controlador). Sem
   nada importante, o espaço fica vazio. **Importar dados** fica em
   ⚙ → Dados (arrastar o CSV para a tela continua funcionando).
@@ -187,6 +186,53 @@ data e turno ficam em `#p=…&d=AAAA-MM-DD&t=all|N` (abrir o link aplica o filtr
 Base de todos: estrutura `resumoJanelas()` — um resumo por turno/dia e máquina (ligado,
 disponível, produção, paradas, almoço detectado), calculado com as
 mesmas regras dos cartões.
+
+### Página Configurações (1.5.0)
+
+⚙ → **Configurações** reúne em cartões: máquinas e meta (abre os popups de
+máquinas e de meta), atalho para Turnos e calendário, **alerta de máquina
+parada** e **acesso remoto** (o conteúdo dos antigos popups é movido para os
+cartões ao abrir a página — mesmos ids, mesma lógica), **dados** (importar CSV,
+backup, relatórios), aparência (identidade visual, Modo TV, tema),
+controlador (escondido na VPS), aplicativo para Windows (só onde pode baixar)
+e "sobre". Menu ⚙: Configurações, Turnos e calendário, Modo TV, Tema escuro e
+Sair.
+
+### Modo TV (1.5.0)
+
+Tela do chão de fábrica, sempre o **dia de hoje** e todos os turnos; segue o
+tema claro/escuro. Topo com logo, setor, turno atual (progresso e "faltam") e
+relógio; indicadores do dia; um cartão por máquina (estado + tempo, anel de
+rendimento × meta, ligada/parada/produção/ciclos de hoje, linha do tempo do
+turno com sem produção e intervalos). Cartões montados uma vez e atualizados
+por diferença (relógio 1 s, dados 5 s); cursor some parado; em tela estreita
+tudo vira uma coluna com rolagem. Endereço com `#tv` abre direto (para deixar
+uma TV no painel).
+
+### Máquinas Com produção / Sem produção (1.5.0)
+
+Checkbox "Produção" no cabeçalho do cartão de cada máquina (e em Turnos e calendário → Máquinas sem
+produção). Guardado como **períodos** por máquina em `extras.semProducao`
+(`{ regra: { minutos, pausaMax }, periodos: [{ id, maquina, inicio, fim, origemFim, motivo, obs }] }`,
+chave `semProducao` de `config_extra`, por setor, sincronizada `extras:semProducao`).
+
+- **Efeito**: o período entra como "pausa" só daquela máquina — sai do
+  disponível, parado, rendimento, meta (proporcional), produção, paradas,
+  disciplina e alertas. O horímetro continua: o cartão mostra todo o tempo
+  ligado (`ligadoSemProducaoS` à parte). Núcleo: `intervalosMaquina` (ligado
+  que conta = brutos − sem produção), `semProdLiquidoS` (desconto do
+  disponível sem contar duas vezes intervalos/almoço), `contaMaquina`,
+  `resumoJanelas`, `calcularResumoTurnos`, `metaMaquinaS`. Máquina sem
+  disponível nenhum (`semProducaoTotal`) fica fora das médias.
+- **Volta automática** (`retornoAutomatico`): primeira sequência de trabalho (ciclos com pausas de até `pausaMax`, padrão 10 min) que durou `minutos` (padrão 30) → o período termina no **início** dela. (Antes: primeiro trecho em que a máquina
+  somava `minutos` ligada dentro de uma janela — as enfestadeiras quase nunca chegam a isso produzindo.) Calculado dos ciclos (fim
+  efetivo = menor entre o fim manual e a volta automática), então todos os
+  aparelhos chegam ao mesmo resultado; o computador da fábrica grava a volta
+  (`persistirRetornosAutomaticos`, origem "automatico") para a auditoria.
+- Tela: cartão tracejado com "Volta à produção após 30 min rodando · x/30",
+  faixa listrada na linha do tempo, quadrado listrado em Ligadas agora, Modo
+  TV, histórico com Apagar; relatório Tempo ligado e parado com a coluna
+  "Sem produção (fora)" e a lista dos períodos.
 
 ### Central de relatórios (aba Relatórios, 1.4.0)
 

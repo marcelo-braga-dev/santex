@@ -1,5 +1,59 @@
 # Histórico de versões
 
+## 1.5.0 — máquinas Com produção / Sem produção (app 1.5.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel e a sincronização mudaram: na VPS, `git pull` (precisa da 1.5.0 lá
+para os períodos irem e voltarem); no notebook, `.exe` novo. Banco: nenhuma
+tabela nova — os períodos são uma chave nova (`semProducao`) em `config_extra`,
+por setor.
+
+- **Checkbox "Produção" em cada máquina** (cabeçalho do cartão da Visão geral
+  e Turnos e calendário → Máquinas sem produção), com **"Sem produção desde"**
+  (retroativo, até 14 dias; avisa se a máquina já trabalhou o bastante depois
+  do horário e não deixa cair dentro de um período anterior), motivo (sem
+  pedido, manutenção, ajuste, falta de operador, outro) e observação.
+- Enquanto "Sem produção": o **horímetro continua** (o cartão mostra todo o
+  tempo ligado), mas o período **sai do disponível, do parado, do
+  rendimento, da meta, da produção, das paradas, da disciplina de turno e dos
+  alertas** (como um intervalo, só daquela máquina). Máquina sem produção o
+  período todo fica fora das médias. Cartão tracejado com a legenda "Volta à
+  produção após 30 min rodando · x/30", faixa listrada na linha do tempo,
+  quadrado listrado em "Ligadas agora" e estado próprio no Modo TV.
+- **Volta automática**: quando a máquina trabalha **30 min seguidos, com
+  pausas de até 10 min entre os ciclos** (os dois configuráveis), volta
+  sozinha para Com produção **a partir do começo desse trabalho** — ciclos
+  soltos de teste/ajuste não bastam. (Regra escolhida pelos dados reais: as
+  enfestadeiras trabalham em ciclos curtos e ficam 12–32 min ligadas por hora
+  produzindo; em produção as sequências de trabalho passam de 55 min.) A
+  volta é calculada dos próprios ciclos (notebook, VPS e relatórios chegam ao
+  mesmo resultado, mesmo com ciclos atrasados) e o computador da fábrica a
+  grava no histórico.
+- Histórico dos períodos (máquina, início, fim, duração, motivo, como voltou)
+  com "Apagar" para marcações por engano; relatório "Tempo ligado e parado"
+  ganha a coluna "Sem produção (fora)" e a lista dos períodos; o aviso dos
+  relatórios cita os períodos sem produção.
+- Cartão mais enxuto: estado ao vivo curto ("Ligada 12 min", "Parada 3 min",
+  "Sem sinal", "Pausada", "⚠ Parada 23 min" com alerta; o detalhe no
+  tooltip); a taxa (m/h) desceu para a linha do estado e o checkbox Produção
+  subiu para o cabeçalho.
+- **Modo TV redesenhado** para ficar aberto o dia todo: segue o tema claro/
+  escuro da plataforma; logo, setor, turno atual com barra de progresso e
+  "faltam…", relógio grande; indicadores do dia (rendimento com anel,
+  produção, ligadas agora, paradas); cartão grande por máquina com estado e
+  tempo, anel de rendimento contra a meta, ligada/parada/produção/ciclos de
+  hoje e a linha do tempo do turno; cores de estado (ligada, parada, alerta,
+  sem produção, sem sinal); atualiza sem piscar, esconde o cursor parado,
+  ajusta-se a telas pequenas e abre direto pelo endereço com `#tv`.
+- **Página Configurações** (⚙ → Configurações): máquinas e meta, atalho para
+  Turnos e calendário, **alerta de máquina parada** e **acesso remoto** como
+  cartões (antes eram popups), **dados** (importar CSV, backup, relatórios),
+  aparência (identidade visual, Modo TV, tema), controlador, aplicativo para
+  Windows e "sobre". O menu ⚙ ficou com Configurações, Turnos e calendário,
+  Modo TV, Tema escuro e Sair.
+- Sai o aviso "Meta do turno em risco" (não há uma meta única do setor).
+- 39 testes (períodos sem produção no banco e na sincronização).
+
+
 ## 1.4.0 — Central de relatórios, Excel e PDF (app 1.4.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto recebe
@@ -62,8 +116,8 @@ ao reabrir; no notebook, `.exe` novo. Banco e sincronização sem mudança.
   formatação) e a biblioteca `xlsx.full.min.js`; os downloads ficam na aba
   Relatórios. No lugar, um **aviso de destaque** que só aparece quando há
   algo importante, um por vez e do mais urgente: máquina parada além do
-  limite, dados sem atualizar no turno, meta do turno em risco, paradas
-  longas de hoje sem motivo. Clicar leva ao lugar certo.
+  limite, dados sem atualizar no turno e paradas longas de hoje sem
+  motivo. Clicar leva ao lugar certo.
 - **Menu ⚙ Configurações** com rolagem: passava da altura da tela e os
   últimos itens ficavam inacessíveis; agora vai até o fim da janela e rola
   por dentro.

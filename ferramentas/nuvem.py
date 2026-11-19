@@ -173,13 +173,13 @@ def _aplicar_campos(banco, corpo, setor):
 # ---------------------------------------------------------------------
 # Itens versionados da configuracao (sincronizacao nas duas maos, 1.2.0)
 # ---------------------------------------------------------------------
-EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual", "motivos", "logo")
-_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual|motivos|logo)"
+EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual", "motivos", "logo", "semProducao")
+_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual|motivos|logo|semProducao)"
                             r"|senha_leitura|senha_edicao|edicao_remota)$")
 _NOMES_ITEM = {
     "meta_pct": "Meta", "turnos": "Turnos", "extras:pausas": "Intervalos de refeição",
     "extras:calendario": "Calendário", "extras:historico": "Histórico de configurações",
-    "extras:avisos": "Avisos", "extras:visual": "Identidade visual", "extras:motivos": "Motivos de parada", "extras:logo": "Logo da empresa",
+    "extras:avisos": "Avisos", "extras:visual": "Identidade visual", "extras:motivos": "Motivos de parada", "extras:logo": "Logo da empresa", "extras:semProducao": "Máquinas sem produção",
     "senha_leitura": "Senha de visualização", "senha_edicao": "Senha de edição", "edicao_remota": "Edição remota",
 }
 _versao_config = {"v": time.time_ns()}
