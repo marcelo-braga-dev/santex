@@ -33,6 +33,13 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
   menu fica aberto para ver a troca); a escolha fica gravada.
 - **Seleção de setor** saiu da barra superior e é o primeiro campo da barra
   de filtros. Com um só setor cadastrado, aparece só o nome (sem lista).
+- **Histórico de paradas** (1.6.0): ícone de relógio no cartão da máquina;
+  lista as paradas longas (acima do limite do card "Parada longa" em
+  Configurações, padrão 30 min, `extras.motivos.longaMin`), as programadas do calendário,
+  as registradas e os Sem produção do período (sem as pausas entre ciclos) e permite **registrar parada**
+  retroativa (data, das, até, motivo). A parada registrada sai do disponível,
+  do parado, da meta e do rendimento; é guardada em `extras:semProducao`
+  com `tipo: "parada"` (início e fim fixos, sem volta automática).
 - **Barra de filtros fixa** (1.5.2): presa abaixo do menu superior, uma linha
   só; a data mostra o dia da semana e "· hoje" e fica na cor da marca fora do
   período atual.

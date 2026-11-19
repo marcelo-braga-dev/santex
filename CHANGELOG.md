@@ -1,5 +1,36 @@
 # Histórico de versões
 
+## 1.6.0 — histórico de paradas e parada registrada (app 1.6.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.
+Atualize os dois juntos: uma versão anterior trataria a parada registrada
+como "Sem produção" comum (mesma conta, mas poderia encerrá-la pela volta
+automática).
+
+- **Histórico de paradas por máquina**: ícone de relógio no cabeçalho do
+  cartão (Visão geral, logo depois da pill de produção m/h) abre "Paradas — Máquina X", separado por dia, com
+  horário, duração e motivo: paradas longas (acima de 30 min dentro do
+  turno, fora dos intervalos — motivo e "Registrar" na linha), paradas
+  programadas do calendário do setor, paradas registradas e períodos Sem
+  produção. As pausas normais entre os ciclos não aparecem. Setas
+  ‹ › trocam o dia/semana/mês sem mexer no filtro da tela.
+- **Registrar parada (retroativa)**: "+ Registrar parada" (data, das, até,
+  motivo do cadastro de motivos, observação) ou "Registrar" numa parada
+  longa. O tempo sai do disponível, do parado, da meta e do rendimento da
+  máquina — como um intervalo do turno, só dela. Até 60 dias para trás e
+  24 h por registro; não pode ser no futuro nem sobrepor outro registro ou
+  período Sem produção; avisa se a máquina ficou ligada no horário (esse
+  tempo deixaria de contar como produção). Apagar devolve o tempo.
+- **Parada longa configurável** (Configurações → card "Parada longa", 10 a
+  240 min; padrão 30): vale para todos os aparelhos (guardado nos motivos de
+  parada, `longaMin`, sincroniza com a VPS). Usado no histórico de paradas,
+  no aviso de paradas longas sem motivo e nas faixas dos relatórios
+  (até 5 min · 5 min a X · acima de X).
+- Guardado junto dos períodos Sem produção (`extras:semProducao`, item com
+  `tipo: "parada"`), então sincroniza com a VPS e entra na auditoria; na
+  linha do tempo aparece como "parada registrada".
+
+
 ## 1.5.2 — filtros fixos e aviso no rodapé (app 1.5.2 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.

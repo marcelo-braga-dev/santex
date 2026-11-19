@@ -1285,6 +1285,54 @@
   .cfg-acao strong { font-size: 13.5px; }
   .cfg-acao small { font-size: 11.5px; color: var(--ink-600); }
 
+  /* Botao e janela "Historico de paradas" */
+  .mc-id { min-width: 0; }
+  /* icone do historico na linha de baixo, logo depois da pill de producao (m/h) */
+  .mc-hist { margin-left: 0; flex: none; width: 26px; height: 26px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--ink-600); cursor: pointer; }
+  .mc-hist:hover, .mc-hist:focus-visible { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+  .modal.hp-modal { max-width: 860px; }
+  .hp-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .hp-nav { height: 36px; }
+  .hp-nav .period-label { min-width: 180px; font-size: 14px; text-transform: none; }
+  .hp-kpis { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hp-kpis span { padding: 4px 10px; border-radius: 999px; background: var(--surface-sunken); font-size: 12px; color: var(--ink-600); white-space: nowrap; }
+  .hp-kpis b { color: var(--ink-900); font-family: var(--font-mono, monospace); }
+  .hp-novo { margin-left: auto; }
+  .hp-form { margin-top: 12px; padding: 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); background: var(--accent-wash); }
+  .hp-form[hidden] { display: none; }
+  .hp-form-titulo { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+  .hp-form-titulo small { font-weight: 500; color: var(--ink-600); }
+  .hp-campos { display: grid; grid-template-columns: 150px 110px 110px 1fr; gap: 10px; }
+  .hp-campos .config-field { margin: 0; }
+  .hp-obs { grid-column: 1 / -1; }
+  .hp-aviso { font-size: 12.5px; line-height: 1.45; margin-top: 10px; color: var(--ink-900); }
+  .hp-aviso:empty { display: none; }
+  .hp-aviso.erro { color: var(--critical); font-weight: 600; }
+  .hp-aviso.alerta { color: var(--warning); font-weight: 600; }
+  .hp-form-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .hp-lista { margin-top: 14px; max-height: min(52vh, 520px); overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
+  .hp-lista table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .hp-lista th { position: sticky; top: 0; background: var(--surface-sunken); text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-600); padding: 8px 10px; z-index: 1; }
+  .hp-lista td { padding: 7px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+  .hp-lista td.num, .hp-lista th.num { text-align: right; font-family: var(--font-mono, monospace); white-space: nowrap; }
+  .hp-lista td.hora { font-family: var(--font-mono, monospace); white-space: nowrap; }
+  .hp-lista tr.dia td { background: color-mix(in srgb, var(--surface-sunken) 60%, transparent); font-weight: 700; font-size: 12px; color: var(--ink-600); padding: 5px 10px; }
+  .hp-lista tr.reg td { background: repeating-linear-gradient(-45deg, transparent 0 8px, color-mix(in srgb, #94a3b8 10%, transparent) 8px 16px); }
+  .hp-tipo { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical); }
+  .hp-tipo.reg { background: color-mix(in srgb, #64748b 16%, transparent); color: var(--ink-900); }
+  .hp-tipo.sp { background: var(--surface-sunken); color: var(--ink-600); }
+  .hp-tipo.prog { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
+  .hp-lista button.motivo-btn { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; }
+  .hp-lista .hp-acoes { text-align: right; white-space: nowrap; }
+  .hp-vazio { padding: 22px; text-align: center; color: var(--ink-600); font-size: 13px; }
+  .hp-nota { font-size: 12px; color: var(--ink-600); margin-top: 8px; line-height: 1.45; }
+  @media (max-width: 640px) {
+    .hp-campos { grid-template-columns: 1fr 1fr; }
+    .hp-campos .config-field:first-child, .hp-motivo { grid-column: 1 / -1; }
+    .hp-novo { margin-left: 0; width: 100%; }
+    .hp-lista .col-tipo { display: none; }
+  }
+
   /* Janela "Gerar relatorio" */
   .modal.relf-modal { max-width: 560px; }
   .relf-bloco { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; }
@@ -2302,6 +2350,17 @@
         <div class="cfg-card-corpo"><div id="cfg-alerta-corpo"></div></div>
         <footer class="cfg-card-acoes"><span id="cfg-alerta-acoes" class="cfg-acoes-dir"></span></footer>
       </section>
+      <section class="cfg-card" data-cfg="parada-longa" id="cfg-parada-longa">
+        <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h3>Parada longa</h3><p>A partir de quanto tempo uma parada no turno é "longa" — vale para todos os aparelhos</p></div></header>
+        <div class="cfg-card-corpo">
+          <div class="settings-note">Usado no histórico de paradas da máquina, no aviso de paradas longas sem motivo e nas faixas de duração dos relatórios. Sincroniza com o acesso remoto.</div>
+          <label class="config-field">Parada longa acima de (minutos)
+            <input class="input" id="cfg-longa-min" type="number" min="10" max="240" step="1" />
+          </label>
+          <div class="cfg-nota" id="cfg-longa-nota"></div>
+        </div>
+        <footer class="cfg-card-acoes"><span class="cfg-acoes-dir"><button class="btn primary" id="cfg-longa-salvar" type="button">Salvar</button></span></footer>
+      </section>
       <section class="cfg-card cfg-largo" data-cfg="acesso-remoto" id="cfg-acesso-remoto">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Acesso remoto</h3><p>Senhas da internet, edição pela internet e últimas alterações</p></div></header>
         <div class="cfg-card-corpo"><div id="cfg-acesso-corpo"></div></div>
@@ -2670,6 +2729,43 @@
      POPUPS
      ===================================================================== -->
 <!-- Motivo de uma parada -->
+<!-- Historico de paradas da maquina + registrar parada (retroativa) -->
+<div class="modal-overlay" id="hp-overlay">
+  <div class="modal hp-modal" role="dialog" aria-modal="true" aria-labelledby="hp-titulo">
+    <div class="modal-head">
+      <div><div class="modal-title" id="hp-titulo">Paradas</div><div class="relv-sub" id="hp-sub"></div></div>
+      <button class="modal-close" id="hp-fechar" type="button" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="hp-barra">
+        <div class="period-nav hp-nav">
+          <button type="button" id="hp-ant" aria-label="Período anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span class="period-label" id="hp-rotulo">—</span>
+          <button type="button" id="hp-prox" aria-label="Próximo período"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="hp-kpis" id="hp-kpis"></div>
+        <button class="btn primary hp-novo" id="hp-novo" type="button">+ Registrar parada</button>
+      </div>
+      <form class="hp-form" id="hp-form" hidden autocomplete="off">
+        <div class="hp-form-titulo">Registrar parada <small>(também de dias anteriores)</small></div>
+        <div class="hp-campos">
+          <label class="config-field">Data<input class="input mono" id="hp-data" type="date" /></label>
+          <label class="config-field">Das<input class="input mono" id="hp-ini" type="time" step="60" /></label>
+          <label class="config-field">Até<input class="input mono" id="hp-fim" type="time" step="60" /></label>
+          <label class="config-field hp-motivo">Motivo<select class="select" id="hp-motivo"></select></label>
+          <label class="config-field hp-obs">Observação (opcional)<input class="input" id="hp-obs" type="text" maxlength="80" placeholder="Ex.: troca de lâmina, reunião, falta de tecido…" /></label>
+        </div>
+        <div class="hp-aviso" id="hp-aviso" role="status"></div>
+        <div class="hp-form-acoes">
+          <button class="btn ghost" id="hp-form-cancelar" type="button">Cancelar</button>
+          <button class="btn primary" id="hp-salvar" type="submit">Salvar parada</button>
+        </div>
+      </form>
+      <div class="hp-lista" id="hp-lista"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="motivo-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="motivo-title" style="max-width:620px">
     <div class="modal-head">
@@ -3349,8 +3445,17 @@
         marcas[k] = item;
       });
     }
-    return { catalogo: catalogo.length ? catalogo : pad.catalogo, marcas };
+    const out = { catalogo: catalogo.length ? catalogo : pad.catalogo, marcas };
+    const lm = Math.round(Number(v.longaMin));
+    if (Number.isFinite(lm) && lm >= 10 && lm <= 240 && lm !== 30) out.longaMin = lm; // parada longa (padrao 30 min)
+    return out;
   }
+  // Parada longa: acima de X min (Configuracoes; vale para todos os aparelhos)
+  function paradaLongaMin() { return (extras && extras.motivos && extras.motivos.longaMin) || 30; }
+  function paradaLongaS() { return paradaLongaMin() * 60; }
+  function fmtMinLonga(min) { return min % 60 === 0 ? `${min / 60} h` : min > 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`; }
+  function rotuloLonga() { return `acima de ${fmtMinLonga(paradaLongaMin())}`; }
+  function rotuloMedia() { return `5 min a ${fmtMinLonga(paradaLongaMin())}`; }
   const MOTIVOS_SEM_PRODUCAO = ["Sem pedido / programação", "Manutenção", "Ajuste / setup", "Falta de operador", "Outro"];
   function normalizarSemProducao(v) {
     const pad = { regra: { minutos: 30, pausaMax: 10 }, periodos: [] };
@@ -3366,6 +3471,7 @@
         o.origemFim = o.fim ? (x.origemFim === "automatico" ? "automatico" : "manual") : null;
         if (x.motivo) o.motivo = String(x.motivo).slice(0, 40);
         if (x.obs) o.obs = String(x.obs).slice(0, 80);
+        if (x.tipo === "parada" && o.fim) o.tipo = "parada"; // parada registrada a mao (inicio e fim fixos)
         return o;
       })
       .sort((a, b) => a.inicio - b.inicio)
@@ -4566,6 +4672,7 @@
               <input class="mc-inline-input" type="text" inputmode="decimal" data-input="taxa" maxlength="8" autocomplete="off" aria-label="Produção por hora em metros (aceita vírgula)" />m/h
             </span>
           </span>
+          <button class="mc-hist" type="button" data-hist-paradas="${id}" title="Histórico de paradas — ver e registrar paradas" aria-label="Histórico de paradas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <div class="mc-sp-info" data-campo="sp-info" hidden></div>
         <div class="mc-main">
@@ -5237,7 +5344,7 @@
         if (b <= a) return;
         const sx = x(a), sw = Math.max(2, x(b) - sx);
         const rsp = el("rect", { x: sx, y, width: sw, height: laneH, rx: 3, fill: "url(#tl-sp)", stroke: "#64748b", "stroke-opacity": 0.5, "stroke-dasharray": "3 2" });
-        ligarTooltip(rsp, tooltip, () => `<div class="tt-title">${escaparHtml(machineName(id))} · sem produção</div><div class="tt-row"><span>Período</span><strong class="mono">&nbsp;${hhmmDe(sp.inicio)} → ${sp.fimEf === null ? "agora" : hhmmDe(sp.fimEf)}</strong></div>${sp.motivo ? `<div class="tt-row"><span>Motivo</span><strong>&nbsp;${escaparHtml(sp.motivo)}</strong></div>` : ""}<div class="tt-row"><span>${sp.fimEf === null ? "Volta sozinha ao produzir de novo" : sp.como === "automatico" ? "Voltou sozinha (produziu)" : "Voltou manualmente"}</span></div><div class="tt-row"><span style="opacity:.75">Fora do disponível, do parado e dos alertas</span></div>`, sx + sw / 2, y);
+        ligarTooltip(rsp, tooltip, () => `<div class="tt-title">${escaparHtml(machineName(id))} · ${sp.tipo === "parada" ? "parada registrada" : "sem produção"}</div><div class="tt-row"><span>Período</span><strong class="mono">&nbsp;${hhmmDe(sp.inicio)} → ${sp.fimEf === null ? "agora" : hhmmDe(sp.fimEf)}</strong></div>${sp.motivo ? `<div class="tt-row"><span>Motivo</span><strong>&nbsp;${escaparHtml(sp.motivo)}</strong></div>` : ""}<div class="tt-row"><span>${sp.fimEf === null ? "Volta sozinha ao produzir de novo" : sp.como === "automatico" ? "Voltou sozinha (produziu)" : "Voltou manualmente"}</span></div><div class="tt-row"><span style="opacity:.75">Fora do disponível, do parado e dos alertas</span></div>`, sx + sw / 2, y);
         svg.appendChild(rsp);
       });
 
@@ -5767,8 +5874,8 @@
   function renderParadas(R, wrap) {
     const FAIXAS = [
       { nome: "até 5 min", max: 300, cor: "var(--ink-400)" },
-      { nome: "5 a 30 min", max: 1800, cor: "var(--warning)" },
-      { nome: "acima de 30 min", max: Infinity, cor: "var(--critical)" }
+      { nome: rotuloMedia(), max: paradaLongaS(), cor: "var(--warning)" },
+      { nome: rotuloLonga(), max: Infinity, cor: "var(--critical)" }
     ];
     const porMaq = {};
     const todas = [];
@@ -7429,6 +7536,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     }
     fecharMotivo();
     aposMudarExtras(["motivos"]);
+    if (hpAberto()) renderHistParadas();
+
   }
   $("#motivo-opcoes").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-motivo]");
@@ -7685,10 +7794,10 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     }
     // 3) paradas longas de hoje sem motivo (so quem pode marcar)
     if (podeEditar && usingRealTime && periodoSelecionado === "dia" && periodoEhAtual()) {
-      const longas = paradasDoResumo(resumoJanelas()).filter((p) => p.durS > 1800 && !p.emAndamento && !motivoDe(p.id, p.inicio));
+      const longas = paradasDoResumo(resumoJanelas()).filter((p) => p.durS > paradaLongaS() && !p.emAndamento && !motivoDe(p.id, p.inicio));
       if (longas.length) {
         return { nivel: "info", ico: "motivo", titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} longa${longas.length > 1 ? "s" : ""} sem motivo`,
-          detalhe: "Acima de 30 min hoje — clique numa parada da linha do tempo para marcar", acao: () => irParaVisaoGeral("#timeline-wrap") };
+          detalhe: `${rotuloLonga().replace("acima", "Acima")} hoje — clique numa parada da linha do tempo para marcar`, acao: () => irParaVisaoGeral("#timeline-wrap") };
       }
     }
     return null;
@@ -8333,7 +8442,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
         ["Média por máquina/dia", linhas.length && nM ? `${fmtDuration(Math.round(totLig / linhas.length / nM))} ligada` : "—", linhas.length && nM ? `${fmtDuration(Math.round(totPar / linhas.length / nM))} parada` : ""],
         ["Rendimento", totDisp > 0 ? `${Math.round((totLig / totDisp) * 100)}%` : "—", "ligado ÷ disponível"],
         ["Mais tempo parada", maisParada && maisParada.par > 0 ? machineName(maisParada.id) : "—", maisParada && maisParada.par > 0 ? fmtDuration(maisParada.par) : ""],
-        ...(temSP ? [["Sem produção (fora)", fmtDuration(Math.round(totSP)), "máquinas marcadas Sem produção — não conta"]] : [])
+        ...(temSP ? [["Sem produção (fora)", fmtDuration(Math.round(totSP)), "Sem produção e paradas registradas — não conta"]] : [])
       ],
       secoes: [{
         titulo: "Tempo ligado e parado por dia e máquina",
@@ -8450,7 +8559,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     };
   }
 
-  function faixaParada(s) { return s > 1800 ? "acima de 30 min" : s > 300 ? "5 a 30 min" : "até 5 min"; }
+  function faixaParada(s) { return s > paradaLongaS() ? rotuloLonga() : s > 300 ? rotuloMedia() : "até 5 min"; }
   function relParadas() {
     const R = linhasDoResumo();
     if (!R) return { vazio: SEM_JANELA };
@@ -8462,7 +8571,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     let paradoTotal = 0;
     R.linhas.forEach((ln) => MACHINE_IDS.forEach((id) => { const m = ln.maquinas[id]; if (m) paradoTotal += Math.max(0, m.dispS - m.ligadoS); }));
     const curtas = Math.max(0, paradoTotal - totalS);
-    const FAIXAS = [{ nome: "até 5 min", cor: "#94a3b8", max: 300 }, { nome: "5 a 30 min", cor: "#f59e0b", max: 1800 }, { nome: "acima de 30 min", cor: "#dc2626", max: Infinity }];
+    const FAIXAS = [{ nome: "até 5 min", cor: "#94a3b8", max: 300 }, { nome: rotuloMedia(), cor: "#f59e0b", max: paradaLongaS() }, { nome: rotuloLonga(), cor: "#dc2626", max: Infinity }];
     const porHora = Array.from({ length: 24 }, () => 0);
     todas.forEach((p) => { porHora[new Date(p.inicio).getHours()]++; });
     const horas = porHora.map((n, h) => ({ n, h })).filter((o) => o.n > 0);
@@ -8491,7 +8600,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
         }),
         total: ["Total", "", "", "", "", totalS, null, "", "", ""],
         filtro: true,
-        destaque: (l, ci) => (ci === 5 && l[5] > 1800 ? "ruim" : null)
+        destaque: (l, ci) => (ci === 5 && l[5] > paradaLongaS() ? "ruim" : null)
       }],
       nota: "Paradas dentro do turno, de 1 min ou mais. Quando a parada atravessa um intervalo de refeição ou parada programada, esse trecho não conta: \"Duração\" já vem sem ele e a coluna \"Intervalo descontado\" mostra quanto saiu (por isso Fim − Início pode ser maior que a duração). Fim em branco = parada em andamento."
     };
@@ -9343,7 +9452,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     const agora = Date.now();
     const lista = ((extras.semProducao && extras.semProducao.periodos) || []).filter((x) => x.maquina === id && x.inicio <= agora).map((x) => {
       const limite = x.fim || agora;
-      const auto = retornoAutomatico(id, x.inicio, limite);
+      const auto = x.tipo === "parada" ? null : retornoAutomatico(id, x.inicio, limite); // parada registrada: o fim e o informado
       let fimEf = x.fim, como = x.origemFim;
       if (auto !== null && (fimEf === null || auto < fimEf)) { fimEf = auto; como = "automatico"; }
       return { ...x, fimEf, como };
@@ -9526,7 +9635,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     const fmtQ = (ms) => `${ddmmDe(ms)} ${hhmmDe(ms)}`;
     const linhas = hist.map((x) => `<tr><td>${escaparHtml(machineName(x.maquina))}</td><td>${fmtQ(x.inicio)}</td><td>${x.fimEf === null ? "<em>em andamento</em>" : fmtQ(x.fimEf)}</td>` +
       `<td class="num">${fmtDuration(Math.round(((x.fimEf === null ? Date.now() : x.fimEf) - x.inicio) / 1000))}</td><td>${escaparHtml(x.motivo || "—")}${x.obs ? ` <small>(${escaparHtml(x.obs)})</small>` : ""}</td>` +
-      `<td>${x.fimEf === null ? "—" : x.como === "automatico" ? "voltou sozinha (produziu)" : "voltou manualmente"}</td>` +
+      `<td>${x.tipo === "parada" ? "parada registrada" : x.fimEf === null ? "—" : x.como === "automatico" ? "voltou sozinha (produziu)" : "voltou manualmente"}</td>` +
       `<td><button class="btn small ghost" type="button" data-sp-del="${x.id}"${dis} title="Apagar este período (ex.: marcado por engano) — o tempo volta a contar normalmente">Apagar</button></td></tr>`).join("");
     box.innerHTML = `<div class="sp-regra"><span>Volta sozinha para Com produção quando a máquina trabalhar</span>` +
       `<input class="input mono" type="number" min="5" max="240" id="sp-min" value="${r.minutos}"${dis} /> <span>min seguidos — pausas de até</span>` +
@@ -9554,6 +9663,218 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
       aposMudarExtras(["semProducao"]);
     });
   })();
+
+
+  // =====================================================================
+  // HISTORICO DE PARADAS DA MAQUINA + REGISTRAR PARADA (retroativa)
+  // A parada registrada e um periodo de inicio e fim fixos guardado junto
+  // dos "Sem producao" (tipo "parada"): sai do disponivel, do parado, da
+  // meta e do rendimento - igual a um intervalo do turno, so dessa maquina.
+  // =====================================================================
+  var hp = { id: null, per: "dia", ref: new Date() };
+  function hpAberto() { const o = document.getElementById("hp-overlay"); return !!o && o.classList.contains("visible"); }
+  function abrirHistParadas(id) {
+    hp = { id, per: usingRealTime && periodoSelecionado !== "tudo" ? periodoSelecionado : "dia", ref: new Date(dataReferencia) };
+    $("#hp-form").hidden = true;
+    $("#hp-novo").hidden = !podeEditar;
+    renderHistParadas();
+    $("#hp-overlay").classList.add("visible");
+  }
+  function fecharHistParadas() { $("#hp-overlay").classList.remove("visible"); hp.id = null; }
+  function nomeTurnoFiltro() { return selectedShift === "all" ? "Todos os turnos" : `${turnoNome(selectedShift)} (${turnoHorario(selectedShift)})`; }
+  function dadosHistParadas() {
+    const id = hp.id;
+    const [ini, fim] = limitesPeriodo(hp.per, hp.ref).map((d) => +d);
+    // paradas longas (acima de 30 min, dentro do turno, fora dos intervalos) - as pausas normais entre ciclos ficam fora
+    const longas = usingRealTime ? comPeriodo(hp.per, hp.ref, () => {
+      const R = resumoJanelas();
+      return R ? paradasDoResumo(R).filter((pz) => pz.id === id && pz.durS > paradaLongaS()) : [];
+    }, selectedShift) : [];
+    // paradas programadas do calendario do setor (sem as horas extras)
+    const programadas = [];
+    ((extras.calendario && extras.calendario.paradas) || []).forEach((pz) => {
+      if (pz.tipo === "trabalho" || !TIPOS_PARADA[pz.tipo]) return;
+      const [a, m, dd] = pz.data.split("-").map(Number);
+      let pi, pf;
+      if (pz.inicio) {
+        const hi = hhmmParaMin(pz.inicio), hf = hhmmParaMin(pz.fim);
+        pi = new Date(a, m - 1, dd, Math.floor(hi / 60), hi % 60).getTime();
+        pf = pi + ((hf - hi + 1440) % 1440) * 60000;
+      } else { pi = new Date(a, m - 1, dd).getTime(); pf = new Date(a, m - 1, dd + 1).getTime(); }
+      if (pf > ini && pi < fim) programadas.push({ inicio: pi, fim: pf, diaInteiro: !pz.inicio, nome: TIPOS_PARADA[pz.tipo].nome, obs: pz.obs || "" });
+    });
+    const agora = Date.now();
+    const registros = periodosSemProducao(id)
+      .map((x) => ({ ...x, fimMs: x.fimEf === null ? agora : x.fimEf }))
+      .filter((x) => x.inicio < fim && x.fimMs > ini);
+    return { ini, fim, registros, longas, programadas };
+  }
+  function renderHistParadas() {
+    const id = hp.id;
+    if (id === null) return;
+    const d = dadosHistParadas();
+    let rot = formatarRotuloPeriodo(hp.per, hp.ref);
+    if (hp.per === "dia") rot = `${hp.ref.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}, ${rot}`;
+    $("#hp-titulo").textContent = `Paradas — ${machineName(id)}`;
+    $("#hp-sub").textContent = `${nomeTurnoFiltro()} · paradas longas (${rotuloLonga()} no turno), programadas, registradas e Sem produção — as pausas normais entre os ciclos não aparecem`;
+    $("#hp-rotulo").textContent = rot;
+    $("#hp-prox").disabled = limitesPeriodo(hp.per, deslocarPeriodo(hp.per, hp.ref, 1))[0] > new Date();
+    const regs = d.registros;
+    const totReg = regs.reduce((t, x) => t + (Math.min(x.fimMs, d.fim) - Math.max(x.inicio, d.ini)) / 1000, 0);
+    const nReg = regs.filter((x) => x.tipo === "parada").length, nSp = regs.length - nReg;
+    const totLong = d.longas.reduce((t, pz) => t + pz.durS, 0);
+    const pl = (n, um, varios) => `<b>${n}</b> ${n === 1 ? um : varios}`;
+    $("#hp-kpis").innerHTML = [
+      d.longas.length ? `<span>${pl(d.longas.length, "longa", "longas")} · <b>${fmtDuration(Math.round(totLong))}</b></span>` : "",
+      d.programadas.length ? `<span>${pl(d.programadas.length, "programada", "programadas")}</span>` : "",
+      regs.length ? `<span>${nReg ? pl(nReg, "registrada", "registradas") : ""}${nReg && nSp ? " · " : ""}${nSp ? pl(nSp, "sem produção", "sem produção") : ""} · <b>${fmtDuration(Math.round(totReg))}</b> fora da conta</span>` : ""
+    ].join("");
+    // uma lista so, em ordem de horario (mais recente primeiro), separada por dia
+    const itens = regs.map((x) => ({ k: x.tipo === "parada" ? "reg" : "sp", inicio: x.inicio, fim: x.fimMs, durS: (x.fimMs - x.inicio) / 1000, x }))
+      .concat(d.longas.map((pz) => ({ k: "longa", inicio: pz.inicio, fim: pz.fim, durS: pz.durS, pz })))
+      .concat(d.programadas.map((pg) => ({ k: "prog", inicio: pg.inicio, fim: pg.fim, durS: (pg.fim - pg.inicio) / 1000, pg })))
+      .sort((a, b) => b.inicio - a.inicio);
+    const LIMITE = 300;
+    let diaAnt = "", html = "";
+    itens.slice(0, LIMITE).forEach((it) => {
+      const dia = chaveDia(it.inicio);
+      if (dia !== diaAnt) {
+        diaAnt = dia;
+        html += `<tr class="dia"><td colspan="6">${new Date(it.inicio).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</td></tr>`;
+      }
+      const emAnd = (it.k === "sp" && it.x.fimEf === null) || (it.k === "longa" && it.pz.emAndamento);
+      const ate = emAnd ? "agora" : it.k === "prog" && it.pg.diaInteiro ? "24:00" : (chaveDia(it.fim) !== dia ? `${ddmmDe(it.fim)} ` : "") + hhmmDe(it.fim);
+      let tipo, motivo, acao = "", cls = "reg";
+      if (it.k === "longa") {
+        cls = "";
+        tipo = `<span class="hp-tipo">Parada longa</span>`;
+        motivo = `<button class="motivo-btn" type="button" data-hp-motivo="${it.inicio}"${podeEditar ? ` title="Marcar o motivo"` : " disabled"}>${chipMotivo(motivoDe(id, it.inicio))}</button>`;
+        if (podeEditar && !it.pz.emAndamento) acao = `<button class="btn small ghost" type="button" data-hp-registrar="${it.inicio}|${it.fim}" title="Registrar como parada justificada: o tempo sai do parado, da meta e do rendimento">Registrar</button>`;
+      } else if (it.k === "prog") {
+        tipo = `<span class="hp-tipo prog">Programada</span>`;
+        motivo = `${escaparHtml(it.pg.nome)}${it.pg.obs ? ` <small>(${escaparHtml(it.pg.obs)})</small>` : ""} <small>· calendário do setor</small>`;
+      } else {
+        tipo = it.k === "reg" ? `<span class="hp-tipo reg">Registrada</span>` : `<span class="hp-tipo sp">Sem produção</span>`;
+        motivo = `${escaparHtml(it.x.motivo || "—")}${it.x.obs ? ` <small>(${escaparHtml(it.x.obs)})</small>` : ""}`;
+        if (podeEditar && it.k === "reg") acao = `<button class="btn small ghost" type="button" data-hp-apagar="${escaparHtml(it.x.id)}" title="Apagar este registro — o tempo volta a contar normalmente">Apagar</button>`;
+      }
+      html += `<tr class="${cls}"><td class="hora">${hhmmDe(it.inicio)} → ${ate}</td><td class="num">${fmtDuration(Math.round(it.durS))}</td>` +
+        `<td class="col-tipo">${tipo}</td><td>${motivo}</td><td class="hp-acoes">${acao}</td></tr>`;
+    });
+    const lista = $("#hp-lista");
+    if (!usingRealTime) lista.innerHTML = `<div class="hp-vazio">Precisa do horário real dos ciclos (servidor local ativo) para listar as paradas.</div>`;
+    else if (!itens.length) lista.innerHTML = `<div class="hp-vazio">Nenhuma parada longa, programada ou registrada neste período.${podeEditar ? " Use “+ Registrar parada” para lançar uma parada (manutenção, reunião, falta de material…)." : ""}</div>`;
+    else lista.innerHTML = `<table><thead><tr><th>Horário</th><th class="num">Duração</th><th class="col-tipo">Tipo</th><th>Motivo</th><th></th></tr></thead><tbody>${html}</tbody></table>` +
+      (itens.length > LIMITE ? `<div class="hp-nota" style="padding:8px 10px">Mostrando as ${LIMITE} mais recentes de ${itens.length}. Escolha um período menor para ver as outras.</div>` : "");
+  }
+
+  // ---- formulario: registrar parada ----
+  // sem horarios (dia passado): data do dia visto e horarios em branco
+  function abrirFormParada(inicio, fim, dia) {
+    const agora = Date.now();
+    $("#hp-data").value = inicio ? chaveDia(inicio) : dia;
+    $("#hp-data").max = chaveDia(agora);
+    $("#hp-data").min = chaveDia(agora - 60 * 86400000);
+    $("#hp-ini").value = inicio ? hhmmDe(inicio) : "";
+    $("#hp-fim").value = fim ? hhmmDe(fim) : "";
+    const cat = (extras.motivos && extras.motivos.catalogo) || [];
+    $("#hp-motivo").innerHTML = cat.map((c) => `<option>${escaparHtml(c.nome)}</option>`).join("") + `<option>Outro</option>`;
+    $("#hp-obs").value = "";
+    $("#hp-form").hidden = false;
+    conferirFormParada();
+    $("#hp-ini").focus();
+  }
+  // le os campos: { inicio, fim } ou { erro }; "Ate" menor que "Das" = passa da meia-noite
+  function lerFormParada() {
+    const dia = $("#hp-data").value, hi = $("#hp-ini").value, hf = $("#hp-fim").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || !/^\d{2}:\d{2}$/.test(hi) || !/^\d{2}:\d{2}$/.test(hf)) return { erro: "Informe a data e os horários de início (Das) e fim (Até)." };
+    const inicio = new Date(`${dia}T${hi}`).getTime();
+    let fim = new Date(`${dia}T${hf}`).getTime();
+    if (fim <= inicio) fim += 86400000;
+    return { inicio, fim };
+  }
+  function conferirFormParada() {
+    const id = hp.id, aviso = $("#hp-aviso"), bt = $("#hp-salvar");
+    const r = lerFormParada();
+    const agora = Date.now();
+    let erro = r.erro || "", alerta = "", info = "";
+    if (!erro) {
+      if (r.fim > agora + 60000) erro = "O fim não pode ser no futuro — registre só paradas que já terminaram.";
+      else if (r.inicio < agora - 60 * 86400000) erro = "No máximo 60 dias para trás.";
+      else if (r.fim - r.inicio > 24 * 3600000) erro = "Uma parada registrada vai até 24 h. Para mais tempo, use Sem produção.";
+      else if (r.fim - r.inicio < 60000) erro = "A parada precisa ter pelo menos 1 minuto.";
+      else {
+        const conflito = periodosSemProducao(id).find((x) => x.inicio < r.fim && (x.fimEf === null ? agora : x.fimEf) > r.inicio);
+        if (conflito) erro = `Já existe ${conflito.tipo === "parada" ? "uma parada registrada" : "um período Sem produção"} nesse horário (${ddmmDe(conflito.inicio)} ${hhmmDe(conflito.inicio)} → ${conflito.fimEf === null ? "agora" : hhmmDe(conflito.fimEf)}).`;
+      }
+    }
+    if (!erro) {
+      const ligMin = ivsBrutosEntre(id, r.inicio, Math.min(r.fim, agora)).reduce((t, [a, b]) => t + (b - a), 0) / 60000;
+      info = `${fmtDuration(Math.round((r.fim - r.inicio) / 1000))} de parada (${ddmmDe(r.inicio)} ${hhmmDe(r.inicio)} → ${chaveDia(r.fim) !== chaveDia(r.inicio) ? ddmmDe(r.fim) + " " : ""}${hhmmDe(r.fim)}). ` +
+        `Esse tempo sai do disponível, do parado, da meta e do rendimento da máquina.`;
+      if (ligMin >= 1) alerta = `Atenção: a máquina ficou ${Math.round(ligMin)} min ligada nesse horário — esse tempo deixa de contar como produção. Confira os horários.`;
+    }
+    aviso.textContent = erro || (alerta ? `${info} ${alerta}` : info);
+    aviso.className = "hp-aviso" + (erro ? " erro" : alerta ? " alerta" : "");
+    bt.disabled = !!erro;
+    return erro ? null : r;
+  }
+  function salvarParada() {
+    if (!podeEditar) { avisoFlutuante("Somente leitura: as paradas são registradas no computador da fábrica ou com a senha de edição."); return; }
+    const r = conferirFormParada();
+    if (!r || hp.id === null) return;
+    const item = { id: novoIdSP(), maquina: hp.id, inicio: r.inicio, fim: r.fim, origemFim: "manual", tipo: "parada", motivo: $("#hp-motivo").value };
+    const obs = $("#hp-obs").value.trim();
+    if (obs) item.obs = obs.slice(0, 80);
+    extras.semProducao.periodos.push(item);
+    extras.semProducao.periodos.sort((a, b) => a.inicio - b.inicio);
+    $("#hp-form").hidden = true;
+    aposMudarExtras(["semProducao"]);
+    avisoFlutuante(`Parada registrada: ${machineName(hp.id)}, ${ddmmDe(r.inicio)} ${hhmmDe(r.inicio)} → ${hhmmDe(r.fim)}.`);
+    // mostra o periodo da parada na lista
+    if (!(r.inicio >= +limitesPeriodo(hp.per, hp.ref)[0] && r.inicio < +limitesPeriodo(hp.per, hp.ref)[1])) hp.ref = new Date(r.inicio);
+    renderHistParadas();
+  }
+
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-hist-paradas]");
+    if (b) { ev.preventDefault(); abrirHistParadas(Number(b.dataset.histParadas)); }
+  });
+  $("#hp-lista").addEventListener("click", (ev) => {
+    const m = ev.target.closest("[data-hp-motivo]");
+    if (m) {
+      const pz = dadosHistParadas().longas.find((x) => x.inicio === Number(m.dataset.hpMotivo));
+      if (pz) abrirMotivo(hp.id, pz);
+      return;
+    }
+    const rg = ev.target.closest("[data-hp-registrar]");
+    if (rg) { const [a, f] = rg.dataset.hpRegistrar.split("|").map(Number); abrirFormParada(a, f); $("#hp-form").scrollIntoView({ block: "nearest" }); return; }
+    const ap = ev.target.closest("[data-hp-apagar]");
+    if (ap) {
+      if (!confirm("Apagar esta parada registrada? O tempo dela volta a contar normalmente (disponível, parado, rendimento).")) return;
+      extras.semProducao.periodos = extras.semProducao.periodos.filter((x) => x.id !== ap.dataset.hpApagar);
+      aposMudarExtras(["semProducao"]);
+      renderHistParadas();
+    }
+  });
+  $("#hp-novo").addEventListener("click", () => {
+    // hoje: sugere a ultima hora; outro dia: so a data (horarios em branco)
+    const [iniP, fimP] = limitesPeriodo(hp.per, hp.ref).map((d) => +d);
+    const agora = Date.now();
+    if (agora >= iniP && agora < fimP) abrirFormParada(agora - 3600000, agora);
+    else abrirFormParada(null, null, chaveDia(hp.per === "dia" ? +hp.ref : Math.min(agora, fimP - 60000)));
+  });
+  ["hp-data", "hp-ini", "hp-fim"].forEach((k) => $("#" + k).addEventListener("input", conferirFormParada));
+  $("#hp-form").addEventListener("submit", (ev) => { ev.preventDefault(); salvarParada(); });
+  $("#hp-form-cancelar").addEventListener("click", () => { $("#hp-form").hidden = true; });
+  $("#hp-ant").addEventListener("click", () => { hp.ref = deslocarPeriodo(hp.per, hp.ref, -1); renderHistParadas(); });
+  $("#hp-prox").addEventListener("click", () => { hp.ref = deslocarPeriodo(hp.per, hp.ref, 1); renderHistParadas(); });
+  $("#hp-fechar").addEventListener("click", fecharHistParadas);
+  $("#hp-overlay").addEventListener("click", (ev) => { if (ev.target.id === "hp-overlay") fecharHistParadas(); });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape" || !hpAberto() || $("#motivo-overlay").classList.contains("visible")) return;
+    if (!$("#hp-form").hidden) $("#hp-form").hidden = true; else fecharHistParadas();
+  });
 
   // ---- Filtros no endereco (para mandar o link de um dia/turno) ----
   function escreverUrlFiltros() {
@@ -10550,7 +10871,30 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
       el.classList.remove("saved-flash"); void el.offsetWidth; el.classList.add("saved-flash");
     }, 60);
   }
+  function renderParadaLongaCfg() {
+    const campo = $("#cfg-longa-min");
+    if (!campo) return;
+    if (document.activeElement !== campo) campo.value = String(paradaLongaMin());
+    campo.disabled = $("#cfg-longa-salvar").disabled = !podeEditar;
+    $("#cfg-longa-nota").textContent = podeEditar ? `Hoje: paradas ${rotuloLonga()} são longas. Faixas: até 5 min · ${rotuloMedia()} · ${rotuloLonga()}.` : "Somente leitura: alterado no computador da fábrica ou com a senha de edição.";
+  }
+  (function ligarParadaLongaCfg() {
+    const bt = document.getElementById("cfg-longa-salvar");
+    if (!bt) return;
+    bt.addEventListener("click", () => {
+      if (!podeEditar) return;
+      const v = Math.round(Number($("#cfg-longa-min").value));
+      if (!Number.isFinite(v) || v < 10 || v > 240) { avisoFlutuante("Informe de 10 a 240 minutos."); return; }
+      if (v === 30) delete extras.motivos.longaMin; else extras.motivos.longaMin = v;
+      aposMudarExtras(["motivos"]);
+      $("#cfg-longa-min").blur();
+      renderParadaLongaCfg();
+      avisoFlutuante(`Parada longa: ${rotuloLonga()}.`);
+    });
+    document.getElementById("cfg-longa-min").addEventListener("keydown", (ev) => { if (ev.key === "Enter") bt.click(); });
+  })();
   function renderConfiguracoesPagina() {
+    renderParadaLongaCfg();
     // maquinas e meta
     const lm = $("#cfg-maquinas-lista");
     if (lm) lm.innerHTML = MACHINE_IDS.map((id) => `<div class="cfg-linha"><strong>${escaparHtml(machineName(id))}</strong><span>${machineRate(id) > 0 ? fmtTaxaMH(machineRate(id)) : "sem taxa"}</span></div>`).join("") +

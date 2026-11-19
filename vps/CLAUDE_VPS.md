@@ -102,6 +102,10 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
+**1.6.0** (deploy seguinte ao `b92ed2d`): só o painel — histórico de paradas
+e parada registrada (retroativa). Deploy comum; o `ping` responde
+`"versao": "1.6.0"`.
+
 **1.5.2** (deploy seguinte ao `8816ecc`): só o painel — filtros fixos e aviso
 no rodapé. Deploy comum; o `ping` responde `"versao": "1.5.2"`.
 
@@ -187,7 +191,7 @@ pode aparecer duplicado — inofensivo.
    curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
    curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
-   #   -> {"ok": true, "versao": "1.5.2"}
+   #   -> {"ok": true, "versao": "1.6.0"}
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
    #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
    ```
