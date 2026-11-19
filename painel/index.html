@@ -676,13 +676,6 @@
   .stat span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-400); }
   .stat strong { display: block; font-family: var(--font-mono); font-size: 17px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stat small { display: block; font-size: 11px; color: var(--ink-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .heat { display: grid; gap: 3px; font-size: 11px; overflow-x: auto; }
-  .heat-cell { height: 28px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-900); background: var(--surface-sunken); border: 1px solid var(--border); min-width: 34px; }
-  .heat-cell.vazio { background: transparent; border-style: dashed; color: var(--ink-400); }
-  .heat-lbl { display: flex; align-items: center; color: var(--ink-600); font-weight: 600; padding-right: 6px; white-space: nowrap; }
-  .heat-col { text-align: center; color: var(--ink-400); font-family: var(--font-mono); font-size: 10px; }
-  .heat-escala { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11px; color: var(--ink-600); }
-  .heat-escala i { width: 120px; height: 9px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, var(--surface-sunken)), var(--accent)); }
 
   /* Configuracoes: pausas, calendario, historico */
   .pz-turno { padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -1036,18 +1029,6 @@
   .kpi-spark path.a { fill: color-mix(in srgb, var(--kpi-c, var(--accent)) 14%, transparent); stroke: none; }
   .kpi-spark circle { fill: var(--kpi-c, var(--accent)); }
 
-  /* Barras horizontais com rotulo (Pareto de motivos) */
-  .tempo-linhas { display: flex; flex-direction: column; gap: 12px; }
-  .tempo-linha { display: grid; grid-template-columns: minmax(90px, 150px) 1fr 64px; gap: 12px; align-items: center; }
-  .tempo-linha.total { padding-top: 12px; border-top: 1px dashed var(--border-strong); }
-  .tempo-nome { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; min-width: 0; }
-  .tempo-nome span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tempo-barra { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface-sunken); border: 1px solid var(--border); }
-  .tempo-barra > b { display: block; height: 100%; min-width: 0; cursor: default; transition: filter .15s; }
-  .tempo-barra > b:hover { filter: brightness(1.12); }
-  .tempo-pct { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; text-align: right; color: var(--st-ligado); }
-  @media (max-width: 640px) { .tempo-linha { grid-template-columns: 1fr 52px; } .tempo-nome { grid-column: 1 / -1; } }
-
   /* Motivos de parada */
   .motivo-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--ink-900); background: color-mix(in srgb, var(--mc, var(--ink-400)) 16%, transparent); border: 1px solid color-mix(in srgb, var(--mc, var(--ink-400)) 40%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .motivo-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mc, var(--ink-400)); flex: none; }
@@ -1130,7 +1111,7 @@
   }
 
   /* Toque (celular): o tooltip aberto por toque some ao tocar fora */
-  @media (hover: none) { .chart-wrap svg rect, .chart-wrap svg circle, .tempo-barra > b { cursor: pointer; } }
+  @media (hover: none) { .chart-wrap svg rect, .chart-wrap svg circle { cursor: pointer; } }
 
   /* =====================================================================
      MODAIS
@@ -1867,10 +1848,10 @@
   </section>
 
   <!-- ===================================================================
-       VIEW: DESEMPENHO (paradas, mapa de calor e comparativo
+       VIEW: DESEMPENHO (paradas, motivos, disciplina e comparativo
        entre turnos) - mesma base dos cartoes
        =================================================================== -->
-  <section class="view" id="view-desempenho" data-titulo="Desempenho" data-desc="Tempo ligado por hora, paradas, produção e comparativo por turno, mapa de calor e ciclos registrados">
+  <section class="view" id="view-desempenho" data-titulo="Desempenho" data-desc="Tempo ligado por hora, evolução, paradas, disciplina de turno, produção e comparativo por turno e ciclos registrados">
 
     <section class="panel">
       <div class="panel-head">
@@ -1911,32 +1892,18 @@
       <div class="panel-body"><div id="paradas-kpis" class="stat-row"></div><div class="chart-wrap" id="paradas-wrap"></div></div>
     </section>
 
-    <div class="grid-12">
-      <section class="panel span-7">
-        <div class="panel-head">
-          <div class="panel-title-wrap">
-            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 20h16M6 20V8M10 20v-7M14 20v-4M18 20v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 6c4 0 8 1 14 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2.5"/></svg></span>
-            <div>
-              <div class="panel-title">Paradas por motivo</div>
-              <div class="panel-hint">Pareto: motivos que mais tiraram tempo de produção (paradas de 1 min ou mais). Clique numa parada na linha do tempo (Visão geral) para marcar o motivo</div>
-            </div>
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l3 2M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="panel-title">Disciplina de turno</div>
+            <div class="panel-hint">Atraso na 1ª partida (do início do turno até a máquina ligar) e saída antecipada (da última parada até o fim do turno), sem contar intervalos</div>
           </div>
         </div>
-        <div class="panel-body"><div id="pareto-resumo" class="motivo-resumo"></div><div class="chart-wrap" id="pareto-wrap"></div></div>
-      </section>
-      <section class="panel span-5">
-        <div class="panel-head">
-          <div class="panel-title-wrap">
-            <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l3 2M9 2h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <div>
-              <div class="panel-title">Disciplina de turno</div>
-              <div class="panel-hint">Atraso na 1ª partida (do início do turno até a máquina ligar) e saída antecipada (da última parada até o fim do turno), sem contar intervalos</div>
-            </div>
-          </div>
-        </div>
-        <div class="panel-body"><div class="tabela-rolagem" id="disciplina-wrap"></div></div>
-      </section>
-    </div>
+      </div>
+      <div class="panel-body"><div class="tabela-rolagem" id="disciplina-wrap"></div></div>
+    </section>
 
     <section class="panel">
       <div class="panel-head">
@@ -1965,19 +1932,6 @@
         </div>
       </div>
       <div class="panel-body"><div class="chart-wrap" id="comp-turnos-wrap"></div></div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title-wrap">
-          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="10" y="3" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="17" y="3" width="4" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="3" y="10" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="10" y="10" width="5" height="5" rx="1" fill="currentColor" opacity=".7"/><rect x="17" y="10" width="4" height="5" rx="1" fill="currentColor"/><rect x="3" y="17" width="5" height="4" rx="1" fill="currentColor" opacity=".4"/><rect x="10" y="17" width="5" height="4" rx="1" fill="currentColor"/><rect x="17" y="17" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.6"/></svg></span>
-          <div>
-            <div class="panel-title">Mapa de calor — ocupação por dia da semana e hora</div>
-            <div class="panel-hint">Média de tempo ligado ÷ tempo disponível de todas as máquinas em cada hora de turno</div>
-          </div>
-        </div>
-      </div>
-      <div class="panel-body"><div class="chart-wrap" id="heatmap-wrap"></div></div>
     </section>
 
     <section class="panel" id="table-panel">
@@ -5117,23 +5071,21 @@
   // =====================================================================
   function renderDesempenho() {
     const R = resumoJanelas();
-    const wraps = ["paradas-wrap", "heatmap-wrap", "comp-turnos-wrap", "pareto-wrap", "disciplina-wrap"].map((id) => $("#" + id));
+    const wraps = ["paradas-wrap", "comp-turnos-wrap", "disciplina-wrap"].map((id) => $("#" + id));
     renderEvolucao($("#evolucao-wrap"));
     if (!R) {
       wraps.forEach((wr) => vazio(wr, "Precisa do horário real dos ciclos (servidor local ativo ou CSV com data/hora) e de um período (Dia/Semana/Mês/Ano)."));
-      $("#paradas-kpis").innerHTML = ""; $("#pareto-resumo").innerHTML = "";
+      $("#paradas-kpis").innerHTML = "";
       return;
     }
     if (!R.linhas.length) {
       wraps.forEach((wr) => vazio(wr, "Nenhum turno no período/filtro selecionado."));
-      $("#paradas-kpis").innerHTML = ""; $("#pareto-resumo").innerHTML = "";
+      $("#paradas-kpis").innerHTML = "";
       return;
     }
     renderParadas(R, wraps[0]);
-    renderHeatmap(R, wraps[1]);
-    renderComparativoTurnos(wraps[2]);
-    renderPareto(R, wraps[3]);
-    renderDisciplina(R, wraps[4]);
+    renderComparativoTurnos(wraps[1]);
+    renderDisciplina(R, wraps[2]);
   }
 
   // Agrupa as linhas do resumo em "baldes" de tempo (dia; no ano, semana).
@@ -5238,50 +5190,6 @@
     wrap.insertBefore(svg, tt);
     wrap.appendChild(legenda(FAIXAS.map((f) => ({ cor: f.cor, texto: f.nome }))));
 
-  }
-
-  function renderHeatmap(R, wrap) {
-    const celulas = new Map(); // "diaSemana|hora" -> { lig, disp }
-    const horas = new Set();
-    R.linhas.forEach((ln) => {
-      for (let h = new Date(ln.inicio).setMinutes(0, 0, 0); h < ln.fim; h += 3600000) {
-        const a = Math.max(h, ln.inicio), b = Math.min(h + 3600000, ln.fim);
-        if (b <= a) continue;
-        const hr = new Date(h).getHours(), ds = new Date(h).getDay();
-        horas.add(hr);
-        const k = `${ds}|${hr}`;
-        if (!celulas.has(k)) celulas.set(k, { lig: 0, disp: 0 });
-        const c = celulas.get(k);
-        MACHINE_IDS.forEach((id) => {
-          const pm = ln.maquinas[id].pausasMaq; // pausas fixas + almoco desta maquina
-          c.disp += (b - a) / 1000 - sobreposicaoS(a, b, pm);
-          ln.maquinas[id].ivs.forEach(([ia, ib]) => {
-            const i0 = Math.max(ia, a), i1 = Math.min(ib, b);
-            if (i1 <= i0) return;
-            // o mapa mostra so o tempo de turno sem pausas (dos dois lados da conta)
-            c.lig += (i1 - i0) / 1000 - sobreposicaoS(i0, i1, pm);
-          });
-        });
-      }
-    });
-    if (!celulas.size) { vazio(wrap, "Sem horas de turno no período."); return; }
-    const hIni = Math.min(...turnos.flatMap(horariosDoTurno).map((t) => Math.floor(hhmmParaMin(t.inicio) / 60)));
-    const listaHoras = [...horas].sort((a, b) => ((a - hIni + 24) % 24) - ((b - hIni + 24) % 24));
-    const NOMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    const diasUsados = [1, 2, 3, 4, 5, 6, 0].filter((d) => listaHoras.some((h) => celulas.has(`${d}|${h}`)));
-    let html = `<div class="heat" style="grid-template-columns: 44px repeat(${listaHoras.length}, minmax(34px, 1fr))"><div></div>` +
-      listaHoras.map((h) => `<div class="heat-col">${String(h).padStart(2, "0")}h</div>`).join("");
-    diasUsados.forEach((d) => {
-      html += `<div class="heat-lbl">${NOMES[d]}</div>`;
-      listaHoras.forEach((h) => {
-        const c = celulas.get(`${d}|${h}`);
-        if (!c || c.disp <= 0) { html += `<div class="heat-cell vazio">·</div>`; return; }
-        const pct = Math.min(100, (c.lig / c.disp) * 100);
-        html += `<div class="heat-cell" style="background: color-mix(in srgb, var(--accent) ${Math.round(6 + pct * 0.9)}%, var(--surface-sunken)); ${pct > 55 ? "color: var(--accent-ink);" : ""}" title="${NOMES[d]} ${String(h).padStart(2, "0")}h — ocupação ${Math.round(pct)}% (ligado ${fmtDuration(c.lig)} de ${fmtDuration(c.disp)})">${Math.round(pct)}</div>`;
-      });
-    });
-    html += `</div><div class="heat-escala"><span>0%</span><i></i><span>100% de ocupação</span><span style="margin-left:auto">células vazias = hora sem turno ou toda em intervalo/parada programada</span></div>`;
-    wrap.innerHTML = html;
   }
 
   function renderComparativoTurnos(wrap) {
@@ -7287,36 +7195,6 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     });
   })();
 
-  // ---- Paradas por motivo (Pareto) ----
-  function renderPareto(R, wrap) {
-    const todas = paradasDoResumo(R);
-    const resumo = $("#pareto-resumo");
-    if (!todas.length) { resumo.innerHTML = ""; vazio(wrap, "Nenhuma parada de 1 min ou mais no filtro."); return; }
-    const grupos = new Map();
-    let marcadas = 0, marcadasS = 0, totalS = 0;
-    todas.forEach((pz) => {
-      const mt = motivoDe(pz.id, pz.inicio);
-      const k = mt ? mt.id : "";
-      if (!grupos.has(k)) grupos.set(k, { nome: mt ? mt.nome : "Sem motivo marcado", cor: mt ? mt.cor : "var(--ink-400)", n: 0, s: 0 });
-      const gr = grupos.get(k); gr.n++; gr.s += pz.durS;
-      totalS += pz.durS;
-      if (mt) { marcadas++; marcadasS += pz.durS; }
-    });
-    resumo.innerHTML = `<strong>${marcadas}</strong> de <strong>${todas.length}</strong> paradas com motivo · <strong>${Math.round(totalS ? (marcadasS / totalS) * 100 : 0)}%</strong> do tempo parado explicado` +
-      (podeEditar && marcadas < todas.length ? " · clique numa parada na linha do tempo (Visão geral) para marcar" : "");
-    const lista = [...grupos.entries()].filter(([k]) => k).map(([, v]) => v).sort((a, b) => b.s - a.s);
-    if (grupos.has("")) lista.push(grupos.get(""));
-    const maxS = Math.max(...lista.map((g) => g.s), 1);
-    let acum = 0;
-    wrap.innerHTML = `<div class="tempo-linhas" style="margin-top:12px">` + lista.map((g) => {
-      acum += g.s;
-      return `<div class="tempo-linha"><div class="tempo-nome"><span class="machine-dot" style="--m-color:${g.cor}"></span><span>${escaparHtml(g.nome)}</span></div>` +
-        `<div class="tempo-barra" title="${g.n} parada(s) · ${fmtDuration(g.s)} · acumulado ${Math.round((acum / totalS) * 100)}%"><b style="width:${((g.s / maxS) * 100).toFixed(1)}%;background:${g.cor}"></b></div>` +
-        `<div class="tempo-pct" style="color:var(--ink-900)">${Math.round((g.s / totalS) * 100)}%</div></div>` +
-        `<div class="motivo-resumo" style="margin:-8px 0 0 calc(min(150px, 30%) + 12px)">${fmtDuration(g.s)} · ${g.n}× · acumulado ${Math.round((acum / totalS) * 100)}%</div>`;
-    }).join("") + `</div>`;
-  }
-
   // ---- Disciplina de turno ----
   function renderDisciplina(R, wrap) {
     const acc = {};
@@ -7594,7 +7472,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   var toqueAtual = null;
   document.addEventListener("pointerdown", (ev) => {
     if (ev.pointerType !== "touch") return;
-    const alvo = ev.target.closest && ev.target.closest(".chart-wrap svg rect, .chart-wrap svg circle, .chart-wrap svg g, .tempo-barra > b");
+    const alvo = ev.target.closest && ev.target.closest(".chart-wrap svg rect, .chart-wrap svg circle, .chart-wrap svg g");
     if (toqueAtual && toqueAtual !== alvo) toqueAtual.dispatchEvent(new MouseEvent("mouseleave"));
     toqueAtual = alvo || null;
     if (alvo) alvo.dispatchEvent(new MouseEvent("mouseenter"));

@@ -52,7 +52,7 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
 | Seção (aba) | Conteúdo |
 |---|---|
 | **Visão geral** | Faixa de **alerta** (máquina parada além do limite); os cartões **Rendimento por máquina**; a **Linha do tempo por máquina**; 5 KPIs (tempo ligado, tempo parado, rendimento com meta/comparação/minigráfico, produção estimada, ligadas agora); **ranking** de rendimento |
-| **Desempenho** | Tempo ligado por hora, **evolução do rendimento**, análise de paradas, **paradas por motivo** (Pareto) + **disciplina de turno**, **produção por turno** (gráfico + tabela), comparativo entre turnos, mapa de calor e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
+| **Desempenho** | Tempo ligado por hora, **evolução do rendimento**, análise de paradas, **disciplina de turno**, **produção por turno** (gráfico + tabela), comparativo entre turnos e **tabela de ciclos registrados** (filtro por máquina, busca e "somente alertas"). A antiga aba "Análise temporal" foi incorporada aqui |
 | **Turnos e calendário** (⚙ Configurações → Turnos e calendário) | Cards de configuração: **Turnos cadastrados** (edição direta — ver abaixo), **Intervalo de refeição**, **Calendário e paradas programadas**, **Motivos de parada** e **Histórico de configurações** |
 | **Identidade visual** (⚙ → Aparência) | Editor da paleta da marca — ver abaixo |
 
@@ -157,7 +157,6 @@ e elas ficam só no navegador.
 | Onde | Gráfico |
 |---|---|
 | Desempenho → Análise de paradas | Nº de paradas (≥ 1 min, sem pausas), tempo parado, duração média, maior parada, tempo médio ligado entre paradas; barras por faixa (até 5 min / 5–30 / > 30). (A lista "Maiores paradas" saiu na 1.3.0; a maior aparece no indicador e no relatório) |
-| Desempenho → Mapa de calor | Ocupação média por dia da semana × hora de turno |
 | Desempenho → Comparativo entre turnos | Rendimento de cada turno ao longo do período |
 
 1.3.0:
@@ -167,7 +166,6 @@ e elas ficam só no navegador.
 | Visão geral → KPI Rendimento | Risco da meta na barra, % da meta cumprida, projeção do turno em andamento ("fim ≈ X%"), comparação com o período anterior (dia: o último dia com turno) em pontos percentuais e minigráfico dos últimos períodos |
 | Visão geral → Linha do tempo | Clique numa parada = marcar o motivo; risco colorido = motivo marcado; a faixa do turno avisa quando o horário é de uma configuração antiga |
 | Desempenho → Evolução do rendimento | Rendimento de cada máquina por dia (Ano: por semana); no filtro Dia, os últimos 14 dias |
-| Desempenho → Paradas por motivo | Pareto dos motivos (tempo, nº, % e acumulado) e quanto do tempo parado já tem motivo |
 | Desempenho → Disciplina de turno | Por máquina: atraso médio/pior na 1ª partida e saída antecipada média/pior (sem intervalos; verde < 5 min, vermelho > 10 min) |
 | ⚙ → Alerta de máquina parada | Por aparelho (localStorage): limite em minutos (padrão 15) e bipe. Só dentro do turno, fora de intervalos fixos/paradas programadas; na refeição flexível, só depois da duração máxima |
 | ⚙ → Modo TV | Tela cheia (Esc sai): estado e há quanto tempo de cada máquina, rendimento de hoje e a meta |

@@ -15,7 +15,7 @@ o desenvolvimento no notebook (Windows).
 | Parte | Onde | O que faz |
 |---|---|---|
 | Firmware 3.0 (ESP32) | `firmware/controle_producao_horimetro/` | Lê 4 relés, guarda ciclos na flash, responde ao notebook na rede local e envia para a VPS por HTTPS |
-| App 1.3.0 da fábrica (Windows) | `app/` + `ferramentas/` + `painel/` | Servidor + painel web; lê o ESP32; banco SQLite; backup diário; **mestre** (edita sem senha); sincroniza configuração (duas mãos, 15 s) e histórico com a VPS |
+| App 1.3.1 da fábrica (Windows) | `app/` + `ferramentas/` + `painel/` | Servidor + painel web; lê o ESP32; banco SQLite; backup diário; **mestre** (edita sem senha); sincroniza configuração (duas mãos, 15 s) e histórico com a VPS |
 | Servidor da VPS | o mesmo código, `PAINEL_MODO=nuvem`; instalação em `vps/` | Recebe do ESP32 e do notebook; painel com senha de visualização ou de edição; auditoria |
 | Programa remoto | `remoto/painel_remoto.py` + `remoto/icone.ico` | "Painel de Produção.exe": janela que só abre a VPS (sem chave); cópia publicada em `vps/app-remoto/` e baixada pelo painel da VPS |
 | Geradores | `gerar/` → saída em `distribuir/` (fora do git) | `gerar.bat`: `.exe` da fábrica, `.exe` remoto, pacote da VPS |

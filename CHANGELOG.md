@@ -1,5 +1,16 @@
 # Histórico de versões
 
+## 1.3.1 — sem o mapa de calor e o Pareto de motivos (app 1.3.1 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
+
+Só o painel mudou: na VPS basta o `git pull`; quem usa o programa remoto recebe
+ao reabrir; no notebook, `.exe` novo.
+
+- **Desempenho**: saíram o "Mapa de calor — ocupação por dia da semana e
+  hora" e o "Paradas por motivo" (Pareto). A Disciplina de turno ocupa a linha
+  inteira. O motivo de cada parada continua sendo marcado na linha do tempo e
+  aparece no tooltip e no relatório do período (com o resumo por motivo).
+
+
 ## 1.3.0 — gestão: paradas com motivo, tendência, alerta, modo TV e relatório (app 1.3.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel e a sincronização mudaram: na VPS, `git pull` (precisa da 1.3.0 lá
