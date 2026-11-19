@@ -11,6 +11,14 @@ Quem faz o que:
   - A VPS roda este mesmo servidor com PAINEL_MODO=nuvem: guarda uma copia e
     serve o painel SOMENTE LEITURA, com login, para quem esta fora da rede.
 
+Notebook como segunda fonte (1.7.0): junto do historico, o notebook manda o
+ESTADO AO VIVO das maquinas que ele le do ESP32 pela rede local ("ao_vivo":
+maquinas + ha quantos segundos falou com o ESP32). A VPS so aplica se for mais
+novo que o ultimo envio direto do ESP32 - o ESP32 continua a fonte principal.
+Quando a VPS responde que o ESP32 esta sem enviar direto, o notebook passa a
+mandar a cada 5 s (estado e ciclos novos). O status diz a fonte: "esp",
+"notebook" ou nenhuma.
+
 Historico: o notebook tambem envia para a VPS TODOS os ciclos que ela ainda
 nao tem (em lotes, depois os novos a cada 30 s) - a VPS fica com o mesmo
 historico do notebook, alem do que o ESP32 manda direto. Deduplicacao pela
@@ -72,6 +80,7 @@ DIAS_SESSAO = 30
 SENHA_MIN, SENHA_MAX = 8, 128
 ARQUIVO_CONFIG_NUVEM = "nuvem.json"  # no notebook: {"url": "...", "chave": "..."} (opcional)
 ESP_SEM_ENVIAR_S = 60  # sem envio do ESP32 ha mais que isso = "controlador sem enviar"
+AO_VIVO_MAX_IDADE_S = 60  # estado vindo do notebook mais velho que isso nao vale
 MAX_CICLOS_POR_ENVIO = 500
 MAX_HISTORICO_POR_ENVIO = 500
 DISPOSITIVO_SERIAL = "NOTEBOOK-SERIAL"  # ciclos lidos pela USB (sem serie do ESP32)
@@ -473,6 +482,41 @@ def sincronizar_config(banco, dir_dados, corpo, setor_padrao):
             "aceitos": aceitos, "rejeitados": rejeitados, "auditoria": banco.ultimas_alteracoes(50)}
 
 
+def _idade_s(iso):
+    try:
+        return (datetime.now() - datetime.fromisoformat(iso)).total_seconds()
+    except (TypeError, ValueError):
+        return None
+
+
+def aplicar_ao_vivo_notebook(banco, dir_dados, setor, ao_vivo):
+    """VPS: estado ao vivo que o notebook leu do ESP32 pela rede local.
+    So vale se for mais novo que o ultimo envio direto do ESP32 (que continua
+    a fonte principal). Devolve True se aplicou."""
+    if not isinstance(ao_vivo, dict):
+        return False
+    try:
+        contato_s = max(0.0, float(ao_vivo.get("contato_s")))
+    except (TypeError, ValueError):
+        return False
+    agora = datetime.now()
+    campos = {"notebook_visto_em": _agora_iso()}
+    aplicou = False
+    if contato_s <= AO_VIVO_MAX_IDADE_S:
+        idade_esp = _idade_s(_ler_status(dir_dados).get("ultimo_contato", ""))
+        if idade_esp is None or idade_esp > contato_s + 2:
+            for m in ao_vivo.get("maquinas") or []:
+                try:
+                    desde = agora - timedelta(seconds=max(0, int(m["segundos"])))
+                    banco.atualizar_estado_ao_vivo(setor, int(m["maquina"]), bool(m["ligado"]), desde.isoformat(timespec="seconds"))
+                    aplicou = True
+                except (KeyError, TypeError, ValueError):
+                    continue
+        campos["ultimo_contato_notebook"] = (agora - timedelta(seconds=contato_s)).isoformat(timespec="seconds")
+    _atualizar_status(dir_dados, **campos)
+    return aplicou
+
+
 def receber_historico(banco, dir_dados, corpo, setor_padrao):
     """VPS: grava um lote do historico enviado pelo notebook. Lote vazio so
     devolve o total (o notebook usa para conferir se falta algo)."""
@@ -497,21 +541,34 @@ def receber_historico(banco, dir_dados, corpo, setor_padrao):
     total = banco.total_ciclos(setor)
     if linhas:
         _atualizar_status(dir_dados, historico_recebido_em=_agora_iso(), ciclos_total=total)
-    return {"ok": True, "gravados": gravados, "total": total}
+    resposta = {"ok": True, "gravados": gravados, "total": total}
+    if "ao_vivo" in corpo:  # 1.7.0: notebook como segunda fonte
+        resposta["ao_vivo_aplicado"] = aplicar_ao_vivo_notebook(banco, dir_dados, setor, corpo.get("ao_vivo"))
+        idade_esp = _idade_s(_ler_status(dir_dados).get("ultimo_contato", ""))
+        resposta["esp_direto_s"] = None if idade_esp is None else int(idade_esp)
+    return resposta
 
 
 def status_nuvem(dir_dados):
     """GET /sincronizacao na VPS: o ESP32 esta enviando? quando a
     configuracao chegou do notebook?"""
     s = _ler_status(dir_dados)
-    try:
-        idade = (datetime.now() - datetime.fromisoformat(s.get("ultimo_contato", ""))).total_seconds()
-    except (TypeError, ValueError):
-        idade = None
-    enviando = idade is not None and idade <= ESP_SEM_ENVIAR_S
+    idade_esp = _idade_s(s.get("ultimo_contato", ""))
+    idade_nb = _idade_s(s.get("ultimo_contato_notebook", ""))
+    if idade_esp is not None and idade_esp <= ESP_SEM_ENVIAR_S:
+        fonte = "esp"
+    elif idade_nb is not None and idade_nb <= ESP_SEM_ENVIAR_S:
+        fonte = "notebook"  # o ESP32 nao envia direto, mas o notebook repassa o que le dele
+    else:
+        fonte = ""
+    idades = [i for i in (idade_esp, idade_nb) if i is not None]
+    idade = min(idades) if idades else None
+    enviando = bool(fonte)
     estado = "conectado" if enviando else ("sem_resposta" if idade is not None else "procurando")
-    return {**s, "modo": "nuvem", "rodando": enviando, "estado": estado,
-            "ultima_sincronizacao": s.get("ultimo_contato", ""), "segundos_sem_envio": idade}
+    ultima = s.get("ultimo_contato", "") if idade == idade_esp else s.get("ultimo_contato_notebook", "")
+    return {**s, "modo": "nuvem", "rodando": enviando, "estado": estado, "fonte": fonte,
+            "ultima_sincronizacao": ultima, "segundos_sem_envio": idade,
+            "segundos_sem_envio_esp": idade_esp, "segundos_sem_envio_notebook": idade_nb}
 
 
 # ---------------------------------------------------------------------
@@ -751,6 +808,7 @@ class EnviadorConfig:
     depois - nunca atrapalha o painel local."""
 
     VERIFICAR_S = 15
+    AO_VIVO_RAPIDO_S = 5  # ESP32 sem enviar direto para a VPS: o notebook repassa a cada 5 s
     REENVIAR_S = 1800
     CONFERIR_TOTAIS_S = 3600
     LOTES_POR_RODADA = 20  # ate 10.000 ciclos por rodada (o resto na proxima)
@@ -764,10 +822,56 @@ class EnviadorConfig:
         self._ultimo_hash, self._ultimo_ok = None, 0.0
         self._ultima_conferencia = 0.0
         self._trava = threading.Lock()
+        self._status["ao_vivo"] = {"ultimo_envio": "", "esp_direto_s": None, "repassando": False, "erro": ""}
 
     def status(self):
         with self._trava:
-            return {**self._status, "historico": dict(self._status["historico"])}
+            return {**self._status, "historico": dict(self._status["historico"]), "ao_vivo": dict(self._status["ao_vivo"])}
+
+    # -- estado ao vivo -> VPS (1.7.0: notebook como segunda fonte) ---------
+    def corpo_ao_vivo(self):
+        """{"contato_s", "maquinas": [{maquina, ligado, segundos}]} com o que o
+        notebook leu do ESP32 (ou None se nao tiver leitura recente)."""
+        estado = self.banco.obter_estado_ao_vivo(self.setor)
+        agora = datetime.now()
+        maquinas, idades = [], []
+        for num, m in estado.items():
+            sem_sinal = m.get("segundosSemSinal")
+            if sem_sinal is None or sem_sinal > AO_VIVO_MAX_IDADE_S:
+                continue
+            try:
+                segundos = max(0, int((agora - datetime.fromisoformat(m["desde"])).total_seconds()))
+            except (TypeError, ValueError):
+                continue
+            maquinas.append({"maquina": int(num), "ligado": bool(m["ligado"]), "segundos": segundos})
+            idades.append(sem_sinal)
+        if not maquinas:
+            return None
+        return {"contato_s": max(0, min(idades)), "maquinas": maquinas}
+
+    def enviar_ao_vivo(self):
+        """Manda o estado ao vivo. Devolve True se a VPS disse que o ESP32
+        esta sem enviar direto (o laco passa a rodar a cada 5 s)."""
+        cfg = config_nuvem_app(self.dir_dados)
+        corpo = self.corpo_ao_vivo() if cfg["url"] else None
+        if corpo is None:
+            return False
+        try:
+            req = urllib.request.Request(
+                cfg["url"] + "/api/nuvem/historico", method="POST",
+                data=json.dumps({"setor": self.setor, "ciclos": [], "ao_vivo": corpo}).encode("utf-8"),
+                headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
+                r = json.loads(resp.read().decode("utf-8"))
+        except (OSError, ValueError, HTTPError) as erro:
+            with self._trava:
+                self._status["ao_vivo"].update(erro=f"{type(erro).__name__}: {erro}")
+            return False
+        esp_s = r.get("esp_direto_s") if "esp_direto_s" in r else 0  # VPS antiga: nao sabe -> ritmo normal
+        atrasado = esp_s is None or esp_s > ESP_SEM_ENVIAR_S
+        with self._trava:
+            self._status["ao_vivo"].update(ultimo_envio=_agora_iso(), esp_direto_s=esp_s, repassando=bool(r.get("ao_vivo_aplicado")), erro="")
+        return atrasado
 
     def _atualizar_historico(self, **campos):
         with self._trava:
@@ -975,16 +1079,30 @@ class EnviadorConfig:
 
     def iniciar(self):
         def laco():
+            proxima_config = 0.0
+            esp_atrasado = False
             while not self.parar_evento.is_set():
+                if time.monotonic() >= proxima_config:
+                    try:
+                        self.enviar_agora()
+                    except Exception as erro:  # noqa: BLE001 - nunca derruba o app
+                        self._atualizar(erro=f"{type(erro).__name__}: {erro}")
+                    proxima_config = time.monotonic() + self.VERIFICAR_S
+                    rodar_historico = True
+                else:
+                    rodar_historico = esp_atrasado  # ESP32 sem enviar direto: ciclos novos a cada 5 s
+                if rodar_historico:
+                    try:
+                        self.enviar_historico()
+                    except Exception as erro:  # noqa: BLE001
+                        self._atualizar_historico(erro=f"{type(erro).__name__}: {erro}")
                 try:
-                    self.enviar_agora()
-                except Exception as erro:  # noqa: BLE001 - nunca derruba o app
-                    self._atualizar(erro=f"{type(erro).__name__}: {erro}")
-                try:
-                    self.enviar_historico()
+                    esp_atrasado = self.enviar_ao_vivo()
                 except Exception as erro:  # noqa: BLE001
-                    self._atualizar_historico(erro=f"{type(erro).__name__}: {erro}")
-                self.parar_evento.wait(self.VERIFICAR_S)
+                    esp_atrasado = False
+                    with self._trava:
+                        self._status["ao_vivo"].update(erro=f"{type(erro).__name__}: {erro}")
+                self.parar_evento.wait(self.AO_VIVO_RAPIDO_S if esp_atrasado else self.VERIFICAR_S)
 
         threading.Thread(target=laco, name="nuvem-config", daemon=True).start()
         return self.parar_evento

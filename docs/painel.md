@@ -33,6 +33,11 @@ guardada em `painel/_backup/index_v1_antes_redesign.html`.
   menu fica aberto para ver a troca); a escolha fica gravada.
 - **Seleção de setor** saiu da barra superior e é o primeiro campo da barra
   de filtros. Com um só setor cadastrado, aparece só o nome (sem lista).
+- **Notificações** (1.7.0): sino no menu superior (bandeja) junta os avisos do painel
+  (registro local `painel_notificacoes`, com início e fim), os eventos do
+  controlador (`/esp/diagnostico`) e as alterações de configuração
+  (`/alteracoes`). O aviso do rodapé tem × (`painel_destaque_fechado`: volta
+  quando a chave do aviso muda).
 - **Histórico de paradas** (1.6.0): ícone de relógio no cartão da máquina;
   lista as paradas longas (acima do limite do card "Parada longa" em
   Configurações, padrão 30 min, `extras.motivos.longaMin`), as programadas do calendário,

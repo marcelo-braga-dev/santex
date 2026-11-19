@@ -255,6 +255,28 @@ não conhece, então o app antigo continua funcionando com o firmware novo.
 Gravação: Arduino IDE, placa **ESP32 Dev Module**, esquema de partição padrão (o firmware usa
 ~84% da área de programa). A versão anterior fica em `firmware/_backup/controle_producao_horimetro_v1.ino`.
 
+## Firmware 3.1: envio para a VPS mais estável
+
+Diagnóstico (19/11/2026): o ESP32 falhava por períodos de 1 a 6 min ao enviar
+para a VPS ("connection refused") enquanto o notebook, na mesma internet,
+alcançava a VPS em 100% das tentativas; sinal Wi-Fi −48 dBm e nenhuma queda.
+O ponto fraco era abrir uma conexão HTTPS nova (handshake TLS) a cada 10 s.
+
+- **Conexão reaproveitada (keep-alive)**: a conexão HTTPS com a VPS fica
+  aberta entre os envios (`HTTPClient::setReuse`); o handshake TLS só
+  acontece ao abrir de novo. Se a conexão guardada tiver caído, abre outra na
+  hora, no mesmo envio.
+- **Erro real**: em vez do genérico "connection refused", `nuvem_erro` traz o
+  erro do TLS (`TLS -0x…`) ou se o Wi-Fi estava conectado.
+- **Espera máxima de 1 min** entre tentativas (era 5 min): uma falha curta não
+  vira vários minutos sem dados na VPS.
+- **Reconexão "PC sem contato" só quando a internet também falha**: com o
+  envio para a VPS em dia, o Wi-Fi está bom (o PC só está desligado ou com o
+  app fechado) — não derruba mais a conexão a cada 15 min.
+- `/info` ganhou `nuvem_envios_ok`, `nuvem_falhas` e `nuvem_conexoes_novas`
+  (handshakes feitos — com o keep-alive deve crescer bem devagar).
+- Nada muda para o notebook nem para a VPS (mesmo formato de envio).
+
 ## Firmware 3.0: envio para a VPS (acesso remoto)
 
 O ESP32 continua igual para o notebook (rede local) e **também envia** os

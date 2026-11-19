@@ -107,6 +107,51 @@ class TesteBanco(unittest.TestCase):
         self.assertEqual(nuvem.itens_atuais(b, "s")["extras:semProducao"], sp)
         self.assertEqual(nuvem.nome_item("extras:semProducao"), "Máquinas sem produção")
 
+    def test_notebook_e_segunda_fonte_do_estado_ao_vivo(self):
+        # 1.7.0: a VPS aplica o estado ao vivo vindo do notebook so quando o ESP32 nao envia direto
+        import nuvem
+        from datetime import datetime as dt
+        b, pasta = novo_banco(), tempfile.mkdtemp(dir=TMP)
+        ao_vivo = {"contato_s": 3, "maquinas": [{"maquina": 1, "ligado": True, "segundos": 120}]}
+        # ESP32 enviou agora: o notebook nao sobrescreve
+        nuvem._atualizar_status(pasta, ultimo_contato=nuvem._agora_iso())
+        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": ao_vivo}, "s")
+        self.assertFalse(r["ao_vivo_aplicado"])
+        self.assertLessEqual(r["esp_direto_s"], 2)
+        self.assertEqual(b.obter_estado_ao_vivo("s"), {})
+        self.assertEqual(nuvem.status_nuvem(pasta)["fonte"], "esp")
+        # ESP32 sem enviar ha 5 min: vale o notebook e o status diz a fonte
+        velho = (dt.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
+        nuvem._atualizar_status(pasta, ultimo_contato=velho)
+        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": ao_vivo}, "s")
+        self.assertTrue(r["ao_vivo_aplicado"])
+        self.assertGreaterEqual(r["esp_direto_s"], 290)
+        self.assertTrue(b.obter_estado_ao_vivo("s")["1"]["ligado"])
+        st = nuvem.status_nuvem(pasta)
+        self.assertEqual((st["fonte"], st["estado"], st["rodando"]), ("notebook", "conectado", True))
+        # leitura do notebook velha demais: nao vale
+        nuvem._atualizar_status(pasta, ultimo_contato_notebook=velho)
+        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": {**ao_vivo, "contato_s": 120}}, "s")
+        self.assertFalse(r["ao_vivo_aplicado"])
+        self.assertEqual(nuvem.status_nuvem(pasta)["estado"], "sem_resposta")
+        # sem "ao_vivo" (notebook antigo): resposta como antes
+        self.assertNotIn("esp_direto_s", nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": []}, "s"))
+
+    def test_notebook_monta_o_estado_ao_vivo_que_leu_do_esp(self):
+        import nuvem
+        from datetime import datetime as dt
+        b = novo_banco()
+        env = nuvem.EnviadorConfig(b, tempfile.mkdtemp(dir=TMP), "s")
+        self.assertIsNone(env.corpo_ao_vivo())  # nada lido do ESP32 ainda
+        b.atualizar_estado_ao_vivo("s", 2, True, (dt.now() - timedelta(seconds=90)).isoformat(timespec="seconds"))
+        b.atualizar_estado_ao_vivo("s", 3, False, (dt.now() - timedelta(seconds=10)).isoformat(timespec="seconds"))
+        corpo = env.corpo_ao_vivo()
+        self.assertLessEqual(corpo["contato_s"], 2)
+        porm = {m["maquina"]: m for m in corpo["maquinas"]}
+        self.assertTrue(porm[2]["ligado"])
+        self.assertTrue(85 <= porm[2]["segundos"] <= 95)
+        self.assertFalse(porm[3]["ligado"])
+
     def test_ciclo_wifi_sem_hora_sai_sem_horario(self):
         b = novo_banco()
         b.gravar_ciclo_remoto("s", "AA-01", 1, 1, 1, "?", "?", 5.0, "SEM_HORA")  # hora = download

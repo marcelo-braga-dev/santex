@@ -1817,6 +1817,41 @@
     .shift-select { min-width: 0; width: 100%; }
     .fs-reset { height: 28px; padding: 0 6px; }
   }
+  /* aviso do rodape + botao fechar */
+  .dq-grupo { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; max-width: min(800px, 56vw); }
+  .dq-grupo[hidden] { display: none; }
+  .dq-fechar { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-raised); color: var(--ink-600); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .dq-fechar:hover, .dq-fechar:focus-visible { color: var(--critical); border-color: var(--critical); }
+  /* Notificacoes: sino + bandeja no menu superior */
+  .nt-wrap { position: relative; flex: none; }
+  .nt-btn { position: relative; }
+  .nt-badge { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--critical); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--accent); }
+  .nt-badge[hidden] { display: none; }
+  .menu.nt-bandeja { width: min(430px, calc(100vw - 20px)); padding: 10px; display: none; flex-direction: column; gap: 8px; }
+  .menu.nt-bandeja.open { display: flex; }
+  .nt-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 2px 0; }
+  .nt-cab strong { font-size: 15px; color: var(--ink-900); }
+  .nt-filtros { align-self: stretch; display: flex; }
+  .nt-filtros .segmented-btn { flex: 1; height: 28px; padding: 0 6px; font-size: 12px; }
+  .nt-lista { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: min(60vh, 520px); overscroll-behavior: contain; }
+  .nt-dia { margin: 6px 2px 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-400); }
+  .nt-item { display: grid; grid-template-columns: 22px 1fr; gap: 9px; align-items: start; padding: 7px 8px; border-radius: 10px; background: var(--surface-card); border: 1px solid var(--border); }
+  .nt-item.novo { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: inset 3px 0 0 var(--accent); }
+  .nt-pe { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 11px; }
+  .nt-hora { font-family: var(--font-mono, monospace); font-size: 11px; color: var(--ink-600); white-space: nowrap; }
+  .nt-ico { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--surface-sunken); color: var(--ink-600); }
+  .nt-item.critico .nt-ico { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical); }
+  .nt-item.atencao .nt-ico { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
+  .nt-item.ok .nt-ico { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+  .nt-txt { min-width: 0; }
+  .nt-txt strong { display: block; font-size: 12.5px; color: var(--ink-900); line-height: 1.35; }
+  .nt-txt small { display: block; font-size: 11.5px; color: var(--ink-600); margin-top: 2px; white-space: pre-line; line-height: 1.35; }
+  .nt-fonte { font-weight: 600; color: var(--ink-400); }
+  .nt-vazio { padding: 20px; text-align: center; color: var(--ink-600); font-size: 12.5px; border: 1px dashed var(--border); border-radius: 10px; }
+  .nt-nota { font-size: 11px; color: var(--ink-400); line-height: 1.4; padding: 0 2px; }
+  .nt-nota:empty { display: none; }
+  .nt-rodape { display: flex; justify-content: flex-end; }
+
   /* aviso de destaque no rodape: selo de uma linha no centro da barra de status */
   .fb-actions { display: none; }
   .statusbar .sb-left { flex: 1 1 0; }
@@ -1983,6 +2018,24 @@
         </span>
       </div>
 
+      <!-- Notificacoes: sino com bandeja -->
+      <div class="nt-wrap">
+        <button class="icon-btn nt-btn" id="nt-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notificações" title="Notificações">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="nt-badge" id="nt-badge" hidden></span>
+        </button>
+        <div class="menu nt-bandeja" id="nt-bandeja" role="dialog" aria-label="Notificações">
+          <div class="nt-cab"><strong>Notificações</strong><button class="btn small ghost" type="button" id="nt-atualizar" title="Ler de novo">Atualizar</button></div>
+          <div class="segmented nt-filtros" id="nt-filtro">
+            <button class="segmented-btn active" type="button" data-nt="todas">Todas</button>
+            <button class="segmented-btn" type="button" data-nt="painel">Painel</button>
+            <button class="segmented-btn" type="button" data-nt="controlador">Controlador</button>
+            <button class="segmented-btn" type="button" data-nt="config">Configuração</button>
+          </div>
+          <div class="nt-lista" id="nt-lista"></div>
+          <div class="nt-nota" id="nt-nota"></div>
+          <div class="nt-rodape"><button class="btn small ghost" type="button" id="nt-limpar">Limpar avisos do painel</button></div>
+        </div>
+      </div>
       <!-- Menu central de configuracoes: cada item abre o seu popup -->
       <div class="menu-wrap">
         <button class="icon-btn config-btn" id="config-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Configurações" title="Configurações">
@@ -2706,7 +2759,7 @@
     <span class="dados-aviso"><span class="period-note" id="dados-note"></span><button class="aviso-x" id="dados-note-x" type="button" hidden title="Dispensar o aviso de ciclos sem data/hora (ele só volta se surgirem ciclos sem hora novos)" aria-label="Dispensar aviso de ciclos sem data/hora">×</button></span>
     <button class="ro-note" id="ro-note" type="button" hidden title="Este aparelho só visualiza. Alterações são feitas no computador do painel — ou clique para informar o PIN.">🔒 Somente leitura</button>
   </div>
-  <button class="fb-destaque" id="fb-destaque" type="button" hidden></button>
+  <span class="dq-grupo" id="dq-grupo" hidden><button class="fb-destaque" id="fb-destaque" type="button"></button><button class="dq-fechar" id="dq-fechar" type="button" aria-label="Fechar o aviso" title="Fechar o aviso (volta se a situação mudar) — todos os avisos ficam em Notificações">&times;</button></span>
   <div class="sb-right">
     <div class="sync-bar" id="sync-bar" hidden>
       <button class="sync-toggle" id="sync-toggle" type="button" aria-expanded="false" aria-controls="sync-pop" title="Detalhes da sincronização com o controlador">
@@ -6584,10 +6637,13 @@
     if (modoNuvem) {
       btn.hidden = true;
       chip.className = leituraAtiva ? "status-chip is-on" : "status-chip is-offline";
+      const viaNotebook = !!(sincronizacao && sincronizacao.fonte === "notebook");
       label.textContent = leituraAtiva ? "Ao vivo" : "Sem envio";
-      chip.title = leituraAtiva
-        ? "Acesso remoto: o controlador está enviando os dados"
-        : "Acesso remoto: o controlador não envia dados há mais de 1 minuto";
+      chip.title = !leituraAtiva
+        ? "Acesso remoto: nem o controlador nem o computador da fábrica enviam dados há mais de 1 minuto"
+        : viaNotebook
+          ? "Acesso remoto: o controlador não envia direto agora — os dados estão chegando pelo computador da fábrica"
+          : "Acesso remoto: o controlador está enviando os dados";
       return;
     }
     btn.hidden = false;
@@ -6712,15 +6768,20 @@
     if (s.modo === "nuvem") {
       // Painel aberto pela VPS: o ESP32 envia direto para ela
       const enviando = s.estado === "conectado";
+      const viaNotebook = enviando && s.fonte === "notebook";
       chip.className = enviando ? "status-chip is-on" : "status-chip is-offline";
-      label.textContent = enviando ? "Controlador enviando" : (s.estado === "procurando" ? "Aguardando o controlador" : "Controlador sem enviar");
+      label.textContent = viaNotebook ? "Via computador da fábrica" : enviando ? "Controlador enviando" : (s.estado === "procurando" ? "Aguardando o controlador" : "Controlador sem enviar");
       partes.push("Acesso remoto (servidor na nuvem) — somente visualização");
       partes.push(ultima
-        ? `último envio do controlador <strong>${ultima}</strong>${enviando ? "" : ` (${fmtHaQuantoLongo(s.ultima_sincronizacao)})`}`
+        ? `${viaNotebook ? "último dado (pelo computador da fábrica)" : "último envio do controlador"} <strong>${ultima}</strong>${enviando ? "" : ` (${fmtHaQuantoLongo(s.ultima_sincronizacao)})`}`
         : "o controlador ainda não enviou dados para cá");
+      if (viaNotebook) {
+        const direto = s.ultimo_contato ? `desde ${fmtQuando(s.ultimo_contato)} (${fmtHaQuantoLongo(s.ultimo_contato)})` : "";
+        avisos.push(["sync-info", `O controlador não envia direto para cá ${direto} — os dados continuam chegando ao vivo pelo computador da fábrica, que lê o controlador na rede da empresa.`]);
+      }
       if (s.pendentes_esp > 0) partes.push(`${Number(s.pendentes_esp).toLocaleString("pt-BR")} ciclo(s) ainda a chegar`);
       if (s.estado === "sem_resposta") {
-        avisos.push(["sync-warn", "⚠ O controlador não envia dados há mais de 1 minuto (sem energia, sem internet na empresa ou fora do ar). Os ciclos ficam guardados nele e chegam quando ele voltar."]);
+        avisos.push(["sync-warn", "⚠ Nem o controlador nem o computador da fábrica enviam dados há mais de 1 minuto (sem energia, sem internet na empresa, controlador fora do ar ou aplicativo fechado no computador). Os ciclos ficam guardados no controlador e chegam quando ele voltar."]);
       }
       const cfg = fmtQuando(s.config_recebida_em);
       avisos.push(cfg
@@ -6801,6 +6862,11 @@
       avisos.push(ne.erro
         ? ["sync-warn", `⚠ Controlador → nuvem: ${escaparHtml(ne.erro)} (${fila}). Os ciclos ficam guardados no controlador.`]
         : ["sync-info", `Controlador → nuvem: ${fila}.`]);
+    }
+    // 1.7.0: este computador repassa para a nuvem o que le do controlador
+    const av = s.nuvem && s.nuvem.ao_vivo;
+    if (av && av.ultimo_envio && !av.erro && av.repassando) {
+      avisos.push(["sync-info", "Este computador está repassando os dados ao vivo para a nuvem (o controlador não está conseguindo enviar direto)."]);
     }
     const bk = s.backup || {};
     if (bk.erro) {
@@ -7772,7 +7838,9 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     // 1) maquina parada alem do limite
     if (alertas && alertas.length) {
       // uma linha so (sem legenda); os detalhes ficam no tooltip
-      return { nivel: "critico", ico: "parada", titulo: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
+      return { nivel: "critico", ico: "parada", chave: "parada|" + alertas.map((x) => x.id).sort().join(","),
+        tituloLog: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada além do limite do alerta` : `${alertas.length} máquinas paradas além do limite: ${alertas.map((x) => `"${machineName(x.id)}"`).join(", ")}`,
+        titulo: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
         detalhe: "", dica: alertas.map((x) => `"${machineName(x.id)}" parada há ${fmtHaQuanto(x.al.ms)}`).join("\n"),
         acao: () => irParaVisaoGeral("#machine-grid") };
     }
@@ -7796,7 +7864,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (podeEditar && usingRealTime && periodoSelecionado === "dia" && periodoEhAtual()) {
       const longas = paradasDoResumo(resumoJanelas()).filter((p) => p.durS > paradaLongaS() && !p.emAndamento && !motivoDe(p.id, p.inicio));
       if (longas.length) {
-        return { nivel: "info", ico: "motivo", titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} longa${longas.length > 1 ? "s" : ""} sem motivo`,
+        return { nivel: "info", ico: "motivo", chave: "motivo|" + chaveDia(Date.now()), titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} longa${longas.length > 1 ? "s" : ""} sem motivo`,
           detalhe: `${rotuloLonga().replace("acima", "Acima")} hoje — clique numa parada da linha do tempo para marcar`, acao: () => irParaVisaoGeral("#timeline-wrap") };
       }
     }
@@ -7805,9 +7873,13 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   function renderDestaque(alertas) {
     const bt = document.getElementById("fb-destaque");
     if (!bt) return;
+    const grupo = document.getElementById("dq-grupo");
     let d = null;
     try { d = calcularDestaque(alertas); } catch (e) { d = null; }
-    if (!d) { bt.hidden = true; acaoDestaque = null; return; }
+    const chave = d ? (d.chave || `${d.ico}|${d.titulo}`) : null;
+    registrarNotificacao(d, chave);
+    if (destaqueFechado && destaqueFechado !== chave) { destaqueFechado = null; gravarLocal(DQ_FECHADO_KEY, null); } // a situacao mudou: o aviso volta
+    if (!d || chave === destaqueFechado) { grupo.hidden = true; acaoDestaque = null; return; }
     const html = `<span class="dq-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ICO_DQ[d.ico]}</svg></span>` +
       `<span class="dq-txt"><strong>${escaparHtml(d.titulo)}</strong>${d.detalhe ? `<small>${escaparHtml(d.detalhe)}</small>` : ""}</span>`;
     if (bt.innerHTML !== html) bt.innerHTML = html;
@@ -7815,9 +7887,38 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     bt.title = d.dica || (d.detalhe ? `${d.titulo}\n${d.detalhe}` : d.titulo);
     bt.style.cursor = d.acao ? "pointer" : "default";
     acaoDestaque = d.acao;
-    bt.hidden = false;
+    grupo.hidden = false;
+    destaqueChaveAtual = chave;
   }
   document.getElementById("fb-destaque").addEventListener("click", () => { if (acaoDestaque) acaoDestaque(); });
+  document.getElementById("dq-fechar").addEventListener("click", () => {
+    destaqueFechado = destaqueChaveAtual;
+    gravarLocal(DQ_FECHADO_KEY, destaqueFechado);
+    document.getElementById("dq-grupo").hidden = true;
+  });
+
+  // ---- registro das notificacoes do painel (neste aparelho) ----
+  var NT_KEY = "painel_notificacoes", DQ_FECHADO_KEY = "painel_destaque_fechado", NT_MAX = 300;
+  var destaqueChaveAtual = null;
+  var destaqueFechado = lerLocal(DQ_FECHADO_KEY, null);
+  var ntAberta = null; // { chave } da notificacao em andamento
+  function lerLocal(k, pad) { try { const v = localStorage.getItem(k); return v === null ? pad : JSON.parse(v); } catch (e) { return pad; } }
+  function gravarLocal(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sem localStorage */ } }
+  function registrarNotificacao(d, chave) {
+    if (!NT_KEY) return; // modulo ainda carregando
+    if ((ntAberta && ntAberta.chave) === chave) return; // nada mudou
+    const lista = lerLocal(NT_KEY, []);
+    if (!Array.isArray(lista)) return;
+    const agora = Date.now();
+    const ult = lista[lista.length - 1];
+    if (ntAberta === null && ult && !ult.fim && ult.chave === chave) { ntAberta = { chave }; return; } // painel recarregado: continua a mesma
+    if (ult && !ult.fim) { ult.fim = agora; if (agora - ult.inicio < 15000) lista.pop(); } // a anterior terminou (menos de 15 s = passageiro, nao fica no registro)
+    if (d) lista.push({ chave, inicio: agora, nivel: d.nivel, ico: d.ico, titulo: d.tituloLog || d.titulo, detalhe: d.dica || d.detalhe || "" });
+    gravarLocal(NT_KEY, lista.slice(-NT_MAX));
+    ntAberta = { chave };
+    if (bandejaAberta()) renderNotificacoes();
+    atualizarBadgeNotificacoes();
+  }
 
   function preencherAlertas() {
     const c = cfgAlerta();
@@ -10927,6 +11028,112 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (ev.target.closest("#cfg-tema")) { $("#theme-toggle").click(); setTimeout(renderConfiguracoesPagina, 0); }
   });
   ABRIR_POPUP.configuracoes = () => mostrarView("configuracoes", true);
+
+  // =====================================================================
+  // PAGINA NOTIFICACOES: avisos do painel (registro deste aparelho), eventos
+  // do controlador (/esp/diagnostico, so no computador da fabrica) e
+  // alteracoes/avisos de configuracao (/alteracoes).
+  // =====================================================================
+  var ntFiltro = "todas", ntExternos = { controlador: null, config: null, erroCtl: "", erroCfg: "" };
+  var NT_VISTO_KEY = "painel_notificacoes_visto";
+  function bandejaAberta() { const b = document.getElementById("nt-bandeja"); return !!b && b.classList.contains("open"); }
+  function abrirBandeja(abrir) {
+    const b = $("#nt-bandeja");
+    const aberto = abrir === undefined ? !b.classList.contains("open") : abrir;
+    b.classList.toggle("open", aberto);
+    $("#nt-btn").setAttribute("aria-expanded", String(aberto));
+    if (aberto) {
+      fecharMenuAcoes();
+      b.style.maxHeight = `${Math.max(240, window.innerHeight - b.getBoundingClientRect().top - 12)}px`;
+      ntVistoAntes = lerLocal(NT_VISTO_KEY, 0) || 0; // destaca o que chegou desde a ultima abertura
+      gravarLocal(NT_VISTO_KEY, Date.now());
+      carregarNotificacoes();
+      atualizarBadgeNotificacoes();
+    }
+  }
+  var ntVistoAntes = 0;
+  ABRIR_POPUP.notificacoes = () => abrirBandeja(true);
+  $("#nt-btn").addEventListener("click", (ev) => { ev.stopPropagation(); abrirBandeja(); });
+  document.addEventListener("click", (ev) => { if (bandejaAberta() && !ev.target.closest(".nt-wrap")) abrirBandeja(false); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && bandejaAberta()) abrirBandeja(false); });
+  $("#config-menu-btn").addEventListener("click", () => { if (bandejaAberta()) abrirBandeja(false); });
+  // numero no sino: o que chegou desde a ultima vez que a bandeja foi aberta
+  function itensNotificacoes() {
+    const painel = (lerLocal(NT_KEY, []) || []).map((n) => ({
+      fonte: "painel", ts: n.inicio, nivel: n.nivel, ico: n.ico, titulo: n.titulo,
+      detalhe: [n.detalhe, n.fim ? `durou ${fmtDuration(Math.round((n.fim - n.inicio) / 1000))} (até ${hhmmDe(n.fim)})` : "em andamento"].filter(Boolean).join("\n") }));
+    return painel.concat(ntExternos.controlador || [], ntExternos.config || []).filter((x) => x.ts > 0);
+  }
+  function atualizarBadgeNotificacoes() {
+    const badge = document.getElementById("nt-badge");
+    if (!badge) return;
+    const visto = lerLocal(NT_VISTO_KEY, 0) || 0;
+    const n = itensNotificacoes().filter((x) => x.ts > visto && x.nivel !== "info" && x.nivel !== "ok").length;
+    badge.hidden = !n || bandejaAberta();
+    badge.textContent = n > 9 ? "9+" : String(n);
+    $("#nt-btn").title = n ? `Notificações — ${n} nova${n > 1 ? "s" : ""}` : "Notificações";
+  }
+  function nivelEventoEsp(t) {
+    if (/voltou|conectad|acertad|recuperad|ligou/i.test(t)) return /ligou/i.test(t) ? "info" : "ok";
+    if (/falhando|caiu|perdid|sobrescrit|brownout|travou|sem contato|n[aã]o respond/i.test(t)) return "atencao";
+    return "info";
+  }
+  async function carregarNotificacoes() {
+    renderNotificacoes();
+    const tarefas = [];
+    if (!modoNuvem) {
+      tarefas.push(fetch(CONTROLE_URL + "/esp/diagnostico", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+        const ev = (d && d.eventos && d.eventos.eventos) || [];
+        ntExternos.controlador = ev.filter((e) => e.hora).map((e) => ({ fonte: "controlador", ts: new Date(e.hora).getTime(), nivel: nivelEventoEsp(e.texto || ""), titulo: e.texto || "", detalhe: "" }));
+        ntExternos.erroCtl = d && d.ok === false ? "O controlador não respondeu agora — os eventos dele aparecem quando ele estiver na rede." : "";
+      }).catch(() => { ntExternos.erroCtl = "Não foi possível ler os eventos do controlador agora."; }));
+    } else ntExternos.erroCtl = "Os eventos do controlador aparecem no computador da fábrica.";
+    tarefas.push(fetch(CONTROLE_URL + "/alteracoes", { cache: "no-store", headers: cabecalhosControle() }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d) { ntExternos.config = []; return; }
+      const avisos = (d.avisos || []).map((a) => ({ fonte: "config", ts: Date.parse(a.quando) || 0, nivel: "atencao", titulo: a.texto, detalhe: "" }));
+      const alt = (d.alteracoes || []).filter((a) => !String(a.quando || "").startsWith("1970")).map((a) => ({
+        fonte: "config", ts: Date.parse(a.quando) || 0, nivel: "info", titulo: a.resumo,
+        detalhe: `${NOME_ORIGEM[a.origem] || a.origem}${a.autor && a.autor !== a.origem ? ` · ${a.autor}` : ""}` }));
+      ntExternos.config = avisos.concat(alt);
+    }).catch(() => { ntExternos.erroCfg = "Alterações de configuração indisponíveis agora."; }));
+    await Promise.all(tarefas);
+    if (bandejaAberta()) renderNotificacoes();
+    atualizarBadgeNotificacoes();
+  }
+  function renderNotificacoes() {
+    const lista = $("#nt-lista");
+    if (!lista) return;
+    let itens = itensNotificacoes();
+    if (ntFiltro !== "todas") itens = itens.filter((x) => x.fonte === ntFiltro);
+    itens.sort((a, b) => b.ts - a.ts);
+    const NOME = { painel: "Painel", controlador: "Controlador", config: "Configuração" };
+    const ICO = { painel: ICO_DQ.parada, controlador: ICO_DQ.sinal, config: '<path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' };
+    let dia = "", html = "";
+    itens.slice(0, 200).forEach((x) => {
+      const k = chaveDia(x.ts);
+      if (k !== dia) { dia = k; html += `<div class="nt-dia">${new Date(x.ts).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</div>`; }
+      const ico = (x.ico && ICO_DQ[x.ico]) || ICO[x.fonte];
+      html += `<div class="nt-item ${x.nivel || "info"}${x.ts > ntVistoAntes && x.nivel !== "info" && x.nivel !== "ok" ? " novo" : ""}"><span class="nt-ico"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">${ico}</svg></span>` +
+        `<span class="nt-txt"><strong>${escaparHtml(x.titulo)}</strong>${x.detalhe ? `<small>${escaparHtml(x.detalhe)}</small>` : ""}<span class="nt-pe"><span class="nt-fonte">${NOME[x.fonte]}</span><span class="nt-hora">${hhmmDe(x.ts)}</span></span></span></div>`;
+    });
+    lista.innerHTML = html || `<div class="nt-vazio">Nenhuma notificação${ntFiltro !== "todas" ? " deste tipo" : ""} registrada ainda.</div>`;
+    $("#nt-nota").textContent = [
+      "Avisos do painel: registrados neste aparelho enquanto o painel está aberto.",
+      ntFiltro !== "config" ? ntExternos.erroCtl : "", ntFiltro !== "controlador" ? ntExternos.erroCfg : ""
+    ].filter(Boolean).join(" ");
+    document.querySelectorAll("#nt-filtro [data-nt]").forEach((b) => b.classList.toggle("active", b.dataset.nt === ntFiltro));
+  }
+  $("#nt-filtro").addEventListener("click", (ev) => { const b = ev.target.closest("[data-nt]"); if (b) { ntFiltro = b.dataset.nt; renderNotificacoes(); } });
+  $("#nt-atualizar").addEventListener("click", (ev) => { ev.stopPropagation(); carregarNotificacoes(); });
+  setTimeout(() => { carregarNotificacoes(); setInterval(carregarNotificacoes, 5 * 60000); }, 8000);
+  $("#nt-limpar").addEventListener("click", () => {
+    if (!confirm("Apagar o registro de avisos do painel deste aparelho? (Eventos do controlador e alterações não são apagados.)")) return;
+    const lista = lerLocal(NT_KEY, []);
+    const aberta = Array.isArray(lista) ? lista.filter((n) => !n.fim).slice(-1) : [];
+    gravarLocal(NT_KEY, aberta);
+    renderNotificacoes();
+  });
+
   // a barra de filtros fica presa logo abaixo do menu superior (altura medida)
   (function medirMenuSuperior() {
     const topo = document.querySelector(".topnav");

@@ -256,12 +256,18 @@ bool armazenamentoOk = false;
 //    modo inseguro. NUVEM_URL vazia (.env) = envio desligado.
 // ---------------------------------------------------------------------
 const unsigned long NUVEM_INTERVALO_MS = 10000UL;   // com tudo enviado, confere a cada 10 s
-const unsigned long NUVEM_ESPERA_MAX_MS = 300000UL; // VPS fora do ar: espera dobra ate 5 min
+const unsigned long NUVEM_ESPERA_MAX_MS = 60000UL;  // falhando: espera dobra ate 1 min (3.1: era 5 min)
 const uint32_t NUVEM_MAX_CICLOS_POR_ENVIO = 50;
 volatile uint32_t nuvemAte = 0;              // ultimo id confirmado pela VPS
 volatile unsigned long nuvemUltimoOkMs = 0;  // ultimo envio confirmado (0 = nenhum desde o boot)
 volatile uint32_t nuvemEnviosOk = 0;
-char nuvemErro[72] = "";                     // ultimo erro ("" = ultimo envio deu certo)
+char nuvemErro[128] = "";                    // ultimo erro ("" = ultimo envio deu certo)
+// 3.1: a conexao HTTPS com a VPS fica aberta entre os envios (keep-alive) - sem
+// um handshake TLS novo a cada 10 s (era o ponto das falhas intermitentes)
+NetworkClientSecure *nuvemCliente = nullptr;
+HTTPClient *nuvemHttp = nullptr;
+volatile uint32_t nuvemConexoesNovas = 0; // handshakes TLS feitos (1 por reconexao)
+volatile uint32_t nuvemFalhas = 0;        // envios que falharam desde o boot
 TaskHandle_t tarefaNuvemHandle = nullptr;
 
 bool nuvemAtiva() { return NUVEM_URL[0] != '\0'; }
@@ -305,7 +311,7 @@ uint32_t contagemBoots = 0;
 //  - reinicio seguro se a memoria livre ficar perigosamente baixa
 //  - registro dos ultimos eventos na flash (sobrevive a reinicios)
 // ---------------------------------------------------------------------
-const char *FIRMWARE_VERSAO = "3.0";
+const char *FIRMWARE_VERSAO = "3.1";
 const unsigned long INTERVALO_REDETECTAR_RTC_MS = 30000UL;   // testa o RTC a cada 30 s
 const uint8_t FALHAS_PARA_RTC_AUSENTE = 3;                   // 3 falhas seguidas = RTC sumiu
 const unsigned long SEM_PC_PARA_RECONECTAR_MS = 15UL * 60UL * 1000UL; // 15 min sem o PC alcancar
@@ -1239,6 +1245,12 @@ void responderInfo() {
   j += F(",\"nuvem_ultimo_envio_s\":");
   if (nuvemUltimoOkMs) j += (uint32_t)((millis() - nuvemUltimoOkMs) / 1000UL);
   else j += F("null");
+  j += F(",\"nuvem_envios_ok\":");
+  j += nuvemEnviosOk;
+  j += F(",\"nuvem_falhas\":");
+  j += nuvemFalhas;
+  j += F(",\"nuvem_conexoes_novas\":");
+  j += nuvemConexoesNovas;
   j += F(",\"nuvem_erro\":\"");
   j += escaparJson(String(nuvemErro));
   j += F("\",\"maquinas\":[");
@@ -1587,7 +1599,10 @@ void verificarWifi() {
     // referencia: ultimo contato do PC ou, se o PC ainda nao alcancou o
     // controlador desde o boot, o momento em que ele entrou na rede
     unsigned long referenciaPc = ultimoContatoPcMs ? ultimoContatoPcMs : conectadoDesdeMs;
-    if (millis() - referenciaPc >= esperaReconexaoMs && millis() - ultimaReconexaoForcadaMs >= esperaReconexaoMs) {
+    // 3.1: envio para a VPS em dia = o Wi-Fi esta funcionando (o PC so esta
+    // desligado ou com o app fechado) - nao derruba a conexao a toa
+    bool internetOk = nuvemAtiva() && nuvemUltimoOkMs && millis() - nuvemUltimoOkMs < 120000UL;
+    if (!internetOk && millis() - referenciaPc >= esperaReconexaoMs && millis() - ultimaReconexaoForcadaMs >= esperaReconexaoMs) {
       reconexoesForcadas++;
       ultimaReconexaoForcadaMs = millis();
       if (esperaReconexaoMs == SEM_PC_PARA_RECONECTAR_MS) { // so a 1a de cada periodo sem o PC vira evento
@@ -2189,25 +2204,46 @@ uint32_t montarEnvioNuvem(String &corpo, uint32_t &perdidos) {
 
 // Um envio. Devolve 1 = enviado e ainda ha fila, 0 = enviado e em dia,
 // -1 = falhou (nada muda: o mesmo lote vai de novo depois).
+// Um POST pela conexao guardada (abre uma nova se nao houver). Devolve o
+// codigo HTTP ou o erro do HTTPClient (< 0).
+int postarNuvem(const String &corpo, bool &reaproveitou) {
+  if (!nuvemCliente) {
+    nuvemCliente = new NetworkClientSecure();
+    nuvemCliente->setCACert(NUVEM_CA);
+    nuvemCliente->setTimeout(15); // segundos
+  }
+  if (!nuvemHttp) {
+    nuvemHttp = new HTTPClient();
+    nuvemHttp->setReuse(true); // keep-alive: a conexao fica aberta para o proximo envio
+    nuvemHttp->setConnectTimeout(10000);
+    nuvemHttp->setTimeout(15000);
+  }
+  reaproveitou = nuvemCliente->connected();
+  if (!nuvemHttp->begin(*nuvemCliente, String(NUVEM_URL) + F("/api/nuvem/enviar"))) return HTTPC_ERROR_CONNECTION_REFUSED;
+  nuvemHttp->addHeader(F("Content-Type"), F("application/json"));
+  nuvemHttp->addHeader(F("X-Chave-Nuvem"), NUVEM_CHAVE);
+  int codigo = nuvemHttp->POST(corpo);
+  nuvemHttp->end(); // com setReuse a conexao continua aberta (se a VPS permitir)
+  if (codigo > 0 && !reaproveitou) nuvemConexoesNovas = nuvemConexoesNovas + 1;
+  return codigo;
+}
+
 int enviarLoteNuvem(Preferences &p) {
   String corpo;
   uint32_t perdidos = 0;
   uint32_t lidoAte = montarEnvioNuvem(corpo, perdidos);
 
-  NetworkClientSecure cliente;
-  cliente.setCACert(NUVEM_CA);
-  cliente.setTimeout(15); // segundos
-  HTTPClient http;
-  http.setConnectTimeout(10000);
-  http.setTimeout(15000);
-  if (!http.begin(cliente, String(NUVEM_URL) + F("/api/nuvem/enviar"))) {
+  if (strncmp(NUVEM_URL, "https://", 8) != 0 && strncmp(NUVEM_URL, "http://", 7) != 0) {
     strlcpy(nuvemErro, "endereco da VPS invalido (NUVEM_URL)", sizeof(nuvemErro));
     return -1;
   }
-  http.addHeader(F("Content-Type"), F("application/json"));
-  http.addHeader(F("X-Chave-Nuvem"), NUVEM_CHAVE);
-  int codigo = http.POST(corpo);
-  http.end();
+  bool reaproveitou = false;
+  int codigo = postarNuvem(corpo, reaproveitou);
+  if (codigo < 0 && reaproveitou) {
+    // a conexao guardada tinha caido (VPS reiniciou, roteador trocou o IP...): abre outra na hora
+    nuvemCliente->stop();
+    codigo = postarNuvem(corpo, reaproveitou);
+  }
 
   if (codigo == 200) {
     if (lidoAte > nuvemAte) {
@@ -2222,9 +2258,18 @@ int enviarLoteNuvem(Preferences &p) {
     nuvemErro[0] = '\0';
     return lidoAte < ultimoIdCiclo ? 1 : 0;
   }
+  nuvemFalhas = nuvemFalhas + 1;
   if (codigo == 403) strlcpy(nuvemErro, "a VPS recusou a chave (NUVEM_CHAVE diferente)", sizeof(nuvemErro));
   else if (codigo > 0) snprintf(nuvemErro, sizeof(nuvemErro), "a VPS respondeu HTTP %d", codigo);
-  else snprintf(nuvemErro, sizeof(nuvemErro), "sem conexao com a VPS (%s)", HTTPClient::errorToString(codigo).c_str());
+  else {
+    // 3.1: o erro real por baixo do "connection refused" (DNS, TCP ou TLS)
+    char tls[64] = "";
+    int e = nuvemCliente ? nuvemCliente->lastError(tls, sizeof(tls)) : 0;
+    if (e) snprintf(nuvemErro, sizeof(nuvemErro), "sem conexao com a VPS (%s; TLS -0x%04X %s)", HTTPClient::errorToString(codigo).c_str(), -e, tls);
+    else snprintf(nuvemErro, sizeof(nuvemErro), "sem conexao com a VPS (%s; %s)", HTTPClient::errorToString(codigo).c_str(),
+                  WiFi.status() == WL_CONNECTED ? "Wi-Fi ok, sem resposta da VPS/DNS" : "Wi-Fi desconectado");
+  }
+  if (nuvemCliente) nuvemCliente->stop(); // proxima tentativa abre conexao nova
   return -1;
 }
 

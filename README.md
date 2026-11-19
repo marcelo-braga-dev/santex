@@ -18,7 +18,7 @@ controle_producao_horimetro/
 ├── README.md · CHANGELOG.md · CLAUDE.md
 ├── .env.exemplo                     # Modelo das senhas/chave (copiar para .env - fora do git)
 │
-├── firmware/                        # ESP32 (firmware 3.0, Arduino IDE)
+├── firmware/                        # ESP32 (firmware 3.1, Arduino IDE)
 │   └── controle_producao_horimetro/ #   .ino + certificados.h (raiz da VPS, público)
 ├── app/                             # Aplicativo da FÁBRICA (código): janela, servidor embutido
 ├── ferramentas/                     # Banco, sincronização com a VPS, leitura Wi-Fi/USB, scripts

@@ -36,6 +36,14 @@ Detalhes em [Edição remota](#edição-remota-120).
 | **Notebook (app)** | Continua sendo o **fornecedor principal** e o **mestre** na empresa (lê o ESP32 pela rede local, painel completo, edição sem senha). Quando ligado com internet, **troca a configuração com a VPS a cada 15 s** (manda o que mudou aqui, recebe o que foi editado lá) e envia **todo o histórico de ciclos** que ela ainda não tem. |
 | **VPS** | Tem **banco próprio** com o histórico completo (o que o notebook enviou + o que o ESP32 manda direto, sem duplicar) e serve o painel para quem está fora: visualização ou edição, conforme a senha. Leitura do ESP32 e conexão **nunca** são controladas pela VPS. |
 
+**Notebook como segunda fonte (1.7.0):** se o ESP32 não conseguir enviar
+direto para a VPS, o app da fábrica (aberto) repassa o que lê dele pela rede
+local — estado ao vivo das máquinas e ciclos novos, a cada 5 s enquanto durar a
+falha. A VPS só usa o dado do notebook quando ele é mais novo que o último
+envio direto do ESP32, e o painel remoto mostra **"Via computador da
+fábrica"**. Com o ESP32 e o notebook sem enviar, aparece "Controlador sem
+enviar".
+
 Se a internet da empresa ou a VPS cair, o ESP32 guarda os ciclos (até ~20.000)
 e envia o que faltou quando a conexão voltar. Ele só libera um ciclo da
 memória depois que a VPS **e** o notebook o receberam.
@@ -243,7 +251,8 @@ leva a chave da fábrica e tentaria ler o controlador.
 | ESP32: "a VPS recusou a chave" / notebook: "chave recusada pela VPS" | `NUVEM_CHAVE` diferente na VPS | `sudo nano /etc/painel-nuvem.env` com a chave do `.env` e `sudo systemctl restart painel-nuvem` |
 | ESP32: "sem conexao com a VPS (connection refused / SSL)" | DNS, Caddy fora do ar, proxy da Cloudflare ligado ou relógio do ESP32 sem hora | conferir `https://santex.rexar.com.br` num navegador; nuvem cinza na Cloudflare; hora do controlador |
 | Painel remoto: "A configuração ainda não chegou" | o notebook não abriu o app com internet desde a instalação | abrir o app no notebook uma vez |
-| Painel remoto: "Controlador sem enviar" | ESP32 desligado ou sem internet | os ciclos ficam guardados nele e chegam quando voltar |
+| Painel remoto: "Via computador da fábrica" | o ESP32 não está conseguindo enviar direto; o notebook está repassando | nada urgente — os dados seguem ao vivo; ver o erro do ESP32 em Sincronização no notebook |
+| Painel remoto: "Controlador sem enviar" | ESP32 sem enviar direto **e** app da fábrica fechado (ou sem internet) | abrir o app no notebook; os ciclos ficam guardados no ESP32 e chegam quando voltar |
 | Senha de edição: "A edição remota está desligada no computador da fábrica" | interruptor desligado no Acesso remoto da fábrica | ligar lá, ou usar a senha de visualização |
 | Alteração feita pela VPS não aparece na fábrica | app da fábrica fechado, sem internet ou ainda na 1.1.0 | abrir o app 1.2.0 com internet (a sincronização é a cada 15 s) |
 

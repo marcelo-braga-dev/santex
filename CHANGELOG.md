@@ -1,5 +1,46 @@
 # Histórico de versões
 
+## 1.7.0 — notebook como segunda fonte da VPS e firmware 3.1 (app 1.7.0 · firmware 3.1 · programa remoto 1.2.0, sem mudança)
+
+Diagnóstico que motivou: o ESP32 falha por períodos ao enviar direto para a
+VPS ("connection refused") enquanto o notebook, na mesma internet, alcança a
+VPS 100% das vezes — o painel remoto ficava "Controlador sem enviar" e com o
+estado das máquinas congelado. Agora o notebook cobre essas falhas.
+
+- **Notebook repassa o estado ao vivo**: junto do histórico de ciclos, o app
+  da fábrica manda para a VPS o estado das máquinas que ele lê do ESP32 pela
+  rede local (ligada/parada, desde quando, e há quantos segundos falou com o
+  ESP32). A VPS **só aplica se for mais novo** que o último envio direto do
+  ESP32 — o ESP32 continua a fonte principal.
+- Quando a VPS responde que o ESP32 está sem enviar direto, o notebook passa
+  a mandar **a cada 5 s** (estado e ciclos novos); com o ESP32 em dia, a cada
+  15 s como antes.
+- **Status com as duas fontes** (`fonte`: `esp`, `notebook` ou nenhuma):
+  "Controlador enviando", **"Via computador da fábrica"** (com aviso de que o
+  controlador não envia direto desde X) ou "Controlador sem enviar" (nem um
+  nem outro). O painel do notebook avisa quando ele está repassando.
+- Compatível nos dois sentidos: VPS antiga ignora o campo novo; notebook
+  antigo continua como antes. O banco não muda (só o arquivo de status da
+  VPS ganha campos). Precisa do app aberto no notebook.
+- **Aviso do rodapé com ×**: fecha o aviso; ele só volta se a situação
+  mudar (outra máquina parada, outro tipo de aviso).
+- **Notificações no sino** (menu superior, ao lado do relógio): bandeja com
+  tudo o que foi avisado, por dia, com filtros Painel / Controlador /
+  Configuração; o número no sino conta os avisos importantes que chegaram
+  desde a última abertura — avisos do painel com
+  início e duração (registrados neste aparelho; passageiros de menos de 15 s
+  ficam fora), eventos do controlador (quedas de rede, envio para a nuvem,
+  reinícios — no computador da fábrica) e alterações/avisos de configuração.
+- 2 testes novos (41).
+- **Firmware 3.1** (regravar o ESP32 pela USB; ciclos e configuração na flash
+  são mantidos): conexão HTTPS com a VPS reaproveitada (keep-alive, sem
+  handshake TLS a cada 10 s), erro real do TLS em `nuvem_erro`, espera máxima
+  de 1 min entre tentativas (era 5 min) e a reconexão "PC sem contato" não
+  derruba mais o Wi-Fi quando o envio para a VPS está em dia. `/info` ganhou
+  `nuvem_envios_ok`, `nuvem_falhas` e `nuvem_conexoes_novas`. Detalhes em
+  `docs/firmware.md`.
+
+
 ## 1.6.0 — histórico de paradas e parada registrada (app 1.6.0 · firmware 3.0 e programa remoto 1.2.0, sem mudança)
 
 Só o painel mudou: na VPS basta o `git pull`; no notebook, `.exe` novo.
