@@ -1761,6 +1761,11 @@
   .acesso-status strong { font-weight: 700; }
   .acesso-status .ok { color: var(--good); } .acesso-status .aviso { color: var(--warning); }
   .acesso-ok { color: var(--good); font-size: 13px; font-weight: 600; min-height: 18px; }
+  .senha-guardada { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+  .senha-guardada .rotulo { font-weight: 600; min-width: 96px; color: var(--ink-900); }
+  .senha-guardada code { font-family: ui-monospace, Consolas, monospace; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; min-width: 120px; word-break: break-all; }
+  .senha-guardada .input { flex: 1; min-width: 140px; max-width: 240px; }
+  .senha-guardada .aviso { color: var(--warning); }
   .ro-note { border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink-600); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .ro-note:hover { border-color: var(--border-strong); color: var(--ink-900); }
   @media (prefers-reduced-motion: reduce) {
@@ -3078,6 +3083,11 @@
     <div class="modal-body">
       <div class="settings-note" id="acesso-explica">Quem está fora da empresa abre o painel pela internet e entra com uma destas senhas.</div>
       <div class="acesso-status" id="acesso-status">Verificando…</div>
+      <div class="acesso-secao" id="acesso-guardadas" hidden>
+        <h4>Senhas guardadas neste computador</h4>
+        <div id="acesso-guardadas-lista"></div>
+        <div class="settings-note">Só aparecem aqui, no computador da fábrica (nunca na internet nem em outro aparelho). Senha definida antes da versão 1.7.2 ou trocada pela internet não é conhecida aqui: digite a senha em vigor em “Guardar” para ela passar a aparecer.</div>
+      </div>
       <div class="acesso-secao" id="acesso-mestre">
         <h4>Edição pela internet</h4>
         <label class="toggle-pill" id="acesso-edicao-wrap"><input type="checkbox" id="acesso-edicao-ativa" /> Permitir que quem tem a senha de edição altere a configuração</label>
@@ -3110,7 +3120,7 @@
           <input type="password" id="acesso-atual" class="input" autocomplete="current-password" maxlength="128" />
         </label>
       </div>
-      <div class="settings-note">Preencha só a senha que quiser trocar. Trocar uma senha desconecta quem entrou com ela. As senhas são guardadas só de forma cifrada (hash).</div>
+      <div class="settings-note">Preencha só a senha que quiser trocar. Trocar uma senha desconecta quem entrou com ela. Na internet as senhas ficam só de forma cifrada (hash); o computador da fábrica também guarda o texto, para consulta.</div>
       <div class="settings-error" id="acesso-erro"></div>
       <div class="acesso-ok" id="acesso-ok"></div>
       <div class="acesso-secao">
@@ -7180,7 +7190,67 @@
     }
     alvo.innerHTML = linhas.join("<br>");
     renderAlteracoes();
+    renderSenhasGuardadas();
   }
+
+  // 1.7.2: texto das senhas remotas, guardado so no computador da fabrica
+  // (o servidor recusa fora dele - ai a secao fica escondida)
+  const NOME_PAPEL = { leitura: "Visualização", edicao: "Edição" };
+  async function renderSenhasGuardadas(dados) {
+    const secao = $("#acesso-guardadas"), lista = $("#acesso-guardadas-lista");
+    if (modoNuvem) { secao.hidden = true; return; }
+    if (!dados) {
+      try {
+        const res = await fetch(CONTROLE_URL + "/acesso-remoto/senhas", { cache: "no-store", headers: cabecalhosControle() });
+        dados = res.ok ? (await res.json()).senhas : null;
+      } catch (e) { dados = null; }
+    }
+    if (!dados) { secao.hidden = true; return; }
+    secao.hidden = false;
+    lista.innerHTML = ["leitura", "edicao"].map((papel) => {
+      const s = dados[papel] || {};
+      const rotulo = `<span class="rotulo">${NOME_PAPEL[papel]}</span>`;
+      if (!s.definida) return `<div class="senha-guardada">${rotulo}<span class="aviso">nenhuma senha definida</span></div>`;
+      if (s.conhecida) {
+        return `<div class="senha-guardada">${rotulo}<code data-senha="${escaparHtml(s.senha)}">••••••••</code>
+          <button class="btn" type="button" data-acao="mostrar">Mostrar</button>
+          <button class="btn" type="button" data-acao="copiar">Copiar</button></div>`;
+      }
+      return `<div class="senha-guardada">${rotulo}<span class="aviso">não conhecida aqui</span>
+        <input type="password" class="input" data-papel="${papel}" maxlength="128" autocomplete="off" placeholder="senha em vigor" />
+        <button class="btn" type="button" data-acao="guardar" data-papel="${papel}">Guardar</button></div>`;
+    }).join("");
+  }
+
+  $("#acesso-guardadas-lista").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-acao]");
+    if (!btn) return;
+    const linha = btn.closest(".senha-guardada"), code = linha.querySelector("code");
+    if (btn.dataset.acao === "mostrar") {
+      const visivel = code.textContent !== "••••••••";
+      code.textContent = visivel ? "••••••••" : code.dataset.senha;
+      btn.textContent = visivel ? "Mostrar" : "Ocultar";
+    } else if (btn.dataset.acao === "copiar") {
+      try { await navigator.clipboard.writeText(code.dataset.senha); btn.textContent = "Copiada"; }
+      catch (e) { code.textContent = code.dataset.senha; btn.textContent = "Copie acima"; }
+      setTimeout(() => { btn.textContent = "Copiar"; }, 2000);
+    } else if (btn.dataset.acao === "guardar") {
+      const campo = linha.querySelector("input"), erro = $("#acesso-erro");
+      if (!campo.value) { erro.textContent = "Digite a senha em vigor para guardá-la."; return; }
+      try {
+        const res = await fetch(CONTROLE_URL + "/acesso-remoto/guardar", {
+          method: "POST", cache: "no-store",
+          headers: cabecalhosControle({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ papel: btn.dataset.papel, senha: campo.value }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.ok) { erro.textContent = d.erro || "Não foi possível guardar."; return; }
+        erro.textContent = "";
+        $("#acesso-ok").textContent = `Senha de ${NOME_PAPEL[btn.dataset.papel].toLowerCase()} guardada neste computador.`;
+        renderSenhasGuardadas(d.senhas);
+      } catch (e) { erro.textContent = "Servidor indisponível."; }
+    }
+  });
 
   async function renderAlteracoes() {
     const lista = $("#acesso-alteracoes");

@@ -73,6 +73,7 @@ SEGREDO_EDICAO_REMOTA = "edicao_remota"  # {"ativa": bool} - so o notebook muda
 SEGREDO_SYNC_CONFIG = "sync_config_nuvem"  # notebook: {"url", "rev"} ultima revisao conhecida da VPS
 SEGREDO_AUDITORIA_NUVEM = "auditoria_nuvem"  # notebook: copia das ultimas alteracoes da VPS
 SEGREDO_AVISOS_SYNC = "avisos_sync_config"  # notebook: avisos de mudancas recebidas/conflitos
+SEGREDO_SENHAS_TEXTO = "senhas_remotas_texto"  # SO notebook (1.7.2): texto das senhas remotas - nunca sincronizado
 SENHA_EDICAO_MIN = 10
 SEMENTE_EM = "1970-01-01T00:00:00.000+00:00"  # data das sementes (perdem para qualquer edicao real)
 COOKIE_SESSAO = "painel_sessao"
@@ -627,6 +628,35 @@ def status_senha_remota(banco):
     return {"definida": bool(leitura), "alteradaEm": leitura.get("alterado_em", ""),
             "edicaoDefinida": bool(edicao), "edicaoAlteradaEm": edicao.get("alterado_em", ""),
             "edicaoRemotaAtiva": edicao_remota_ativa(banco)}
+
+
+def guardar_senha_texto(banco, papel, senha):
+    """1.7.2 - SO NO NOTEBOOK: guarda o texto da senha de acesso remoto
+    ("leitura" ou "edicao") para ser consultada depois (esquecimento, Claude
+    Code). So guarda se a senha confere com o hash em vigor; junto vai o hash,
+    para saber se ela foi trocada depois (pela internet). Nunca vai para a VPS
+    (nao esta em itens_atuais) e a VPS nunca chama isto. Devolve True/False."""
+    dados = dados_senha_edicao(banco) if papel == "edicao" else dados_senha_remota(banco)
+    senha = str(senha or "")
+    if not dados or not verificar_senha(senha, dados["hash"]):
+        return False
+    guardadas = _segredo_json(banco, SEGREDO_SENHAS_TEXTO)
+    guardadas[papel] = {"senha": senha, "hash": dados["hash"], "guardada_em": _agora_utc()}
+    banco.salvar_segredo(SEGREDO_SENHAS_TEXTO, json.dumps(guardadas, ensure_ascii=False))
+    return True
+
+
+def senhas_guardadas(banco):
+    """{papel: {"definida", "conhecida", "senha", "alteradaEm"}} - "senha" so
+    quando a guardada ainda e a que vale (o hash nao mudou)."""
+    guardadas = _segredo_json(banco, SEGREDO_SENHAS_TEXTO)
+    saida = {}
+    for papel, dados in (("leitura", dados_senha_remota(banco)), ("edicao", dados_senha_edicao(banco))):
+        g = guardadas.get(papel) if isinstance(guardadas.get(papel), dict) else {}
+        vale = bool(dados) and g.get("hash") == dados.get("hash") and bool(g.get("senha"))
+        saida[papel] = {"definida": bool(dados), "conhecida": vale, "senha": g["senha"] if vale else "",
+                        "alteradaEm": dados.get("alterado_em", "")}
+    return saida
 
 
 @_em_ordem

@@ -1,5 +1,22 @@
 # Histórico de versões
 
+## 1.7.2 — senhas do acesso remoto guardadas no notebook (app 1.7.2 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
+
+- **Senhas guardadas neste computador** (Configurações → Acesso remoto): o
+  computador da fábrica guarda o texto das senhas de visualização e de edição
+  definidas nele, com **Mostrar** e **Copiar** — esqueceu, consulta aqui em vez
+  de criar outra. A VPS continua só com o hash; o texto nunca é sincronizado.
+- Só aparecem no painel do próprio computador da fábrica: recusadas na VPS,
+  em aparelhos da rede (mesmo com o PIN) e para sites abertos no navegador
+  deste PC (exige `localhost`, sem `Origin` de fora, resposta sem CORS).
+- Senha definida antes da 1.7.2 ou trocada pela internet (só o hash chega ao
+  notebook) aparece como "não conhecida aqui": digitando a senha em vigor em
+  **Guardar**, ela é conferida com o hash e passa a aparecer.
+- **`ferramentas/acesso_vps.py`**: consulta o painel da VPS (só GET) com a
+  senha guardada, sem imprimi-la — para o Claude Code conferir o que a VPS
+  mostra (`python ferramentas/acesso_vps.py /status`).
+- 1 teste novo (44).
+
 ## 1.7.1 — VPS com a hora certa quando o ESP32 envia sem hora (app 1.7.1 · firmware 3.2 · programa remoto 1.2.0, sem mudança)
 
 Diagnóstico que motivou (23/11/2026): o ESP32 reiniciou por panic no dia

@@ -15,7 +15,7 @@ o desenvolvimento no notebook (Windows).
 | Parte | Onde | O que faz |
 |---|---|---|
 | Firmware 3.2 (ESP32) | `firmware/controle_producao_horimetro/` | Lê 4 relés, guarda ciclos na flash, responde ao notebook na rede local e envia para a VPS por HTTPS |
-| App 1.7.1 da fábrica (Windows) | `app/` + `ferramentas/` + `painel/` | Servidor + painel web (abas Visão geral, Desempenho e Relatórios — Excel/PDF); lê o ESP32; banco SQLite; backup diário; **mestre** (edita sem senha); sincroniza configuração (duas mãos, 15 s) e histórico com a VPS |
+| App 1.7.2 da fábrica (Windows) | `app/` + `ferramentas/` + `painel/` | Servidor + painel web (abas Visão geral, Desempenho e Relatórios — Excel/PDF); lê o ESP32; banco SQLite; backup diário; **mestre** (edita sem senha); sincroniza configuração (duas mãos, 15 s) e histórico com a VPS |
 | Servidor da VPS | o mesmo código, `PAINEL_MODO=nuvem`; instalação em `vps/` | Recebe do ESP32 e do notebook; painel com senha de visualização ou de edição; auditoria |
 | Programa remoto | `remoto/painel_remoto.py` + `remoto/icone.ico` | "Painel de Produção.exe": janela que só abre a VPS (sem chave); cópia publicada em `vps/app-remoto/` e baixada pelo painel da VPS |
 | Geradores | `gerar/` → saída em `distribuir/` (fora do git) | `gerar.bat`: `.exe` da fábrica, `.exe` remoto, pacote da VPS |
@@ -41,11 +41,17 @@ Documentação: `README.md`, `docs/` (`nuvem-vps.md` = acesso remoto e edição 
   `.exe` da fábrica não é aberto em testes.
 - Mudanças no banco só aditivas (coluna, índice, tabela nova).
 - Senhas e chaves nunca aparecem em respostas, logs ou comandos com `echo`.
+- **Ver o painel da VPS (Claude Code)**: `python ferramentas/acesso_vps.py /status`
+  (ou `/dados?setor=enfestadeiras`, `/config`; `--edicao` para a senha de
+  edição; `--saida arquivo` para gravar). Usa a senha de acesso remoto
+  guardada no notebook (banco aberto só para leitura), só faz GET e nunca
+  imprime a senha. Senha não guardada: o usuário guarda no painel do notebook
+  (Configurações → Acesso remoto → Senhas guardadas neste computador).
 
 ## Testes e build
 
 ```
-python -m unittest discover -s testes -v      # 43 testes, pasta temporária
+python -m unittest discover -s testes -v      # 44 testes, pasta temporária
 python ferramentas/gerar_segredos.py          # .env -> segredos.h + app/segredos_app.json
 gerar\gerar.bat                               # menu: .exe da fábrica / .exe remoto / pacote VPS -> distribuir\
 python gerar/exe_fabrica.py                   # (ou cada um direto)

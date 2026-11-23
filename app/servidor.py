@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.7.1"
+APP_VERSAO = "1.7.2"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -431,12 +431,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- respostas -------------------------------------------------------
 
-    def _responder_json(self, corpo, status=200, cabecalhos=None):
+    def _responder_json(self, corpo, status=200, cabecalhos=None, cors=True):
         dados = json.dumps(corpo).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Cache-Control", "no-store")
-        if not MODO_NUVEM:  # na VPS o painel e do mesmo site: nada de CORS
+        if not MODO_NUVEM and cors:  # na VPS o painel e do mesmo site: nada de CORS
             self.send_header("Access-Control-Allow-Origin", "*")
         for nome, valor in (cabecalhos or {}).items():
             self.send_header(nome, valor)
@@ -542,8 +542,29 @@ class Handler(BaseHTTPRequestHandler):
                 return
             avisos = enviador_nuvem.avisos() if enviador_nuvem is not None else []
             self._responder_json({"alteracoes": banco.ultimas_alteracoes(50), "avisos": avisos})
+        elif url.path == "/acesso-remoto/senhas":
+            if not self._so_este_computador():
+                return
+            self._responder_json({"ok": True, "senhas": nuvem.senhas_guardadas(banco)}, cors=False)
         else:
             self._responder_estatico(url.path)
+
+    def _so_este_computador(self):
+        """1.7.2: o texto das senhas remotas so aparece no proprio painel do
+        computador da fabrica - nunca na VPS, num aparelho da rede (nem com o
+        PIN) ou num site aberto no navegador deste PC: exige localhost no Host
+        (contra DNS rebinding), nenhuma Origin de fora e o cabecalho do painel;
+        a resposta sai sem CORS."""
+        host = (self.headers.get("Host") or "").lower()
+        nome_host = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
+        origem = self.headers.get("Origin")
+        origem_ok = origem is None or urlparse(origem).hostname in ("localhost", "127.0.0.1", "::1")
+        if (MODO_NUVEM or not _eh_este_computador(self.client_address[0])
+                or nome_host not in ("localhost", "127.0.0.1", "[::1]")
+                or not origem_ok or self.headers.get("X-Painel-Edicao") != "1"):
+            self._responder_json({"ok": False, "erro": "Só no painel do computador da fábrica."}, status=403, cors=False)
+            return False
+        return True
 
     def _responder_app_remoto(self):
         """VPS: GET /app-remoto (informacoes) e /app-remoto/PainelSantexRemoto.exe."""
@@ -703,6 +724,23 @@ class Handler(BaseHTTPRequestHandler):
             return
         if not self._autorizar_visitante():
             return
+        if rota == "/acesso-remoto/guardar":  # 1.7.2: guarda o texto de uma senha remota que ja vale
+            if not self._so_este_computador():
+                return
+            try:
+                corpo = self._corpo_json()
+            except (ValueError, UnicodeDecodeError):
+                corpo = {}
+            papel = corpo.get("papel")
+            if papel not in ("leitura", "edicao"):
+                self._responder_json({"ok": False, "erro": "papel inválido"}, status=400, cors=False)
+                return
+            if not nuvem.guardar_senha_texto(banco, papel, corpo.get("senha", "")):
+                self._responder_json({"ok": False, "erro": "Essa não é a senha em vigor — nada foi guardado. "
+                                      "Se ninguém lembra, defina uma nova acima."}, status=400, cors=False)
+                return
+            self._responder_json({"ok": True, "senhas": nuvem.senhas_guardadas(banco)}, cors=False)
+            return
         if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -798,6 +836,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 for papel, senha in senhas.items():
                     nuvem.definir_senha(banco, papel, senha, origem, autor)
+                    if not MODO_NUVEM:  # 1.7.2: o notebook guarda o texto para consulta (a VPS nunca)
+                        nuvem.guardar_senha_texto(banco, papel, senha)
             except ValueError as erro:
                 self._responder_json({"ok": False, "erro": str(erro)}, status=400)
                 return

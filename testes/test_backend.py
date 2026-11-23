@@ -457,6 +457,35 @@ class TesteServidor(unittest.TestCase):
         guardado = servidor.nuvem.dados_senha_remota(servidor.banco)["hash"]
         self.assertTrue(servidor.nuvem.verificar_senha("senha-da-fabrica-1", guardado))
 
+    def test_senhas_remotas_guardadas_so_no_painel_deste_computador(self):
+        # 1.7.2: o notebook guarda o texto das senhas remotas para consulta
+        cab = {"Content-Type": "application/json", "X-Painel-Edicao": "1"}
+        nuvem = servidor.nuvem
+        self.assertEqual(self.pedir("/config", "POST", {"senhaEdicao": "edicao-da-fabrica-9"}, cab)[0], 200)
+        st, h, corpo = self.pedir("/acesso-remoto/senhas", cabecalhos={"X-Painel-Edicao": "1"})
+        self.assertEqual(st, 200)
+        self.assertIsNone(h.get("Access-Control-Allow-Origin"))  # outro site nao le a resposta
+        s = json.loads(corpo)["senhas"]
+        self.assertEqual((s["edicao"]["conhecida"], s["edicao"]["senha"]), (True, "edicao-da-fabrica-9"))
+        # recusas: sem o cabecalho do painel, Origin de outro site, Host de fora (DNS rebinding)
+        self.assertEqual(self.pedir("/acesso-remoto/senhas")[0], 403)
+        self.assertEqual(self.pedir("/acesso-remoto/senhas", cabecalhos={"X-Painel-Edicao": "1", "Origin": "http://mal.example"})[0], 403)
+        self.assertEqual(self.pedir("/acesso-remoto/senhas", cabecalhos={"X-Painel-Edicao": "1", "Host": "mal.example"})[0], 403)
+        # a senha nunca vai para a VPS (nao e item sincronizado)
+        self.assertNotIn("edicao-da-fabrica-9", json.dumps(nuvem.itens_atuais(servidor.banco, "enfestadeiras"), default=str))
+        # trocada pela internet (so o hash chega): deixa de ser "conhecida"
+        servidor.banco.salvar_segredo(nuvem.SEGREDO_SENHA_EDICAO, json.dumps(
+            {"hash": nuvem.hash_senha("trocada-pela-vps-1", iteracoes=1000), "alterado_em": "2026-11-23T10:00:00"}))
+        s = json.loads(self.pedir("/acesso-remoto/senhas", cabecalhos={"X-Painel-Edicao": "1"})[2])["senhas"]
+        self.assertEqual((s["edicao"]["conhecida"], s["edicao"]["senha"]), (False, ""))
+        # guardar: so a senha em vigor
+        st, _, corpo = self.pedir("/acesso-remoto/guardar", "POST", {"papel": "edicao", "senha": "errada-123456"}, cab)
+        self.assertEqual(st, 400)
+        st, _, corpo = self.pedir("/acesso-remoto/guardar", "POST", {"papel": "edicao", "senha": "trocada-pela-vps-1"}, cab)
+        self.assertEqual((st, json.loads(corpo)["senhas"]["edicao"]["senha"]), (200, "trocada-pela-vps-1"))
+        self.assertEqual(self.pedir("/acesso-remoto/guardar", "POST", {"papel": "edicao", "senha": "x"},
+                                    {"Content-Type": "application/json"})[0], 403)
+
     def test_post_desconhecido_404(self):
         self.assertEqual(self.pedir("/apagar-tudo", "POST")[0], 404)
 

@@ -102,6 +102,10 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
+**1.7.2** (deploy seguinte ao 1.7.1): só o notebook muda (guarda o texto das
+senhas de acesso remoto para consulta; a VPS continua só com o hash). Deploy
+comum; o `ping` responde `"versao": "1.7.2"`.
+
 **1.7.1** (deploy seguinte ao `181bf94`): a VPS completa a hora dos ciclos que
 o ESP32 enviou sem hora (`SEM_HORA`) quando o notebook manda o mesmo ciclo
 com hora - `UPDATE` só nesses ciclos (data/hora e obs; máquina, ciclo e
@@ -202,7 +206,7 @@ pode aparecer duplicado — inofensivo.
    curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
    curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
-   #   -> {"ok": true, "versao": "1.7.1"}
+   #   -> {"ok": true, "versao": "1.7.2"}
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
    #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
    ```
