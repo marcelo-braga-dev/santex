@@ -1006,6 +1006,11 @@
   }
   footer.app-footer .foot-brand { display: flex; align-items: center; gap: 8px; }
   footer.app-footer .foot-brand::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  /* 1.7.5: credito do desenvolvedor em destaque */
+  footer.app-footer .foot-autor { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-600); }
+  footer.app-footer .foot-autor svg { flex: none; width: 12px; height: 12px; color: var(--accent); opacity: .8; }
+  footer.app-footer .foot-autor strong { font-weight: 700; color: var(--accent); }
+  @media (max-width: 640px) { footer.app-footer { justify-content: center; text-align: center; } }
 
   /* =====================================================================
      1.3.0 - GESTAO: cores com sentido fixo, indicadores, tempo, motivos,
@@ -1229,7 +1234,12 @@
 
   /* Maquina Com / Sem producao */
   .mc-prod-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; }
-  .mc-taxa { margin-left: auto; display: inline-flex; align-items: center; }
+  /* 1.7.5: nome e selo Produção so de leitura no cartao (editam na engrenagem) */
+  span.mc-name-btn, span.mc-name-btn:hover { cursor: default; background: transparent; border-color: transparent; }
+  .machine-card [data-dica] { cursor: help; }
+  .machine-card [data-dica][title=""], .machine-card [data-dica]:not([title]) { cursor: default; }
+  .machine-card span.mc-name-btn[data-dica] { cursor: default; }
+  .mc-prod-linha .mc-hist[data-hist-paradas] { margin-left: auto; } /* 1.7.5: a taxa saiu desta linha - os icones vao para a direita */
   .mc-prod { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 6px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--good); background: var(--good-wash); border: 1px solid color-mix(in srgb, var(--good) 35%, var(--border)); white-space: nowrap; }
   .mc-check { position: relative; width: 16px; height: 16px; flex: none; border-radius: 4px; background: var(--good); border: 1.5px solid var(--good); }
   .mc-check::after { content: ""; position: absolute; left: 4.5px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
@@ -1266,6 +1276,15 @@
   .cfg-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
   .cfg-card { display: flex; flex-direction: column; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--surface-card); box-shadow: var(--shadow-sm, none); min-width: 0; }
   .cfg-card.cfg-largo { grid-column: span 2; }
+  /* 1.7.5: abas da pagina Configuracoes */
+  .cfg-abas { display: flex; gap: 4px; margin: 0 0 16px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunken); overflow-x: auto; scrollbar-width: none; }
+  .cfg-abas::-webkit-scrollbar { display: none; }
+  .cfg-aba { flex: 1 0 auto; height: 34px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-600); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .cfg-aba:hover { color: var(--ink-900); }
+  .cfg-aba.ativa { background: var(--surface-raised); color: var(--accent); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-strong); }
+  .cfg-aba[hidden] { display: none; }
+  .cfg-grade .cfg-card.cfg-fora { display: none !important; }
+  @media (max-width: 760px) { .cfg-aba { flex: 0 0 auto; padding: 0 12px; } }
   @media (max-width: 900px) { .cfg-card.cfg-largo { grid-column: auto; } }
   .cfg-card-cab { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
   .cfg-ico { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px; color: var(--accent); background: var(--accent-wash); }
@@ -1290,6 +1309,14 @@
   /* icone do historico na linha de baixo, logo depois da pill de producao (m/h) */
   .mc-hist { margin-left: 0; flex: none; width: 26px; height: 26px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--ink-600); cursor: pointer; }
   .mc-hist:hover, .mc-hist:focus-visible { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+  /* 1.7.5: popup Configurar maquina */
+  .mq-corpo { display: flex; flex-direction: column; gap: 12px; }
+  .mq-cores { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+  .mq-cor { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface-raised); box-shadow: 0 0 0 1px var(--border-strong); cursor: pointer; padding: 0; }
+  .mq-cor.sel { box-shadow: 0 0 0 2px var(--ink-900); }
+  .mq-cor:disabled { cursor: not-allowed; opacity: .6; }
+  .mq-cor-livre { width: 34px; height: 30px; padding: 0 2px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-raised); cursor: pointer; }
+  .mq-linha { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-weight: 400; font-size: 13px; color: var(--ink-600); text-transform: none; letter-spacing: normal; }
   .modal.hp-modal { max-width: 860px; }
   .hp-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
   .hp-nav { height: 36px; }
@@ -1357,11 +1384,14 @@
   @media (max-width: 560px) { .relf-bloco { grid-template-columns: 1fr; gap: 6px; } .relf-atalhos { padding-left: 0; } .relf-foot { flex-wrap: wrap; } }
 
   /* Central de relatorios */
-  .rel-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface-card)), var(--surface-card) 60%); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.05)); }
-  .rel-hero-texto { display: flex; gap: 16px; align-items: flex-start; min-width: 0; flex: 1 1 520px; }
-  .rel-hero-ico { display: grid; place-items: center; width: 52px; height: 52px; flex: none; border-radius: 14px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--glow-accent); }
-  .rel-hero h2 { margin: 0; font-family: var(--font-display); font-size: 21px; letter-spacing: -0.01em; }
-  .rel-hero p { margin: 4px 0 10px; color: var(--ink-600); font-size: 13px; max-width: 760px; line-height: 1.5; }
+  .rel-hero { display: flex; justify-content: space-between; align-items: center; gap: 12px 18px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface-card)), var(--surface-card) 60%); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.05)); }
+  .rel-hero-texto { display: flex; gap: 12px; align-items: center; min-width: 0; flex: 1 1 260px; }
+  .rel-hero-ico svg { width: 20px; height: 20px; }
+  .rel-info { cursor: help; color: var(--ink-400); font-size: 13px; }
+  .rel-info:hover, .rel-info:focus { color: var(--accent); outline: none; }
+  .rel-hero-ico { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--glow-accent); }
+  .rel-hero h2 { margin: 0; font-family: var(--font-display); font-size: 17px; letter-spacing: -0.01em; }
+  .rel-hero p { margin: 2px 0 0; color: var(--ink-600); font-size: 12.5px; line-height: 1.4; }
   .rel-escopo { display: flex; gap: 6px; flex-wrap: wrap; }
   .rel-hero-acoes { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
   .rel-hero-acoes > div { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -1828,8 +1858,12 @@
   .dq-fechar { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-raised); color: var(--ink-600); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; display: grid; place-items: center; padding: 0; }
   .dq-fechar:hover, .dq-fechar:focus-visible { color: var(--critical); border-color: var(--critical); }
   /* Notificacoes: sino + bandeja no menu superior */
-  .nt-wrap { position: relative; flex: none; }
-  .nt-btn { position: relative; }
+  .nt-wrap { position: relative; flex: none; width: 0; align-self: stretch; } /* 1.7.5: so ancora a bandeja, logo abaixo do botao Configuracoes */
+  .nt-btn { display: none !important; } /* 1.7.5: o sino saiu do cabecalho - Notificacoes fica no menu Configuracoes */
+  .config-btn { position: relative; }
+  .config-btn .nt-badge { top: -6px; right: -6px; }
+  .mi-badge { margin-left: auto; align-self: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--critical); color: #fff; font-size: 11px; font-weight: 800; line-height: 20px; text-align: center; }
+  .mi-badge[hidden] { display: none; }
   .nt-badge { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--critical); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--accent); }
   .nt-badge[hidden] { display: none; }
   .menu.nt-bandeja { width: min(430px, calc(100vw - 20px)); padding: 10px; display: none; flex-direction: column; gap: 8px; }
@@ -2023,29 +2057,12 @@
         </span>
       </div>
 
-      <!-- Notificacoes: sino com bandeja -->
-      <div class="nt-wrap">
-        <button class="icon-btn nt-btn" id="nt-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notificações" title="Notificações">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="nt-badge" id="nt-badge" hidden></span>
-        </button>
-        <div class="menu nt-bandeja" id="nt-bandeja" role="dialog" aria-label="Notificações">
-          <div class="nt-cab"><strong>Notificações</strong><button class="btn small ghost" type="button" id="nt-atualizar" title="Ler de novo">Atualizar</button></div>
-          <div class="segmented nt-filtros" id="nt-filtro">
-            <button class="segmented-btn active" type="button" data-nt="todas">Todas</button>
-            <button class="segmented-btn" type="button" data-nt="painel">Painel</button>
-            <button class="segmented-btn" type="button" data-nt="controlador">Controlador</button>
-            <button class="segmented-btn" type="button" data-nt="config">Configuração</button>
-          </div>
-          <div class="nt-lista" id="nt-lista"></div>
-          <div class="nt-nota" id="nt-nota"></div>
-          <div class="nt-rodape"><button class="btn small ghost" type="button" id="nt-limpar">Limpar avisos do painel</button></div>
-        </div>
-      </div>
       <!-- Menu central de configuracoes: cada item abre o seu popup -->
       <div class="menu-wrap">
         <button class="icon-btn config-btn" id="config-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Configurações" title="Configurações">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
           <span class="config-btn-label">Configurações</span>
+          <span class="nt-badge" id="nt-badge-cfg" hidden></span>
         </button>
         <div class="menu config-menu" id="config-menu" role="menu">
           <button class="menu-item" type="button" role="menuitem" data-abrir="configuracoes">
@@ -2055,6 +2072,11 @@
           <button class="menu-item" type="button" role="menuitem" data-abrir="pagina-turnos">
             <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
             <span>Turnos e calendário<small>Horários, refeição, calendário, motivos e sem produção</small></span>
+          </button>
+          <button class="menu-item" type="button" role="menuitem" data-abrir="notificacoes">
+            <span class="mi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="mi-text">Notificações<small id="nt-menu-sub">Avisos importantes e alterações</small></span>
+            <span class="mi-badge" id="nt-badge-item" hidden></span>
           </button>
           <div class="menu-sep"></div>
           <button class="menu-item" type="button" role="menuitem" data-abrir="modo-tv">
@@ -2076,6 +2098,24 @@
               <span>Sair<small>Encerrar o acesso remoto</small></span>
             </button>
           </form>
+        </div>
+      </div>
+      <!-- Notificacoes (1.7.5: sem o sino - aberta pelo item do menu Configuracoes; a bandeja fica sob o botao) -->
+      <div class="nt-wrap">
+        <button class="icon-btn nt-btn" id="nt-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notificações" title="Notificações">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="nt-badge" id="nt-badge" hidden></span>
+        </button>
+        <div class="menu nt-bandeja" id="nt-bandeja" role="dialog" aria-label="Notificações">
+          <div class="nt-cab"><strong>Notificações</strong><button class="btn small ghost" type="button" id="nt-atualizar" title="Ler de novo">Atualizar</button></div>
+          <div class="segmented nt-filtros" id="nt-filtro">
+            <button class="segmented-btn active" type="button" data-nt="todas">Todas</button>
+            <button class="segmented-btn" type="button" data-nt="painel">Painel</button>
+            <button class="segmented-btn" type="button" data-nt="controlador">Controlador</button>
+            <button class="segmented-btn" type="button" data-nt="config">Configuração</button>
+          </div>
+          <div class="nt-lista" id="nt-lista"></div>
+          <div class="nt-nota" id="nt-nota"></div>
+          <div class="nt-rodape"><button class="btn small ghost" type="button" id="nt-limpar">Limpar avisos do painel</button></div>
         </div>
       </div>
     </div>
@@ -2158,7 +2198,7 @@
           <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 7V5h10v2M7 13h4M15 13h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
           <div>
             <div class="panel-title">Rendimento por máquina</div>
-            <div class="panel-hint">Clique no nome, na taxa ou na meta para editar</div>
+            <div class="panel-hint">Engrenagem do cartão: configurar a máquina · clique na meta para editar</div>
           </div>
         </div>
         <div class="base-calc" id="base-calculo" hidden></div>
@@ -2367,14 +2407,12 @@
       <div class="rel-hero-texto">
         <span class="rel-hero-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
         <div>
-          <h2>Central de relatórios</h2>
-          <p>Clique em <strong>Visualizar</strong>, <strong>Excel</strong> ou <strong>PDF</strong>: antes de gerar, você escolhe o período (dia, semana, mês ou ano) e o turno. O Excel vem formatado e com filtros; o PDF, pronto para imprimir e enviar.</p>
-          <div class="rel-escopo" id="rel-escopo"></div>
-          <div class="rel-aviso rel-hero-aviso" role="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.5v5.5M12 16.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Os tempos dos relatórios já descontam os intervalos de refeição e as paradas programadas (feriado, folga, reunião, manutenção…): eles não contam como tempo disponível nem como tempo parado. Só “Ciclos registrados” mostra a duração bruta de cada ciclo.</span></div>
+          <!-- 1.7.5: cabecalho compacto - o periodo e o turno sao escolhidos ao gerar -->
+          <h2>Relatórios</h2>
+          <p>Período e turno são escolhidos ao gerar. <span class="rel-info" tabindex="0" title="Os tempos já descontam refeição e paradas programadas (feriado, folga, reunião, manutenção…). Só “Ciclos registrados” mostra a duração bruta de cada ciclo.">ⓘ</span></p>
         </div>
       </div>
-      <div class="rel-hero-acoes">
-        <span class="rel-hero-rotulo">Todos os relatórios num arquivo só</span>
+      <div class="rel-hero-acoes" title="Todos os relatórios num arquivo só">
         <div>
           <button class="btn rel-excel" type="button" data-rel-todos="excel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M8.3 8.3l7.4 7.4M15.7 8.3l-7.4 7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Excel completo</button>
           <button class="btn rel-pdf" type="button" data-rel-todos="pdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg> PDF completo</button>
@@ -2392,23 +2430,31 @@
       <span class="cfg-hero-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" stroke-width="1.6"/></svg></span>
       <div><h2>Configurações</h2><p>Tudo o que se ajusta na plataforma, em um lugar só. As configurações de produção valem para todos os aparelhos; o alerta de máquina parada vale para este aparelho.</p></div>
     </section>
-    <div class="cfg-grade">
-      <section class="cfg-card" data-cfg="maquinas" id="cfg-maquinas">
+    <div class="cfg-abas" id="cfg-abas" role="tablist" aria-label="Seções das configurações">
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="producao">Produção</button>
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="alertas">Alertas</button>
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="acesso">Acesso remoto</button>
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="aparencia">Aparência</button>
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="dados">Dados</button>
+      <button class="cfg-aba" type="button" role="tab" data-cfg-aba="sistema">Sistema</button>
+    </div>
+    <div class="cfg-grade" id="cfg-grade">
+      <section class="cfg-card" data-cfg="maquinas" data-aba="producao" id="cfg-maquinas">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 7V5h10v2M7 13h4M15 13h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Máquinas e meta</h3><p>Nome, produção por hora (m/h) de cada máquina e a meta de rendimento</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-maquinas-lista"></div></div>
         <footer class="cfg-card-acoes"><button class="btn small" type="button" data-abrir-popup="maquinas">Editar máquinas</button><button class="btn small" type="button" data-abrir-popup="meta">Meta de rendimento</button></footer>
       </section>
-      <section class="cfg-card" data-cfg="turnos" id="cfg-turnos">
+      <section class="cfg-card" data-cfg="turnos" data-aba="producao" id="cfg-turnos">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Turnos, calendário e motivos</h3><p>Horários, refeição, calendário, motivos de parada, máquinas sem produção e histórico</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-turnos-lista"></div></div>
         <footer class="cfg-card-acoes"><button class="btn small primary" type="button" data-cfg-ir="turnos">Abrir Turnos e calendário</button></footer>
       </section>
-      <section class="cfg-card" data-cfg="alertas" id="cfg-alertas">
+      <section class="cfg-card" data-cfg="alertas" data-aba="alertas" id="cfg-alertas">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Alerta de máquina parada</h3><p>Destaque (e som, se quiser) quando uma máquina fica parada no turno — vale para este aparelho</p></div></header>
         <div class="cfg-card-corpo"><div id="cfg-alerta-corpo"></div></div>
         <footer class="cfg-card-acoes"><span id="cfg-alerta-acoes" class="cfg-acoes-dir"></span></footer>
       </section>
-      <section class="cfg-card" data-cfg="parada-longa" id="cfg-parada-longa">
+      <section class="cfg-card" data-cfg="parada-longa" data-aba="producao" id="cfg-parada-longa">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><h3>Parada longa</h3><p>A partir de quanto tempo uma parada no turno é "longa" — vale para todos os aparelhos</p></div></header>
         <div class="cfg-card-corpo">
           <div class="settings-note">Usado no histórico de paradas da máquina, no aviso de paradas longas sem motivo e nas faixas de duração dos relatórios. Sincroniza com o acesso remoto.</div>
@@ -2419,32 +2465,32 @@
         </div>
         <footer class="cfg-card-acoes"><span class="cfg-acoes-dir"><button class="btn primary" id="cfg-longa-salvar" type="button">Salvar</button></span></footer>
       </section>
-      <section class="cfg-card cfg-largo" data-cfg="acesso-remoto" id="cfg-acesso-remoto">
+      <section class="cfg-card cfg-largo" data-cfg="acesso-remoto" data-aba="acesso" id="cfg-acesso-remoto">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Acesso remoto</h3><p>Senhas da internet, edição pela internet e últimas alterações</p></div></header>
         <div class="cfg-card-corpo"><div id="cfg-acesso-corpo"></div></div>
         <footer class="cfg-card-acoes"><span id="cfg-acesso-acoes" class="cfg-acoes-dir"></span></footer>
       </section>
-      <section class="cfg-card" data-cfg="dados" id="cfg-dados">
+      <section class="cfg-card" data-cfg="dados" data-aba="dados" id="cfg-dados">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6" rx="8" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" stroke="currentColor" stroke-width="1.8"/></svg></span><div><h3>Dados</h3><p>Importar um arquivo de ciclos, salvar uma cópia de tudo e baixar relatórios</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-botoes"><button class="cfg-acao" type="button" id="cfg-importar"><strong>Importar dados</strong><small>Carregar um arquivo CSV (ou arraste o arquivo na tela)</small></button><button class="cfg-acao" type="button" id="cfg-backup"><strong>Backup dos dados</strong><small>Baixar uma cópia de todos os ciclos (CSV)</small></button><button class="cfg-acao" type="button" data-cfg-ir="relatorios"><strong>Exportar relatórios</strong><small>Excel e PDF na aba Relatórios</small></button></div></div>
         
       </section>
-      <section class="cfg-card" data-cfg="aparencia" id="cfg-aparencia">
+      <section class="cfg-card" data-cfg="aparencia" data-aba="aparencia" id="cfg-aparencia">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 100 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 005-5C21 6.5 17 3 12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7.5" cy="11.5" r="1.3" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="8" r="1.3" fill="currentColor"/></svg></span><div><h3>Aparência</h3><p>Logo, ícone do navegador, cores, tema e a tela do chão de fábrica</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-botoes"><button class="cfg-acao" type="button" data-cfg-ir="identidade"><strong>Identidade visual</strong><small>Logo, ícone do navegador e paleta de cores</small></button><button class="cfg-acao" type="button" data-abrir-popup="modo-tv"><strong>Modo TV</strong><small>Tela cheia para o chão de fábrica (endereço com #tv abre direto)</small></button><button class="cfg-acao" type="button" id="cfg-tema"><strong>Tema escuro</strong><small id="cfg-tema-estado">—</small></button></div></div>
         
       </section>
-      <section class="cfg-card" data-cfg="esp" id="cfg-esp">
+      <section class="cfg-card" data-cfg="esp" data-aba="sistema" id="cfg-esp">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div><h3>Controlador (ESP32)</h3><p>Relógio, rede, memória, eventos, ações e a conexão (Wi-Fi ou cabo)</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-esp-lista"></div></div>
         <footer class="cfg-card-acoes"><button class="btn small primary" type="button" data-cfg-ir="esp">Abrir diagnóstico</button></footer>
       </section>
-      <section class="cfg-card menu-app-remoto" data-cfg="app" id="cfg-app">
+      <section class="cfg-card menu-app-remoto" data-cfg="app" data-aba="acesso" id="cfg-app">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Aplicativo para Windows</h3><p>O Painel de Produção como programa no computador (sem precisar do navegador)</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista"><span>Abre direto o painel do acesso remoto, com o login guardado.</span></div></div>
         <footer class="cfg-card-acoes"><button class="btn small primary" type="button" data-abrir-popup="app-remoto">Baixar o aplicativo</button></footer>
       </section>
-      <section class="cfg-card" data-cfg="sobre" id="cfg-sobre">
+      <section class="cfg-card" data-cfg="sobre" data-aba="sistema" id="cfg-sobre">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 10.5v6M12 7.5v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><div><h3>Sobre</h3><p>Versão e de onde os dados vêm</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-sobre-lista"></div></div>
         
@@ -2766,7 +2812,7 @@
 
   <footer class="app-footer">
     <span><span class="foot-brand" id="foot-brand">Painel de Produção — uso interno de gestão</span> <span class="foot-versao" id="foot-versao"></span></span>
-    <span class="foot-autor">Desenvolvido por Marcelo Braga</span>
+    <span class="foot-autor"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Desenvolvido por <strong>Marcelo Braga</strong></span>
   </footer>
 </main>
 
@@ -3013,6 +3059,38 @@
   </div>
 </div>
 
+<!-- 1.7.5: configuracao de UMA maquina (engrenagem no cartao da Visao geral) -->
+<div class="modal-overlay" id="mq-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mq-titulo" style="max-width:520px">
+    <div class="modal-head">
+      <div class="modal-title" id="mq-titulo">Configurar máquina</div>
+      <button class="modal-close" id="mq-close" type="button" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body mq-corpo">
+      <label class="config-field">Nome
+        <input class="input" id="mq-nome" type="text" maxlength="28" />
+      </label>
+      <label class="config-field">Produção por hora ligada (m/h)
+        <input class="input mono" id="mq-taxa" type="text" inputmode="decimal" maxlength="8" autocomplete="off" placeholder="0 = não mostrar produção" />
+      </label>
+      <div class="config-field">Cor nos gráficos e no cartão
+        <div class="mq-cores" id="mq-cores"></div>
+      </div>
+      <div class="config-field">Situação
+        <div class="mq-linha"><span id="mq-situacao">—</span><button class="btn small" id="mq-sp" type="button">Alterar</button></div>
+      </div>
+      <div class="config-field">Paradas
+        <div class="mq-linha"><span>Ver e registrar paradas desta máquina</span><button class="btn small" id="mq-hist" type="button">Histórico de paradas</button></div>
+      </div>
+      <div class="settings-error" id="mq-erro" role="alert"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="mq-cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="mq-salvar" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="shifts-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shifts-title">
     <div class="modal-head">
@@ -3237,6 +3315,32 @@
   function rebuildMachineMeta() {
     MACHINE_META = {};
     MACHINE_IDS.forEach((id, idx) => { MACHINE_META[id] = { colorVar: `--m${idx + 1}` }; });
+    aplicarCoresMaquinas();
+  }
+  // 1.7.5: cor escolhida para cada maquina (popup "Configurar máquina").
+  // Guardada neste aparelho e na configuracao geral "visual" (sincroniza com
+  // a VPS); sem cor escolhida = a cor padrao (validada para daltonismo).
+  function coresMaquinas() {
+    try {
+      const v = JSON.parse(localStorage.getItem("painel_cores_maquinas") || "{}");
+      return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+    } catch (e) { return {}; }
+  }
+  function normalizarCores(v) {
+    const saida = {};
+    if (v && typeof v === "object") Object.entries(v).forEach(([k, c]) => { if (/^\d{1,2}$/.test(k) && /^#[0-9a-f]{6}$/i.test(String(c))) saida[k] = String(c).toLowerCase(); });
+    return saida;
+  }
+  function salvarCoresMaquinas(cores) {
+    try { localStorage.setItem("painel_cores_maquinas", JSON.stringify(normalizarCores(cores))); } catch (e) { /* sem localStorage */ }
+    aplicarCoresMaquinas();
+  }
+  function aplicarCoresMaquinas() {
+    const cores = coresMaquinas(), raiz = document.documentElement.style;
+    for (let i = 1; i <= 12; i++) raiz.removeProperty(`--m${i}`);
+    (typeof MACHINE_IDS !== "undefined" ? MACHINE_IDS : []).forEach((id, idx) => {
+      if (cores[id]) raiz.setProperty(`--m${idx + 1}`, cores[id]);
+    });
   }
   rebuildMachineMeta();
 
@@ -4738,28 +4842,19 @@
         <div class="mc-head">
           <div class="mc-id">
             <span class="mc-badge">${String(MACHINE_IDS.indexOf(id) + 1).padStart(2, "0")}</span>
-            <button class="mc-name-btn editable" type="button" data-editar="nome" title="Clique para renomear">
-              <span class="machine-name" data-campo="nome"></span><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            </button>
-            <input class="mc-inline-input" type="text" data-input="nome" maxlength="28" hidden aria-label="Nome da máquina" />
+            <!-- 1.7.5: so leitura no cartao - nome, situacao e producao se alteram na engrenagem -->
+            <span class="mc-name-btn" data-dica="nome"><span class="machine-name" data-campo="nome"></span></span>
           </div>
-          <button class="mc-prod" type="button" role="checkbox" aria-checked="true" data-sp-toggle="${id}" title="Marcar a máquina como Com produção / Sem produção"><span class="mc-check" aria-hidden="true"></span><span class="mc-prod-txt"></span></button>
+          <button class="mc-prod" type="button" role="checkbox" aria-checked="true" data-sp-toggle="${id}" data-sp-status="${id}"><span class="mc-check" aria-hidden="true"></span><span class="mc-prod-txt"></span></button>
         </div>
         <div class="mc-prod-linha">
           <div class="machine-live" id="live-${id}"></div>
-          <span class="mc-taxa">
-            <button class="status-chip small mono editable" type="button" data-editar="taxa" title="Produção por hora ligada (m/h) — clique para editar">
-              <span data-campo="taxa"></span><svg class="edit-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            </button>
-            <span class="mc-rate-edit" data-input-wrap="taxa" hidden>
-              <input class="mc-inline-input" type="text" inputmode="decimal" data-input="taxa" maxlength="8" autocomplete="off" aria-label="Produção por hora em metros (aceita vírgula)" />m/h
-            </span>
-          </span>
           <button class="mc-hist" type="button" data-hist-paradas="${id}" title="Histórico de paradas — ver e registrar paradas" aria-label="Histórico de paradas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="mc-hist mc-cfg" type="button" data-cfg-maquina="${id}" title="Configurar máquina — nome, produção, cor e situação" aria-label="Configurar máquina"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" stroke-width="1.6"/></svg></button>
         </div>
         <div class="mc-sp-info" data-campo="sp-info" hidden></div>
         <div class="mc-main">
-          <div>
+          <div data-dica="ligado">
             <div class="mc-caption">Horímetro · tempo ligado</div>
             <div class="machine-hero-num" data-campo="ligado"></div>
           </div>
@@ -4769,9 +4864,9 @@
           </div>
         </div>
         <div class="machine-substats">
-          <div><span class="machine-substat-label">Parado</span><span class="machine-substat-value mono" data-campo="parado"></span></div>
-          <div><span class="machine-substat-label">Rendimento</span><span class="machine-substat-value mono" data-campo="rendimento"></span></div>
-          <div data-campo="producao-box"><span class="machine-substat-label">Produção</span><span class="machine-substat-value mono" data-campo="producao"></span></div>
+          <div data-dica="parado"><span class="machine-substat-label">Parado</span><span class="machine-substat-value mono" data-campo="parado"></span></div>
+          <div data-dica="rendimento"><span class="machine-substat-label">Rendimento</span><span class="machine-substat-value mono" data-campo="rendimento"></span></div>
+          <div data-campo="producao-box" data-dica="producao"><span class="machine-substat-label">Produção</span><span class="machine-substat-value mono" data-campo="producao"></span></div>
         </div>
       `;
       ligarEdicaoCartao(card, id);
@@ -4891,18 +4986,32 @@
 
       const card = cartaoMaquina(grid, id);
       definirTexto(card, "nome", machineName(id));
-      definirTexto(card, "taxa", taxa > 0 ? fmtTaxaMH(taxa) : "definir taxa");
+      // 1.7.5: a producao por hora (m/h) nao aparece mais no cartao - so na engrenagem
       // horimetro: TODO o tempo ligado (inclui o "sem producao"); parado/rendimento/meta nao
       definirTexto(card, "ligado", stats ? fmtDuration(Math.round(stats.tempoLigadoS + (stats.ligadoSemProducaoS || 0))) : "—");
       const todoSemProd = !!(stats && stats.semProducaoTotal);
       definirTexto(card, "parado", stats && !stats.semJanela && !todoSemProd ? fmtDuration(stats.tempoParadoS) : "—");
       definirTexto(card, "rendimento", stats && !stats.semJanela && !todoSemProd ? Math.round(stats.disponibilidadePct) + "%" : "—");
       renderEstadoProducaoCartao(card, id, stats);
+      // 1.7.5: cartao so de leitura - cada campo explica o valor ao passar o mouse
+      const dica = (k, t) => { const el = card.querySelector(`[data-dica="${k}"]`); if (el && el.title !== t) el.title = t; };
+      const semProdS = stats ? Math.round(stats.ligadoSemProducaoS || 0) : 0;
+      const temBase = stats && !stats.semJanela && !todoSemProd;
+      const dispS = temBase ? Math.round(stats.tempoLigadoS + stats.tempoParadoS) : 0;
+      // dicas so com o valor, sem explicacao
+      dica("nome", "");
+      dica("ligado", stats ? `${fmtDuration(Math.round(stats.tempoLigadoS) + semProdS)} ligada` + (semProdS >= 60 ? ` · ${fmtDuration(semProdS)} sem produção` : "") : "");
+      dica("parado", temBase ? `${fmtDuration(Math.round(stats.tempoParadoS))} de ${fmtDuration(dispS)}` : "");
+      dica("rendimento", temBase ? `${fmtDuration(Math.round(stats.tempoLigadoS))} de ${fmtDuration(dispS)}` : "");
       definirTexto(card, "producao", metros !== null ? fmtMetros(metros) : "");
-      card.querySelector('[data-campo="producao-box"]').hidden = metros === null;
+      const caixaProd = card.querySelector('[data-campo="producao-box"]');
+      caixaProd.hidden = metros === null;
+      // 1.7.5: a producao por hora aparece ao passar o mouse em "Produção"
+      const dicaProd = taxa > 0 ? fmtTaxaMH(taxa) : "";
+      if (caixaProd.title !== dicaProd) caixaProd.title = dicaProd;
       // Sem linha "Meta" no cartao: a meta fica no selo "Meta por turno" do
       // cabecalho do painel; o detalhe (ligado / meta) aparece ao passar o mouse no anel.
-      card.querySelector(".ring").title = `Meta: ${fmtDuration(tempoLigadoS)} de ${fmtDuration(metaM)} ligada (${fmtPct(getMeta())} do tempo disponível${metaM < metaS ? "; sem o tempo marcado como Sem produção" : ""})`;
+      card.querySelector(".ring").title = `${fmtDuration(tempoLigadoS)} de ${fmtDuration(metaM)}`; // so o valor
       definirTexto(card, "meta-pct", `${metaPct}%`);
       const anel = card.querySelector('[data-campo="anel"]');
       const offset = String(CIRC_ANEL * (1 - metaPct / 100));
@@ -7904,7 +8013,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
       if (live && x) {
         live.className = "machine-live is-alerta";
         const html = `<span class="live-dot"></span>⚠ Parada ${fmtTempoCurto(x.al.ms)}`;
-        live.title = `Parada há ${fmtHaQuanto(x.al.ms)} dentro do turno — alerta de máquina parada`;
+        live.title = `Parada há ${fmtHaQuanto(x.al.ms)}`;
         if (live.innerHTML !== html) live.innerHTML = html;
       }
     });
@@ -7993,6 +8102,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
 
   // ---- registro das notificacoes do painel (neste aparelho) ----
   var NT_KEY = "painel_notificacoes", DQ_FECHADO_KEY = "painel_destaque_fechado", NT_MAX = 300;
+  var NT_MIN_DURACAO_MS = 120000; // 1.7.4: aviso de menos de 2 min nao fica no historico
   var destaqueChaveAtual = null;
   var destaqueFechado = lerLocal(DQ_FECHADO_KEY, null);
   var ntAberta = null; // { chave } da notificacao em andamento
@@ -8006,8 +8116,9 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     const agora = Date.now();
     const ult = lista[lista.length - 1];
     if (ntAberta === null && ult && !ult.fim && ult.chave === chave) { ntAberta = { chave }; return; } // painel recarregado: continua a mesma
-    if (ult && !ult.fim) { ult.fim = agora; if (agora - ult.inicio < 15000) lista.pop(); } // a anterior terminou (menos de 15 s = passageiro, nao fica no registro)
-    if (d) lista.push({ chave, inicio: agora, nivel: d.nivel, ico: d.ico, titulo: d.tituloLog || d.titulo, detalhe: d.dica || d.detalhe || "" });
+    if (ult && !ult.fim) { ult.fim = agora; if (agora - ult.inicio < NT_MIN_DURACAO_MS) lista.pop(); } // a anterior terminou (menos de 2 min = passageiro, nao fica no registro)
+    // 1.7.4: "paradas sem motivo" (info) nao entra no historico
+    if (d && d.nivel !== "info") lista.push({ chave, inicio: agora, nivel: d.nivel, ico: d.ico, titulo: d.tituloLog || d.titulo, detalhe: d.dica || d.detalhe || "" });
     gravarLocal(NT_KEY, lista.slice(-NT_MAX));
     ntAberta = { chave };
     if (bandejaAberta()) renderNotificacoes();
@@ -8942,7 +9053,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     const grade = $("#rel-grade");
     if (!grade) return;
     const ctx = contextoRelatorio();
-    $("#rel-escopo").innerHTML = `<span class="fs-chip"><small>Período</small>${escaparHtml(ctx.periodo)}</span><span class="fs-chip"><small>Turno</small>${escaparHtml(ctx.turno)}</span><span class="fs-chip"><small>Setor</small>${escaparHtml(ctx.setor)}</span>`;
+    const relEscopo = document.getElementById("rel-escopo"); // 1.7.5: saiu do cabecalho
+    if (relEscopo) relEscopo.innerHTML =`<span class="fs-chip"><small>Período</small>${escaparHtml(ctx.periodo)}</span><span class="fs-chip"><small>Turno</small>${escaparHtml(ctx.turno)}</span><span class="fs-chip"><small>Setor</small>${escaparHtml(ctx.setor)}</span>`;
     // numeros rapidos de cada cartao (o relatorio completo so e montado ao abrir/baixar)
     const R = usingRealTime && periodoSelecionado !== "tudo" ? resumoJanelas() : null;
     const temR = !!(R && R.linhas.length);
@@ -9693,16 +9805,17 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   // ---- cartao da maquina ----
   function renderEstadoProducaoCartao(card, id, stats) {
     const sp = semProducaoAgora(id);
-    const bt = card.querySelector("[data-sp-toggle]");
+    const bt = card.querySelector("[data-sp-status]");
     if (bt) {
-      // checkbox "Produção": marcado = com producao; desmarcado = sem producao
+      // checkbox "Produção": marcado = com producao; desmarcado = sem producao (clique alterna)
       const txt = sp ? "Sem produção" : "Produção";
       const rot = bt.querySelector(".mc-prod-txt");
       if (rot && rot.textContent !== txt) rot.textContent = txt;
       bt.setAttribute("aria-checked", sp ? "false" : "true");
       bt.className = "mc-prod" + (sp ? " sem" : "");
       bt.disabled = !podeEditar;
-      bt.title = podeEditar ? (sp ? "Máquina marcada Sem produção — clique para voltar a Com produção" : "Clique para marcar Sem produção (a máquina sai dos alertas e dos cálculos de parado/rendimento)") : (sp ? "Sem produção" : "Com produção");
+      const dica = sp ? `Sem produção desde ${ddmmDe(sp.inicio)} ${hhmmDe(sp.inicio)}${sp.motivo ? ` · ${sp.motivo}` : ""}` : "Com produção";
+      if (bt.title !== dica) bt.title = dica;
     }
     card.classList.toggle("sem-producao", !!sp);
     const info = card.querySelector('[data-campo="sp-info"]');
@@ -10168,6 +10281,89 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     fecharConfiguracoes();
     renderAll();
   }
+
+  // ---------------------------------------------------------------------
+  // 1.7.5: popup "Configurar máquina" (engrenagem no cartao, ao lado do
+  // historico): nome, producao (m/h), cor, situacao e historico de paradas.
+  // ---------------------------------------------------------------------
+  var mqId = null, mqCor = null;
+  var CORES_SUGERIDAS = ["#2a6fd1", "#0f9d8a", "#d97706", "#7c3aed", "#db2777", "#16a34a", "#dc2626", "#0891b2", "#a16207", "#475569"];
+  function corPadraoMaquina(id) {
+    const nome = MACHINE_META[id].colorVar, raiz = document.documentElement.style, atual = raiz.getPropertyValue(nome);
+    raiz.removeProperty(nome);
+    const hex = corMaquinaHex(id);
+    if (atual) raiz.setProperty(nome, atual);
+    return hex;
+  }
+  function renderCoresMq() {
+    const padrao = corPadraoMaquina(mqId), dis = podeEditar ? "" : " disabled";
+    const opcoes = [padrao, ...CORES_SUGERIDAS.filter((c) => c !== padrao.toLowerCase())];
+    const atual = mqCor || padrao;
+    $("#mq-cores").innerHTML = opcoes.map((c, i) => `<button class="mq-cor${c.toLowerCase() === atual.toLowerCase() ? " sel" : ""}" type="button" data-mq-cor="${i === 0 ? "" : c}" style="background:${c}" title="${i === 0 ? "Cor padrão" : c}"${dis}></button>`).join("") +
+      `<input class="mq-cor-livre" id="mq-cor-livre" type="color" value="${atual}" title="Outra cor"${dis} />`;
+  }
+  function renderSituacaoMq() {
+    const sp = semProducaoAgora(mqId);
+    $("#mq-situacao").textContent = sp ? `Sem produção desde ${ddmmDe(sp.inicio)} ${hhmmDe(sp.inicio)}` : "Com produção";
+  }
+  function abrirConfigMaquina(id) {
+    mqId = id;
+    mqCor = coresMaquinas()[id] || null;
+    $("#mq-titulo").textContent = `Configurar — ${machineName(id)}`;
+    $("#mq-nome").value = machineName(id);
+    $("#mq-taxa").value = machineRate(id) > 0 ? String(taxaParaMH(machineRate(id))).replace(".", ",") : "0";
+    ["#mq-nome", "#mq-taxa"].forEach((s) => { $(s).disabled = !podeEditar; });
+    $("#mq-salvar").hidden = !podeEditar;
+    $("#mq-sp").disabled = !podeEditar;
+    $("#mq-erro").textContent = podeEditar ? "" : "Somente leitura: as alterações são feitas no computador da fábrica ou com a senha de edição.";
+    renderCoresMq();
+    renderSituacaoMq();
+    $("#mq-overlay").classList.add("visible");
+    setTimeout(() => { if (podeEditar) $("#mq-nome").focus(); }, 50);
+  }
+  function fecharConfigMaquina() { $("#mq-overlay").classList.remove("visible"); mqId = null; }
+  function salvarConfigMaquina() {
+    if (!podeEditar || mqId === null) return;
+    const id = mqId;
+    const taxa = parseFloat(String($("#mq-taxa").value).replace(",", "."));
+    if (String($("#mq-taxa").value).trim() && !(isFinite(taxa) && taxa >= 0)) { $("#mq-erro").textContent = "Produção inválida — use um número (ex.: 2000 ou 1250,5)."; return; }
+    const nome = $("#mq-nome").value.trim() || `Máquina ${id}`;
+    const metros = isFinite(taxa) && taxa >= 0 ? taxaDeMH(Math.round(taxa * 10) / 10) : 0;
+    if (nome !== machineName(id) || metros !== machineRate(id)) {
+      machineSettings[id] = { ...machineSettings[id], nome, metrosPorMin: metros };
+      saveMachineSettings();
+    }
+    const cores = coresMaquinas();
+    if ((cores[id] || null) !== (mqCor || null)) {
+      if (mqCor) cores[id] = mqCor; else delete cores[id];
+      salvarCoresMaquinas(cores);
+      enviarConfigParaServidor({ extras: { visual: visualAtual() } }); // vale para todos os aparelhos
+    }
+    fecharConfigMaquina();
+    renderAll();
+    avisoFlutuante(`${nome}: configuração salva.`);
+  }
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-cfg-maquina]");
+    if (b) { ev.preventDefault(); abrirConfigMaquina(Number(b.dataset.cfgMaquina)); }
+  });
+  $("#mq-cores").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-mq-cor]");
+    if (!b || b.disabled) return;
+    mqCor = b.dataset.mqCor || null;
+    renderCoresMq();
+  });
+  $("#mq-cores").addEventListener("input", (ev) => {
+    if (ev.target.id !== "mq-cor-livre") return;
+    mqCor = ev.target.value;
+    document.querySelectorAll("#mq-cores .mq-cor").forEach((c) => c.classList.toggle("sel", (c.dataset.mqCor || "") === mqCor));
+  });
+  $("#mq-sp").addEventListener("click", () => { const id = mqId; fecharConfigMaquina(); abrirSemProducao(id); });
+  $("#mq-hist").addEventListener("click", () => { const id = mqId; fecharConfigMaquina(); abrirHistParadas(id); });
+  $("#mq-salvar").addEventListener("click", salvarConfigMaquina);
+  ["#mq-nome", "#mq-taxa"].forEach((s) => $(s).addEventListener("keydown", (ev) => { if (ev.key === "Enter") salvarConfigMaquina(); }));
+  ligarPopup("mq", fecharConfigMaquina);
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && $("#mq-overlay").classList.contains("visible")) fecharConfigMaquina(); });
 
   ABRIR_POPUP.maquinas = abrirConfiguracoes;
   ligarPopup("settings", fecharConfiguracoes);
@@ -10822,9 +11018,14 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   // Paleta + nome da empresa ficam tambem no servidor (config_extra
   // "visual", igual para todos os setores e aparelhos): quem abrir o painel
   // de outro PC/celular ve a mesma identidade.
-  function visualAtual() { return { paleta: ID.carregar(), empresa: nomeEmpresa() }; }
+  function visualAtual() { return { paleta: ID.carregar(), empresa: nomeEmpresa(), cores: coresMaquinas() }; }
   function aplicarVisualDoServidor(v) {
-    if (!v || typeof v !== "object" || !v.paleta) return;
+    if (!v || typeof v !== "object") return;
+    if (v.cores && JSON.stringify(normalizarCores(v.cores)) !== JSON.stringify(normalizarCores(coresMaquinas()))) {
+      salvarCoresMaquinas(v.cores); // 1.7.5: cores das maquinas
+      if (typeof renderAll === "function") renderAll();
+    }
+    if (!v.paleta) return;
     const paleta = ID.normalizar(v.paleta), empresa = String(v.empresa || "").trim().slice(0, 80);
     if (JSON.stringify(paleta) === JSON.stringify(ID.carregar()) && empresa === nomeEmpresa()) return;
     ID.salvar(paleta);
@@ -11101,8 +11302,39 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     mover("#acesso-save", "cfg-acesso-acoes");
     const ovAc = document.getElementById("acesso-overlay"); if (ovAc) ovAc.remove();
   })();
+  // 1.7.5: abas da pagina Configuracoes (Producao, Alertas, Acesso remoto,
+  // Aparencia, Dados, Sistema). A ultima aba aberta fica neste aparelho; aba
+  // sem nenhum cartao visivel (ex.: Sistema na VPS) some da barra.
+  var CFG_ABA_KEY = "painel_cfg_aba";
+  var cfgAbaAtual = lerLocal(CFG_ABA_KEY, "producao") || "producao";
+  function cartaoDisponivel(card) {
+    // visivel pelas regras de permissao/CSS, ignorando o filtro da aba
+    const fora = card.classList.contains("cfg-fora");
+    card.classList.remove("cfg-fora");
+    const ok = getComputedStyle(card).display !== "none";
+    if (fora) card.classList.add("cfg-fora");
+    return ok;
+  }
+  function renderAbasCfg(aba) {
+    const cards = [...document.querySelectorAll("#cfg-grade .cfg-card[data-aba]")];
+    const disponiveis = new Set(cards.filter(cartaoDisponivel).map((c) => c.dataset.aba));
+    const botoes = [...document.querySelectorAll("#cfg-abas [data-cfg-aba]")];
+    botoes.forEach((b) => { b.hidden = !disponiveis.has(b.dataset.cfgAba); });
+    if (aba) cfgAbaAtual = aba;
+    if (!disponiveis.has(cfgAbaAtual)) cfgAbaAtual = (botoes.find((b) => !b.hidden) || { dataset: { cfgAba: "producao" } }).dataset.cfgAba;
+    botoes.forEach((b) => { const at = b.dataset.cfgAba === cfgAbaAtual; b.classList.toggle("ativa", at); b.setAttribute("aria-selected", String(at)); });
+    cards.forEach((c) => c.classList.toggle("cfg-fora", c.dataset.aba !== cfgAbaAtual));
+  }
+  document.getElementById("cfg-abas").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-cfg-aba]");
+    if (!b) return;
+    renderAbasCfg(b.dataset.cfgAba);
+    gravarLocal(CFG_ABA_KEY, cfgAbaAtual);
+  });
   function irParaConfig(cartao) {
     mostrarView("configuracoes", true);
+    const alvo = document.getElementById(`cfg-${cartao}`);
+    if (alvo && alvo.dataset.aba) renderAbasCfg(alvo.dataset.aba); // abre a aba do cartao
     setTimeout(() => {
       const el = document.getElementById(`cfg-${cartao}`);
       if (!el) return;
@@ -11133,6 +11365,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     document.getElementById("cfg-longa-min").addEventListener("keydown", (ev) => { if (ev.key === "Enter") bt.click(); });
   })();
   function renderConfiguracoesPagina() {
+    renderAbasCfg();
     renderParadaLongaCfg();
     // maquinas e meta
     const lm = $("#cfg-maquinas-lista");
@@ -11190,17 +11423,29 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     }
   }
   var ntVistoAntes = 0;
-  ABRIR_POPUP.notificacoes = () => abrirBandeja(true);
+  // 1.7.5: aberta pelo item "Notificacoes" do menu Configuracoes (o sino saiu);
+  // depois do clique, senao o "clique fora" fecharia a bandeja na mesma hora
+  ABRIR_POPUP.notificacoes = () => setTimeout(() => abrirBandeja(true), 0);
   $("#nt-btn").addEventListener("click", (ev) => { ev.stopPropagation(); abrirBandeja(); });
   document.addEventListener("click", (ev) => { if (bandejaAberta() && !ev.target.closest(".nt-wrap")) abrirBandeja(false); });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && bandejaAberta()) abrirBandeja(false); });
   $("#config-menu-btn").addEventListener("click", () => { if (bandejaAberta()) abrirBandeja(false); });
   // numero no sino: o que chegou desde a ultima vez que a bandeja foi aberta
+  // 1.7.4: historico enxuto - so o que importa. Painel: avisos criticos/de
+  // atencao que duraram 2 min ou mais (sem "paradas sem motivo"), so com a
+  // duracao. Controlador: so problemas serios (ver eventoEspImportante).
+  // Configuracao: uma linha por alteracao (repeticoes do mesmo dia somem).
   function itensNotificacoes() {
-    const painel = (lerLocal(NT_KEY, []) || []).map((n) => ({
-      fonte: "painel", ts: n.inicio, nivel: n.nivel, ico: n.ico, titulo: n.titulo,
-      detalhe: [n.detalhe, n.fim ? `durou ${fmtDuration(Math.round((n.fim - n.inicio) / 1000))} (até ${hhmmDe(n.fim)})` : "em andamento"].filter(Boolean).join("\n") }));
+    const painel = (lerLocal(NT_KEY, []) || [])
+      .filter((n) => n.nivel !== "info" && (!n.fim || n.fim - n.inicio >= NT_MIN_DURACAO_MS))
+      .map((n) => ({
+        fonte: "painel", ts: n.inicio, nivel: n.nivel, ico: n.ico, titulo: n.titulo,
+        detalhe: n.fim ? `${fmtDuration(Math.round((n.fim - n.inicio) / 1000))} · até ${hhmmDe(n.fim)}` : "agora" }));
     return painel.concat(ntExternos.controlador || [], ntExternos.config || []).filter((x) => x.ts > 0);
+  }
+  function eventoEspImportante(t) {
+    // reinicio por erro, perda de dados/memoria, RTC sumindo e firmware novo
+    return /panic|brownout|watchdog|erro no firmware|sobrescrit|perdid|RTC parou|Memoria livre baixa|LittleFS|Firmware atualizado/i.test(t);
   }
   function atualizarBadgeNotificacoes() {
     const badge = document.getElementById("nt-badge");
@@ -11210,11 +11455,14 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     badge.hidden = !n || bandejaAberta();
     badge.textContent = n > 9 ? "9+" : String(n);
     $("#nt-btn").title = n ? `Notificações — ${n} nova${n > 1 ? "s" : ""}` : "Notificações";
-  }
-  function nivelEventoEsp(t) {
-    if (/voltou|conectad|acertad|recuperad|ligou/i.test(t)) return /ligou/i.test(t) ? "info" : "ok";
-    if (/falhando|caiu|perdid|sobrescrit|brownout|travou|sem contato|n[aã]o respond/i.test(t)) return "atencao";
-    return "info";
+    // 1.7.5: a contagem aparece no botao Configuracoes e no item do menu
+    const txt = n > 9 ? "9+" : String(n);
+    const bCfg = document.getElementById("nt-badge-cfg"), bItem = document.getElementById("nt-badge-item");
+    if (bCfg) { bCfg.hidden = !n || bandejaAberta(); bCfg.textContent = txt; }
+    if (bItem) { bItem.hidden = !n; bItem.textContent = txt; }
+    const sub = document.getElementById("nt-menu-sub");
+    if (sub) sub.textContent = n ? `${n} nova${n > 1 ? "s" : ""}` : "Avisos importantes e alterações";
+    $("#config-menu-btn").title = n ? `Configurações — ${n} ${n > 1 ? "notificações novas" : "notificação nova"}` : "Configurações";
   }
   async function carregarNotificacoes() {
     renderNotificacoes();
@@ -11222,16 +11470,18 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (!modoNuvem) {
       tarefas.push(fetch(CONTROLE_URL + "/esp/diagnostico", { cache: "no-store" }).then((r) => r.json()).then((d) => {
         const ev = (d && d.eventos && d.eventos.eventos) || [];
-        ntExternos.controlador = ev.filter((e) => e.hora).map((e) => ({ fonte: "controlador", ts: new Date(e.hora).getTime(), nivel: nivelEventoEsp(e.texto || ""), titulo: e.texto || "", detalhe: "" }));
+        ntExternos.controlador = ev.filter((e) => e.hora && eventoEspImportante(e.texto || ""))
+          .map((e) => ({ fonte: "controlador", ts: new Date(e.hora).getTime(), nivel: /Firmware atualizado/i.test(e.texto) ? "ok" : "atencao", titulo: e.texto || "", detalhe: "" }));
         ntExternos.erroCtl = d && d.ok === false ? "O controlador não respondeu agora — os eventos dele aparecem quando ele estiver na rede." : "";
       }).catch(() => { ntExternos.erroCtl = "Não foi possível ler os eventos do controlador agora."; }));
     } else ntExternos.erroCtl = "Os eventos do controlador aparecem no computador da fábrica.";
     tarefas.push(fetch(CONTROLE_URL + "/alteracoes", { cache: "no-store", headers: cabecalhosControle() }).then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d) { ntExternos.config = []; return; }
       const avisos = (d.avisos || []).map((a) => ({ fonte: "config", ts: Date.parse(a.quando) || 0, nivel: "atencao", titulo: a.texto, detalhe: "" }));
-      const alt = (d.alteracoes || []).filter((a) => !String(a.quando || "").startsWith("1970")).map((a) => ({
-        fonte: "config", ts: Date.parse(a.quando) || 0, nivel: "info", titulo: a.resumo,
-        detalhe: `${NOME_ORIGEM[a.origem] || a.origem}${a.autor && a.autor !== a.origem ? ` · ${a.autor}` : ""}` }));
+      const vistas = new Set(); // a mais recente de cada alteracao por dia (a lista vem da mais nova)
+      const alt = (d.alteracoes || []).filter((a) => !String(a.quando || "").startsWith("1970") && !/^Hist[oó]rico de configura/i.test(a.resumo || ""))
+        .filter((a) => { const k = `${chaveDia(Date.parse(a.quando) || 0)}|${a.resumo}`; if (vistas.has(k)) return false; vistas.add(k); return true; })
+        .map((a) => ({ fonte: "config", ts: Date.parse(a.quando) || 0, nivel: "info", titulo: a.resumo, detalhe: NOME_ORIGEM[a.origem] || a.origem }));
       ntExternos.config = avisos.concat(alt);
     }).catch(() => { ntExternos.erroCfg = "Alterações de configuração indisponíveis agora."; }));
     await Promise.all(tarefas);
@@ -11256,7 +11506,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     });
     lista.innerHTML = html || `<div class="nt-vazio">Nenhuma notificação${ntFiltro !== "todas" ? " deste tipo" : ""} registrada ainda.</div>`;
     $("#nt-nota").textContent = [
-      "Avisos do painel: registrados neste aparelho enquanto o painel está aberto.",
+      "Só o essencial: avisos de 2 min ou mais (registrados neste aparelho), problemas sérios do controlador e alterações de configuração.",
       ntFiltro !== "config" ? ntExternos.erroCtl : "", ntFiltro !== "controlador" ? ntExternos.erroCfg : ""
     ].filter(Boolean).join(" ");
     document.querySelectorAll("#nt-filtro [data-nt]").forEach((b) => b.classList.toggle("active", b.dataset.nt === ntFiltro));

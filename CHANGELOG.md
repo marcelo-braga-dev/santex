@@ -1,5 +1,46 @@
 # Histórico de versões
 
+## 1.7.5 — Configurações em abas e histórico de notificações enxuto (app 1.7.5 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
+
+- **Configurações em abas**: Produção (máquinas e meta, turnos/calendário/
+  motivos, parada longa) · Alertas · Acesso remoto (senhas e aplicativo para
+  Windows) · Aparência · Dados · Sistema (controlador e sobre). A última aba
+  aberta fica lembrada neste aparelho; aba sem nada para mostrar (ex.:
+  Sistema na VPS) some da barra; os atalhos (ex.: "Acesso remoto" do menu)
+  abrem direto a aba certa. No celular a barra de abas rola na horizontal.
+- **Configurar máquina pelo cartão** (Visão geral): engrenagem ao lado do
+  histórico de paradas abre um popup com tudo da máquina — nome, produção
+  (m/h), **cor** (padrão, 10 sugestões ou qualquer outra), situação Com/Sem
+  produção e o histórico de paradas. A cor vale nos cartões, gráficos,
+  linha do tempo e relatórios, e vai junto com a identidade visual para
+  todos os aparelhos e a VPS (`extras.visual.cores`, sem mudança no banco).
+- **Cartão da máquina só de leitura**: nada se edita mais direto no cartão
+  — nome e produção por hora mudam pela engrenagem
+  "Configurar máquina". A produção por hora (m/h) saiu do cartão. Cada
+  campo mostra só o valor ao passar o mouse (sem cálculo nem explicação):
+  horímetro (e o tempo sem produção), parado e rendimento ("X de Y"),
+  produção (a produção por hora) e a meta. O checkbox
+  "Produção" continua alternando Com/Sem produção com um clique.
+- **Notificações no menu Configurações** (o sino saiu do cabeçalho): item
+  "Notificações" no menu, com a contagem de novas no próprio item e no botão
+  Configurações; a lista abre logo abaixo do botão, como antes.
+- **Crédito "Desenvolvido por Marcelo Braga" um pouco mais visível** no
+  rodapé da página: ícone `</>` discreto e o nome em negrito na cor da
+  identidade.
+- **Cabeçalho de Relatórios compacto**: uma linha — "Relatórios · Período e
+  turno são escolhidos ao gerar" + Excel completo / PDF completo. Saíram o
+  parágrafo de instruções, os chips de período/turno/setor (o período é
+  escolhido ao gerar) e a faixa de aviso — a nota sobre refeição e paradas
+  programadas ficou no ⓘ (passe o mouse ou toque).
+
+- **Histórico de notificações enxuto**: avisos do painel só se
+  duraram 2 min ou mais (antes, 15 s), só com a duração, e sem "paradas sem
+  motivo"; do controlador, só problemas sérios (reinício por erro, ciclos
+  perdidos/sobrescritos, RTC parou, memória baixa, firmware atualizado) — sem
+  quedas/reconexões de Wi-Fi nem falhas passageiras de envio à nuvem; de
+  configuração, uma linha por alteração por dia, sem "Histórico de
+  configurações". O registro antigo deste aparelho passa pelo mesmo filtro.
+
 ## 1.7.4 — atualizar o firmware do controlador pelo painel (app 1.7.4 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 
 - **Diagnóstico do controlador → Atualizar firmware**: escolha o
