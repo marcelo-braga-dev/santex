@@ -282,6 +282,26 @@ pausa (o laço principal fica ocupado) — prefira atualizar com as máquinas
 paradas. Bluetooth foi descartado: a pilha não cabe na memória e divide o
 rádio com o Wi-Fi.
 
+**RTC DS1302 como alternativa ao DS3231** — o firmware detecta sozinho
+qual está ligado (DS3231 no I2C tem preferência; depois procura o DS1302) e
+redetecta a cada 30 s, então trocar de módulo não exige regravar:
+
+| DS1302 | ESP32 |
+|---|---|
+| VCC | 3V3 (não 5 V) |
+| GND | GND |
+| CLK | GPIO 25 |
+| DAT | GPIO 26 |
+| RST (CE) | GPIO 27 |
+
+O DS1302 não é I2C: o protocolo de 3 fios está no próprio firmware (sem
+biblioteca). A presença é confirmada gravando e relendo um byte da RAM do
+chip; o bit CH (relógio parado: sem bateria ou nunca acertado) faz o papel do
+OSF do DS3231. É menos preciso (~1–2 min/mês) — o PC corrige pelo Wi-Fi
+quando passa de 3 s; o que importa é guardar a hora quando o ESP32 reinicia.
+Fios curtos (< 20 cm). A página do controlador, o `/info` (`rtc_modelo`) e o
+diagnóstico do painel mostram qual modelo está em uso.
+
 **Envio para a VPS só com hora**: ciclo gravado sem hora neste boot (sem RTC,
 antes de o PC ou a internet acertarem o relógio) fica na fila até o acerto e
 vai depois com a hora real. Antes ele ia como `?`/`SEM_HORA` e a VPS recusava

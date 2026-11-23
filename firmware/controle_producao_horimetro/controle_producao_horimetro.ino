@@ -29,6 +29,9 @@
 //
 // RTC DS3231M (I2C, endereco 0x68) - alimentar com 3V3 (nao 5V):
 //   VCC -> 3V3 | GND -> GND | SDA -> GPIO 21 | SCL -> GPIO 22
+// OU (3.2) RTC DS1302 (3 fios proprios, nao e I2C) - alimentar com 3V3:
+//   VCC -> 3V3 | GND -> GND | CLK -> GPIO 25 | DAT -> GPIO 26 | RST -> GPIO 27
+// O firmware detecta sozinho qual esta ligado (DS3231 tem preferencia).
 // O RTC guarda a hora LOCAL (a do PC que acertou o relogio). O PC acerta a
 // hora sozinho pelo Wi-Fi quando a diferenca passa de 3s; tambem da para
 // acertar pela Serial com "T2026-10-30 14:05:00".
@@ -142,6 +145,10 @@ const uint8_t PINO_LED_STATUS = 2; // LED onboard da maioria das placas ESP32 De
 const uint8_t PINO_SDA = 21;
 const uint8_t PINO_SCL = 22;
 const uint8_t ENDERECO_RTC = 0x68;
+// 3.2: RTC DS1302 (alternativa ao DS3231, detectada sozinha) - 3 fios proprios
+const uint8_t PINO_DS1302_CLK = 25;
+const uint8_t PINO_DS1302_DAT = 26;
+const uint8_t PINO_DS1302_RST = 27;
 const unsigned long DEBOUNCE_MS = 1000;
 const float DURACAO_MINIMA_VALIDA_S = 0.5; // abaixo disso, o ciclo ainda e logado, so marcado como suspeito
 const unsigned long INTERVALO_SALVAMENTO_MS = 30000UL; // grava progresso na flash a cada 30 segundos (maquina ligada)
@@ -230,6 +237,8 @@ unsigned long instanteEstado[NUM_MAQUINAS]; // quando a maquina entrou no estado
 unsigned long ultimoEstadoMs = 0;
 
 bool rtcPresente = false;
+enum class TipoRtc : uint8_t { NENHUM, DS3231, DS1302 };
+TipoRtc tipoRtc = TipoRtc::NENHUM; // 3.2: modelo em uso (rtcPresente == tipoRtc != NENHUM)
 bool horaValida = false;
 uint32_t epochBase = 0;        // hora (RTC) lida em millisBase
 unsigned long millisBase = 0;
@@ -436,7 +445,7 @@ bool escreverRegistroRtc(uint8_t reg, uint8_t valor) {
   return Wire.endTransmission() == 0;
 }
 
-bool lerRtc(uint32_t &epoch) {
+bool lerRtcDs3231(uint32_t &epoch) {
   Wire.beginTransmission(ENDERECO_RTC);
   Wire.write(0x00);
   if (Wire.endTransmission() != 0) return false;
@@ -456,7 +465,7 @@ bool lerRtc(uint32_t &epoch) {
   return true;
 }
 
-bool gravarRtc(uint32_t epoch) {
+bool gravarRtcDs3231(uint32_t epoch) {
   DataHora d = deEpoch(epoch);
   Wire.beginTransmission(ENDERECO_RTC);
   Wire.write(0x00);
@@ -473,6 +482,153 @@ bool gravarRtc(uint32_t epoch) {
   int status = lerRegistroRtc(0x0F);
   if (status >= 0) escreverRegistroRtc(0x0F, status & ~0x80);
   return true;
+}
+
+// ---- 3.2: RTC DS1302 (alternativa ao DS3231) ----
+// Protocolo proprio de 3 fios (NAO e I2C), feito aqui sem biblioteca (a flash
+// esta quase cheia). Bits do menos para o mais significativo; o DS1302 le o
+// bit na subida do CLK e entrega o bit seguinte na descida. CE (RST) em HIGH
+// durante a transacao. Precisao menor (cristal comum, ~1-2 min/mes): o PC
+// corrige pelo Wi-Fi quando passa de 3 s - o que importa e guardar a hora
+// quando o ESP32 reinicia.
+void ds1302Escrever8(uint8_t v) {
+  pinMode(PINO_DS1302_DAT, OUTPUT);
+  for (uint8_t i = 0; i < 8; i++) {
+    digitalWrite(PINO_DS1302_DAT, v & 1);
+    delayMicroseconds(2);
+    digitalWrite(PINO_DS1302_CLK, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(PINO_DS1302_CLK, LOW);
+    v >>= 1;
+  }
+}
+
+uint8_t ds1302Ler8() {
+  pinMode(PINO_DS1302_DAT, INPUT_PULLDOWN); // sem chip, le 0 (o teste de presenca falha)
+  uint8_t v = 0;
+  for (uint8_t i = 0; i < 8; i++) {
+    delayMicroseconds(2);
+    if (digitalRead(PINO_DS1302_DAT)) v |= (1 << i);
+    digitalWrite(PINO_DS1302_CLK, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(PINO_DS1302_CLK, LOW);
+  }
+  return v;
+}
+
+void ds1302Inicio(uint8_t comando) {
+  pinMode(PINO_DS1302_CLK, OUTPUT);
+  pinMode(PINO_DS1302_RST, OUTPUT);
+  digitalWrite(PINO_DS1302_CLK, LOW);
+  digitalWrite(PINO_DS1302_RST, HIGH);
+  delayMicroseconds(4);
+  ds1302Escrever8(comando);
+}
+
+void ds1302Fim() {
+  digitalWrite(PINO_DS1302_RST, LOW);
+  pinMode(PINO_DS1302_DAT, INPUT_PULLDOWN);
+  delayMicroseconds(4);
+}
+
+void ds1302EscreverReg(uint8_t comando, uint8_t valor) {
+  ds1302Inicio(comando);
+  ds1302Escrever8(valor);
+  ds1302Fim();
+}
+
+uint8_t ds1302LerReg(uint8_t comando) {
+  ds1302Inicio(comando);
+  uint8_t v = ds1302Ler8();
+  ds1302Fim();
+  return v;
+}
+
+// Presenca: tira a protecao de escrita e grava/le de volta 2 padroes num
+// byte da RAM do chip (0xFC/0xFD = RAM 30). Sem chip a leitura vem 0.
+bool ds1302Presente() {
+  ds1302EscreverReg(0x8E, 0x00); // WP = 0
+  ds1302EscreverReg(0xFC, 0xA5);
+  if (ds1302LerReg(0xFD) != 0xA5) return false;
+  ds1302EscreverReg(0xFC, 0x5A);
+  return ds1302LerReg(0xFD) == 0x5A;
+}
+
+// Hora parada (bit CH do registro de segundos): o chip ficou sem energia
+// (sem bateria) ou nunca foi acertado - equivale ao OSF do DS3231.
+bool ds1302Parado() { return ds1302LerReg(0x81) & 0x80; }
+
+bool lerRtcDs1302(uint32_t &epoch) {
+  uint8_t r[7];
+  ds1302Inicio(0xBF); // leitura em rajada dos registros de relogio
+  for (uint8_t i = 0; i < 7; i++) r[i] = ds1302Ler8();
+  ds1302Fim();
+  if (r[0] & 0x80) return false; // CH: relogio parado
+  DataHora d;
+  d.segundo = bcdParaDec(r[0] & 0x7F);
+  d.minuto = bcdParaDec(r[1] & 0x7F);
+  d.hora = bcdParaDec(r[2] & 0x3F); // modo 24h (o firmware sempre grava assim)
+  d.dia = bcdParaDec(r[3] & 0x3F);
+  d.mes = bcdParaDec(r[4] & 0x1F);
+  d.ano = 2000 + bcdParaDec(r[6]);
+  if ((r[2] & 0x80) || d.mes < 1 || d.mes > 12 || d.dia < 1 || d.dia > 31 || d.hora > 23 || d.minuto > 59 || d.segundo > 59) return false;
+  epoch = paraEpoch(d);
+  return true;
+}
+
+bool gravarRtcDs1302(uint32_t epoch) {
+  DataHora d = deEpoch(epoch);
+  ds1302EscreverReg(0x8E, 0x00); // WP = 0
+  ds1302Inicio(0xBE);            // escrita em rajada: os 8 registros de uma vez
+  ds1302Escrever8(decParaBcd(d.segundo)); // bit 7 (CH) = 0 -> relogio andando
+  ds1302Escrever8(decParaBcd(d.minuto));
+  ds1302Escrever8(decParaBcd(d.hora));    // bit 7 = 0 -> modo 24h
+  ds1302Escrever8(decParaBcd(d.dia));
+  ds1302Escrever8(decParaBcd(d.mes));
+  ds1302Escrever8(decParaBcd((epoch / 86400 + 4) % 7 + 1)); // dia da semana 1-7
+  ds1302Escrever8(decParaBcd(d.ano % 100));
+  ds1302Escrever8(0x00);                  // WP continua 0
+  ds1302Fim();
+  uint32_t lido;
+  return lerRtcDs1302(lido) && (lido >= epoch ? lido - epoch : epoch - lido) <= 2;
+}
+
+// ---- Camada comum: o resto do firmware nao sabe qual RTC esta ligado ----
+const char *nomeRtc() {
+  return tipoRtc == TipoRtc::DS1302 ? "DS1302" : tipoRtc == TipoRtc::DS3231 ? "DS3231" : "nenhum";
+}
+
+// Procura um RTC: DS3231 no I2C primeiro, depois DS1302 nos pinos 25/26/27.
+TipoRtc detectarRtc() {
+  if (lerRegistroRtc(0x0F) >= 0) return TipoRtc::DS3231;
+  if (ds1302Presente()) return TipoRtc::DS1302;
+  return TipoRtc::NENHUM;
+}
+
+// -1 = o RTC em uso nao responde; senao bit 7 = perdeu a hora (OSF/CH).
+int statusRtc() {
+  if (tipoRtc == TipoRtc::DS3231) return lerRegistroRtc(0x0F);
+  if (tipoRtc == TipoRtc::DS1302) return ds1302Presente() ? (ds1302Parado() ? 0x80 : 0) : -1;
+  return -1;
+}
+
+bool lerRtc(uint32_t &epoch) {
+  if (tipoRtc == TipoRtc::DS3231) return lerRtcDs3231(epoch);
+  if (tipoRtc == TipoRtc::DS1302) return lerRtcDs1302(epoch);
+  return false;
+}
+
+bool gravarRtc(uint32_t epoch) {
+  if (tipoRtc == TipoRtc::DS3231) return gravarRtcDs3231(epoch);
+  if (tipoRtc == TipoRtc::DS1302) return gravarRtcDs1302(epoch);
+  return false;
+}
+
+// DS3231: mantem o oscilador andando na bateria (EOSC = 0).
+void prepararRtc() {
+  if (tipoRtc != TipoRtc::DS3231) return;
+  int controle = lerRegistroRtc(0x0E);
+  if (controle >= 0 && (controle & 0x80)) escreverRegistroRtc(0x0E, controle & ~0x80);
 }
 
 uint32_t agoraEpoch() {
@@ -609,24 +765,25 @@ void varrerI2C() {
 bool redetectarRtc(bool manual) {
   recuperarBarramentoI2C();
   varrerI2C();
-  int status = lerRegistroRtc(0x0F);
+  tipoRtc = detectarRtc();
+  int status = statusRtc();
   if (status < 0) {
+    tipoRtc = TipoRtc::NENHUM;
     if (manual) {
-      registrarEvento(String(F("Redeteccao do RTC: nao respondeu (I2C: ")) + (enderecosI2C.length() ? enderecosI2C : String(F("nada"))) +
-                      F(", pull-up SDA/SCL: ") + (pullupSda ? F("sim") : F("nao")) + "/" + (pullupScl ? F("sim") : F("nao")) + ")");
+      registrarEvento(String(F("Redeteccao do RTC: nenhum respondeu (I2C: ")) + (enderecosI2C.length() ? enderecosI2C : String(F("nada"))) +
+                      F(", pull-up SDA/SCL: ") + (pullupSda ? F("sim") : F("nao")) + "/" + (pullupScl ? F("sim") : F("nao")) + F("; DS1302 nos GPIO 25/26/27: nao)"));
     }
     return false;
   }
   rtcPresente = true;
   falhasSeguidasRtc = 0;
   rtcEncontradoVezes++;
-  int controle = lerRegistroRtc(0x0E);
-  if (controle >= 0 && (controle & 0x80)) escreverRegistroRtc(0x0E, controle & ~0x80); // EOSC: mantem o oscilador na bateria
+  prepararRtc();
   uint32_t epoch;
   bool rtcValido = !(status & 0x80) && lerRtc(epoch) && epoch >= paraEpoch({2024, 1, 1, 0, 0, 0});
   if (horaValida) {
     gravarRtc(agoraEpoch());
-    registrarEvento(F("RTC encontrado - hora atual gravada nele"));
+    registrarEvento(String(F("RTC ")) + nomeRtc() + F(" encontrado - hora atual gravada nele"));
   } else if (rtcValido) {
     epochBase = epoch;
     millisBase = millis();
@@ -636,11 +793,11 @@ bool redetectarRtc(bool manual) {
     horaAcertadaEm = epoch;
     origemAcerto = "RTC (redetectado)";
     correcaoConhecida = false;
-    registrarEvento(F("RTC encontrado - hora lida do RTC"));
+    registrarEvento(String(F("RTC ")) + nomeRtc() + F(" encontrado - hora lida dele"));
     corrigirCiclosSemHora();
   } else {
     rtcSemHoraNoBoot = true;
-    registrarEvento(F("RTC encontrado, mas sem hora valida (bateria?) - aguardando o PC ou a internet"));
+    registrarEvento(String(F("RTC ")) + nomeRtc() + F(" encontrado, mas sem hora valida (bateria?) - aguardando o PC ou a internet"));
   }
   return true;
 }
@@ -650,12 +807,13 @@ void verificarRtc() {
   if (millis() - ultimaRedeteccaoRtcMs < INTERVALO_REDETECTAR_RTC_MS) return;
   ultimaRedeteccaoRtcMs = millis();
   if (rtcPresente) {
-    if (lerRegistroRtc(0x0F) >= 0) {
+    if (statusRtc() >= 0) {
       falhasSeguidasRtc = 0;
       return;
     }
     if (++falhasSeguidasRtc >= FALHAS_PARA_RTC_AUSENTE) {
       rtcPresente = false;
+      tipoRtc = TipoRtc::NENHUM;
       rtcPerdidoVezes++;
       registrarEvento(F("RTC parou de responder - usando o relogio interno (tentando redetectar)"));
       recuperarBarramentoI2C();
@@ -736,20 +894,25 @@ void reiniciarRadioWifi(const __FlashStringHelper *motivo) {
 void iniciarRelogio() {
   Wire.begin(PINO_SDA, PINO_SCL);
   Wire.setTimeOut(50);
-  int status = lerRegistroRtc(0x0F);
+  pinMode(PINO_DS1302_RST, OUTPUT);
+  digitalWrite(PINO_DS1302_RST, LOW);
+  tipoRtc = detectarRtc();
+  int status = statusRtc();
   rtcPresente = status >= 0;
   if (!rtcPresente) {
-    Serial.println(F("# AVISO: RTC DS3231M nao encontrado (SDA=21, SCL=22) - ciclos ficam sem data/hora ate o PC acertar"));
+    tipoRtc = TipoRtc::NENHUM;
+    Serial.println(F("# AVISO: nenhum RTC encontrado (DS3231: SDA=21/SCL=22; DS1302: CLK=25/DAT=26/RST=27) - ciclos ficam sem data/hora ate o PC acertar"));
     recuperarBarramentoI2C(); // destrava o barramento e tenta de novo
     varrerI2C();
-    if (lerRegistroRtc(0x0F) >= 0) { redetectarRtc(false); }
+    if (detectarRtc() != TipoRtc::NENHUM) { redetectarRtc(false); }
     return;
   }
+  Serial.print(F("# RTC encontrado: "));
+  Serial.println(nomeRtc());
   varrerI2C();
-  int controle = lerRegistroRtc(0x0E);
-  if (controle >= 0 && (controle & 0x80)) escreverRegistroRtc(0x0E, controle & ~0x80); // EOSC: mantem o oscilador na bateria
+  prepararRtc();
   uint32_t epoch;
-  bool oscilador_parou = status & 0x80; // OSF: o RTC ficou sem energia (bateria fraca/ausente) ou nunca foi acertado
+  bool oscilador_parou = status & 0x80; // OSF (DS3231) / CH (DS1302): ficou sem energia (bateria fraca/ausente) ou nunca foi acertado
   if (oscilador_parou || !lerRtc(epoch) || epoch < paraEpoch({2024, 1, 1, 0, 0, 0})) {
     Serial.println(F("# AVISO: RTC sem hora valida (bateria?) - acerte com T<AAAA-MM-DD HH:MM:SS> ou deixe o PC acertar pelo Wi-Fi"));
     rtcSemHoraNoBoot = true;
@@ -769,13 +932,20 @@ void iniciarRelogio() {
 // Leitura "ao vivo" do RTC para a pagina de situacao (struct DiagnosticoRtc).
 DiagnosticoRtc diagnosticarRtc() {
   DiagnosticoRtc d = {};
+  if (tipoRtc == TipoRtc::DS1302) { // sem EOSC nem temperatura; CH faz o papel do OSF
+    d.responde = ds1302Presente();
+    if (!d.responde) return d;
+    d.osf = ds1302Parado();
+    d.leuHora = lerRtcDs1302(d.epoch);
+    return d;
+  }
   int status = lerRegistroRtc(0x0F);
   d.responde = status >= 0;
   if (!d.responde) return d;
   d.osf = status & 0x80;
   int controle = lerRegistroRtc(0x0E);
   d.eosc = controle >= 0 && (controle & 0x80);
-  d.leuHora = lerRtc(d.epoch);
+  d.leuHora = lerRtcDs3231(d.epoch);
   int msb = lerRegistroRtc(0x11);
   int lsb = lerRegistroRtc(0x12);
   if (msb >= 0 && lsb >= 0) {
@@ -1132,6 +1302,9 @@ void responderInfo() {
   j += horaValida ? F("true") : F("false");
   j += F(",\"rtc\":");
   j += rtcPresente ? F("true") : F("false");
+  j += F(",\"rtc_modelo\":\"");
+  j += nomeRtc();
+  j += '"';
   j += F(",\"armazenamento\":");
   j += armazenamentoOk ? F("true") : F("false");
   j += F(",\"ultimo_id\":");
@@ -1352,9 +1525,9 @@ void responderAcao() {
   String msg;
   bool ok = true;
   if (acao == "redetectar_rtc") {
-    bool achou = rtcPresente ? (lerRegistroRtc(0x0F) >= 0) : redetectarRtc(true);
-    if (rtcPresente && achou) varrerI2C();
-    msg = achou ? String(F("RTC respondendo e em uso.")) : String(F("RTC nao respondeu. I2C: ")) + (enderecosI2C.length() ? enderecosI2C : String(F("nenhum dispositivo")));
+    bool achou = rtcPresente ? (statusRtc() >= 0) : redetectarRtc(true);
+    if (rtcPresente && achou && tipoRtc == TipoRtc::DS3231) varrerI2C();
+    msg = achou ? String(F("RTC ")) + nomeRtc() + F(" respondendo e em uso.") : String(F("RTC nao respondeu. I2C: ")) + (enderecosI2C.length() ? enderecosI2C : String(F("nenhum dispositivo")));
     ok = achou;
   } else if (acao == "varrer_i2c") {
     recuperarBarramentoI2C();
@@ -1719,7 +1892,7 @@ String montarSituacao() {
     avisos += F("</li>");
   };
   if (!rtc.responde) {
-    aviso(F("<b>RTC DS3231 não responde.</b> Verifique os fios (SDA=GPIO21, SCL=GPIO22) e a alimentação 3V3. "
+    aviso(F("<b>RTC não responde.</b> DS3231: fios SDA=GPIO21, SCL=GPIO22; DS1302: CLK=GPIO25, DAT=GPIO26, RST=GPIO27; alimentação 3V3. "
             "Sem ele os ciclos ficam sem data/hora até o PC acertar o relógio."));
   } else if (!rtcPresente) {
     aviso(F("<b>O RTC passou a responder.</b> O firmware passa a usá-lo sozinho em até 30 s (não precisa reiniciar)."));
@@ -1777,14 +1950,14 @@ String montarSituacao() {
 
   // ---- Relogio ----
   char hora[20];
-  h += F("<section><h2>Relógio (RTC DS3231)</h2><table>");
+  h += String(F("<section><h2>Relógio (RTC ")) + (rtcPresente ? nomeRtc() : "DS3231/DS1302") + F(")</h2><table>");
   formatarEpoch(agora, hora);
   linhaTabela(h, "Hora atual", horaValida ? String(hora) : spanCor("ruim", F("não acertada")));
   String modulo;
   if (!rtc.responde) modulo = spanCor("ruim", F("não responde"));
   else if (!rtcPresente) modulo = spanCor("alerta", F("responde (será usado em até 30 s)"));
   else modulo = spanCor("ok", F("respondendo"));
-  linhaTabela(h, "Módulo no I2C (0x68)", modulo);
+  linhaTabela(h, tipoRtc == TipoRtc::DS1302 ? "Módulo DS1302 (GPIO 25/26/27)" : "Módulo no I2C (0x68)", modulo);
   if (rtc.responde) {
     if (rtc.leuHora) {
       formatarEpoch(rtc.epoch, hora);
@@ -1801,7 +1974,7 @@ String montarSituacao() {
       snprintf(texto, sizeof(texto), "%.2f &deg;C", rtc.temperatura);
       linhaTabela(h, "Temperatura do chip", texto);
     }
-    linhaTabela(h, "Oscilador (flag OSF)", rtc.osf ? spanCor("ruim", F("parou desde o último acerto")) : spanCor("ok", F("ok")));
+    linhaTabela(h, tipoRtc == TipoRtc::DS1302 ? "Relógio do chip (bit CH)" : "Oscilador (flag OSF)", rtc.osf ? spanCor("ruim", F("parou desde o último acerto")) : spanCor("ok", F("ok")));
   }
   linhaTabela(h, "Bateria (hora ao ligar o controlador)",
               !rtcPresente ? String(F("-"))
@@ -2093,7 +2266,7 @@ void imprimirInfo() {
   formatarEpoch(agoraEpoch(), hora);
   Serial.print(F("# Hora: "));
   Serial.print(hora);
-  Serial.print(rtcPresente ? F(" (RTC ok)") : F(" (SEM RTC)"));
+  Serial.print(rtcPresente ? (tipoRtc == TipoRtc::DS1302 ? F(" (RTC DS1302 ok)") : F(" (RTC DS3231 ok)")) : F(" (SEM RTC)"));
   Serial.print(F(" | rede da empresa: "));
   if (!staAtivo) {
     Serial.print(F("desligada"));
@@ -2135,8 +2308,8 @@ void imprimirDiagnostico() {
   Serial.print(F(" | ligado ha ")); Serial.print(formatarDuracao(segundosLigadoEsp()));
   Serial.print(F(" | ultimo reinicio: ")); Serial.println(textoMotivoReset(esp_reset_reason()));
   Serial.print(F("# Hora: ")); Serial.print(hora); Serial.print(F(" | fonte: ")); Serial.println(*origemAcerto ? origemAcerto : "-");
-  Serial.print(F("# RTC em uso: ")); Serial.print(rtcPresente ? F("SIM") : F("NAO"));
-  Serial.print(F(" | responde agora (0x68): ")); Serial.print(rtc.responde ? F("SIM") : F("NAO"));
+  Serial.print(F("# RTC em uso: ")); Serial.print(rtcPresente ? nomeRtc() : "NAO");
+  Serial.print(F(" | responde agora: ")); Serial.print(rtc.responde ? F("SIM") : F("NAO"));
   if (rtc.responde) {
     Serial.print(F(" | OSF (parou/bateria): ")); Serial.print(rtc.osf ? F("sim") : F("nao"));
     if (rtc.temTemperatura) { Serial.print(F(" | temperatura: ")); Serial.print(rtc.temperatura, 2); Serial.print(F(" C")); }

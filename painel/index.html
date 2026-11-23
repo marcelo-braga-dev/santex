@@ -10849,10 +10849,11 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
 
     // RTC
     const i2c = (i.i2c || "").split(",").filter(Boolean);
+    const modeloRtc = i.rtc_modelo && i.rtc_modelo !== "nenhum" ? i.rtc_modelo : "DS3231"; // firmware 3.2: DS3231 ou DS1302
     if (i.rtc && i.rtc_responde !== false) {
-      add("ok", "Relógio RTC (DS3231)", `Detectado e respondendo${isFinite(i.rtc_temperatura) ? ` · ${Number(i.rtc_temperatura).toFixed(1)} °C` : ""}`, "");
+      add("ok", `Relógio RTC (${modeloRtc})`, `Detectado e respondendo${isFinite(i.rtc_temperatura) ? ` · ${Number(i.rtc_temperatura).toFixed(1)} °C` : ""}`, "");
     } else if (i.rtc_responde) {
-      add("alerta", "Relógio RTC (DS3231)", "O RTC passou a responder.", "O firmware 2.0 passa a usá-lo sozinho em até 30 s (ou clique em “Redetectar RTC”).");
+      add("alerta", `Relógio RTC (${modeloRtc})`, "O RTC passou a responder.", "O firmware 2.0 passa a usá-lo sozinho em até 30 s (ou clique em “Redetectar RTC”).");
     } else {
       let causa = "Não responde no barramento I2C (endereço 0x68).", rec = "";
       if (!v2) rec = "Grave o firmware 2.0: ele testa o barramento e diz a causa provável (e redetecta o RTC sem reiniciar).";
@@ -10860,7 +10861,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
       else if (!i2c.length) rec = "As linhas têm pull-up, mas nada responde: SDA e SCL podem estar trocados, o módulo pode ser de outro tipo (DS1302 não é I2C; DS1307 precisa de 5 V) ou estar com defeito.";
       else if (!i2c.includes("0x68")) rec = `Há dispositivo(s) em ${i2c.join(", ")}, mas não no 0x68: o chip do relógio não responde (módulo com defeito ou de outro tipo). 0x57 costuma ser só a memória EEPROM do módulo.`;
       else rec = "O endereço 0x68 aparece na varredura: clique em “Redetectar RTC”.";
-      add("ruim", "Relógio RTC (DS3231)", causa, rec);
+      if (i.rtc_modelo !== undefined) rec += " Alternativa (firmware 3.2): RTC DS1302 em CLK→GPIO25, DAT→GPIO26, RST→GPIO27 (3,3 V) — detectado sozinho.";
+      add("ruim", "Relógio RTC", causa, rec);
     }
     if (i.rtc && i.rtc_sem_hora_no_boot) add("alerta", "Bateria do RTC", "O RTC estava sem hora quando o controlador ligou.", "Troque a bateria CR2032 do módulo — a cada falta de energia os ciclos ficam sem hora até o PC acertar.");
     if (i.rtc && i.rtc_eosc) add("alerta", "Oscilador do RTC", "Configurado para parar na bateria (EOSC).", "O firmware 2.0 corrige isso sozinho ao detectar o RTC.");
@@ -10925,7 +10927,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (!d || !d.ok) { grid.innerHTML = ""; return; }
     const i = d.info, sim = (b) => (b ? espTag("ok", "sim") : espTag("ruim", "não"));
     const rtcCard = espCard("Relógio (RTC)", espLinhas([
-      ["RTC em uso", i.rtc ? espTag("ok", "sim") : espTag("ruim", "não")],
+      ["RTC em uso", i.rtc ? espTag("ok", i.rtc_modelo && i.rtc_modelo !== "nenhum" ? escaparHtml(i.rtc_modelo) : "sim") : espTag("ruim", "não")],
       i.rtc_responde !== undefined && ["Responde agora (teste ao vivo)", sim(i.rtc_responde)],
       ["Hora do controlador", escaparHtml((i.hora || "—").replace("T", " ")) + (i.hora_valida ? "" : " " + espTag("ruim", "inválida"))],
       i.fonte_hora !== undefined && ["Fonte do último acerto", escaparHtml(i.fonte_hora || "—")],

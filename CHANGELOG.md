@@ -1,5 +1,19 @@
 # Histórico de versões
 
+## 1.7.3 — RTC DS1302 como alternativa ao DS3231 (app 1.7.3 · firmware 3.2 · programa remoto 1.2.0, sem mudança)
+
+- **Firmware 3.2 aceita o RTC DS1302** (o DS3231 instalado parou de
+  responder no I2C): CLK→GPIO 25, DAT→GPIO 26, RST→GPIO 27, VCC 3,3 V.
+  Detecção automática — DS3231 no I2C tem preferência, depois o DS1302 —
+  repetida a cada 30 s: trocar de módulo não exige regravar. Protocolo de 3
+  fios no próprio firmware (sem biblioteca); presença confirmada gravando e
+  relendo a RAM do chip; o bit CH (relógio parado) faz o papel do OSF.
+- Página do controlador, `/info` (`rtc_modelo`), comando `S` pela Serial e
+  diagnóstico do painel mostram qual RTC está em uso; o aviso de "RTC não
+  responde" lista os pinos dos dois modelos.
+- O firmware 3.2 ainda não foi gravado no ESP32 — sai com a correção da hora
+  na VPS, a atualização pelo Wi-Fi e o DS1302 de uma vez (pela USB).
+
 ## 1.7.2 — senhas do acesso remoto guardadas no notebook (app 1.7.2 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 
 - **Senhas guardadas neste computador** (Configurações → Acesso remoto): o
