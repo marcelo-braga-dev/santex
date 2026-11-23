@@ -31,7 +31,7 @@ Documentação: `README.md`, `docs/` (`nuvem-vps.md` = acesso remoto e edição 
   `app/segredos_app.json`, `app/build_info.json`, bancos (`*.db`), `backup/`,
   `distribuir/`, `gerar/_trabalho/` nem `dados/`. Antes de um push, confira
   que nenhum valor do `.env` aparece nos arquivos.
-- O `PainelProducaoSantex.exe` leva a chave da fábrica: nunca o distribua
+- O `PainelProducaoSantex-<versão>.exe` leva a chave da fábrica: nunca o distribua
   para fora — fora usa-se o `PainelSantexRemoto.exe`.
 - **O banco de produção nunca é apagado nem reescrito**
   (`%APPDATA%\PainelProducaoSantex\dados\painel.db` no notebook,

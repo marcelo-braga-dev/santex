@@ -1,5 +1,5 @@
 """
-Gera o PainelProducaoSantex.exe - o aplicativo do COMPUTADOR DA FABRICA
+Gera o PainelProducaoSantex-<versao>.exe - o aplicativo do COMPUTADOR DA FABRICA
 (le o ESP32, guarda o banco, sincroniza com a VPS). Um unico arquivo, sem
 precisar de Python nem bibliotecas na maquina de destino (PyInstaller).
 Leva a chave da fabrica: NUNCA distribua este .exe para fora da empresa -
@@ -9,7 +9,7 @@ Uso (ou gerar/gerar.bat):
     pip install -r app/requirements.txt
     python gerar/exe_fabrica.py
 
-Gera distribuir/PainelProducaoSantex.exe. Teste SEMPRE rodando esse .exe
+Gera distribuir/PainelProducaoSantex-<versao>.exe (ex.: -1.7.2). Teste SEMPRE rodando esse .exe
 numa pasta fora do projeto (ou em outra maquina) antes de distribuir - pra
 garantir que nenhum caminho relativo escapou do empacotamento.
 
@@ -21,11 +21,21 @@ primeira vez que um app baseado nele e aberto.
 
 import json
 import os
+import re
 
 import PyInstaller.__main__
 
 RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR_BASE = os.path.join(RAIZ_PROJETO, "app")
+
+# 1.7.2: a versao vai no nome do arquivo (PainelProducaoSantex-1.7.2.exe) -
+# lida do APP_VERSAO de app/servidor.py, a mesma que o painel mostra.
+with open(os.path.join(DIR_BASE, "servidor.py"), "r", encoding="utf-8") as _arq:
+    _achou = re.search(r'^APP_VERSAO = "([0-9][0-9.]*)"', _arq.read(), re.M)
+if not _achou:
+    raise SystemExit("ERRO: APP_VERSAO nao encontrado em app/servidor.py")
+VERSAO = _achou.group(1)
+NOME_EXE = f"PainelProducaoSantex-{VERSAO}"
 
 PAINEL_SRC = os.path.join(RAIZ_PROJETO, "painel")
 MONITOR_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_serial.py")
@@ -59,7 +69,7 @@ SEP = os.pathsep
 
 ARGS = [
     os.path.join(DIR_BASE, "main.py"),
-    "--name=PainelProducaoSantex",
+    f"--name={NOME_EXE}",
     "--onefile",
     "--windowed",
     f"--icon={ICONE}",
@@ -109,4 +119,4 @@ except BaseException as erro:  # noqa: BLE001 - o PyInstaller pode chamar sys.ex
     print(f"\nAviso: imagem de abertura indisponivel ({erro!r}) - gerando sem ela.")
     PyInstaller.__main__.run(ARGS)
 
-print(f"\nPronto: {os.path.join(DIST, 'PainelProducaoSantex.exe')}")
+print(f"\nPronto: {os.path.join(DIST, NOME_EXE + '.exe')}")

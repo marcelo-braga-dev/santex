@@ -29,7 +29,7 @@ controle_producao_horimetro/
 │   └── app-remoto/                  #   programa remoto oferecido para download no painel da VPS
 ├── gerar/                           # Geradores: gerar.bat (menu), exe_fabrica.py, exe_remoto.py, pacote_vps.ps1
 ├── distribuir/                      # SAÍDA dos geradores (fora do git):
-│   ├── PainelProducaoSantex.exe     #   computador da fábrica (leva a chave: NÃO distribuir)
+│   ├── PainelProducaoSantex-<versão>.exe     #   computador da fábrica (leva a chave: NÃO distribuir)
 │   ├── Painel de Produção.exe       #   computadores de fora (sem chave; também baixável no painel da VPS)
 │   ├── painel-nuvem-<versão>.tar.gz #   pacote da VPS (alternativa ao git pull)
 │   └── antigos/                     #   versões anteriores
@@ -64,7 +64,7 @@ fora do git e do `.exe`.
 2. **Firmware**: abra o `.ino` na Arduino IDE (placa **ESP32 Dev Module**) e
    grave. Detalhes em [`docs/firmware.md`](docs/firmware.md).
 3. **Aplicativo**: duplo clique em `gerar\gerar.bat` → copie
-   `distribuir\PainelProducaoSantex.exe` para o notebook do painel. Firmware
+   `distribuir\PainelProducaoSantex-<versão>.exe` para o notebook do painel. Firmware
    e `.exe` precisam vir do **mesmo `.env`** (mesma `API_CHAVE`). Para quem
    está fora da empresa: o **Painel de Produção.exe** (sem chave), que eles
    mesmos baixam pelo painel da VPS, e as senhas definidas em

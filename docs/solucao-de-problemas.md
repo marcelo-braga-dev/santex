@@ -12,7 +12,7 @@ A partir desta versão a abertura mostra sempre o que está acontecendo
 - **"O Painel já está aberto em outra janela"**: havia outra janela (ou um
   processo que não fechou direito) usando a porta 80. Feche a outra e
   clique em *Tentar novamente* — se não houver janela visível, finalize
-  `PainelProducaoSantex.exe` no Gerenciador de Tarefas.
+  `PainelProducaoSantex-<versão>.exe` no Gerenciador de Tarefas.
 - **"A porta 80 está ocupada por outro programa"**: por exemplo o
   `controle_leitura_server.py` rodando junto. Feche-o.
 - **"O servidor interno não respondeu"**: antivírus/firewall bloqueando o

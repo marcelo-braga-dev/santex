@@ -15,6 +15,16 @@
 - **`ferramentas/acesso_vps.py`**: consulta o painel da VPS (só GET) com a
   senha guardada, sem imprimi-la — para o Claude Code conferir o que a VPS
   mostra (`python ferramentas/acesso_vps.py /status`).
+- **Reenvio da hora só para VPS que sabe completar**: o reenvio único do
+  histórico (1.7.1) agora espera o `ping` da VPS responder 1.7.1 ou mais nova
+  (confere a cada 10 min). O app 1.7.1 podia gastar o reenvio numa VPS ainda
+  antiga, sem corrigir nada — por isso a 1.7.2 reenvia mais uma vez (sem
+  duplicar).
+- **Versão no nome do `.exe` da fábrica**: `gerar/exe_fabrica.py` gera
+  `distribuir\PainelProducaoSantex-1.7.2.exe` (lida do `APP_VERSAO`). A pasta
+  de dados continua `%APPDATA%\PainelProducaoSantex\` — nada muda nos dados.
+  Atalho de início automático aponta para um arquivo: ao trocar de versão,
+  refaça com `ferramentas\instalar_inicio_automatico.ps1 "<novo .exe>"`.
 - 1 teste novo (44).
 
 ## 1.7.1 — VPS com a hora certa quando o ESP32 envia sem hora (app 1.7.1 · firmware 3.2 · programa remoto 1.2.0, sem mudança)

@@ -162,7 +162,7 @@ para entrar no ar, ela só recebe os ciclos mais recentes.
 2. Grave o firmware pela Arduino IDE (o firmware 3.0 usa 93% da área de
    programa; esquema de partição padrão).
 3. Rode `gerar\gerar.bat` (opção 1) e troque o `.exe` do computador da
-   fábrica pelo `distribuir\PainelProducaoSantex.exe`.
+   fábrica pelo `distribuir\PainelProducaoSantex-<versão>.exe`.
 
 Na primeira vez com o 3.0, o ESP32 começa a enviar a partir do que ainda
 está na memória dele; o histórico antigo continua só no notebook.
@@ -241,7 +241,7 @@ Commit + push + deploy da VPS e pronto — o `vps/instalar.sh` instala em
 `PainelSantexRemoto.exe` (+ `PainelSantexRemoto.json` e `icone.png`) em
 `/var/lib/painel-nuvem/app-remoto/` — essa pasta tem prioridade.
 
-**Nunca copie o `PainelProducaoSantex.exe` (o da fábrica) para fora:** ele
+**Nunca copie o `PainelProducaoSantex-<versão>.exe` (o da fábrica) para fora:** ele
 leva a chave da fábrica e tentaria ler o controlador.
 
 ## Problemas comuns

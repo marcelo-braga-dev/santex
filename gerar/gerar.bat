@@ -1,6 +1,6 @@
 @echo off
 REM Gera os entregaveis do projeto na pasta distribuir\ (fora do git):
-REM   PainelProducaoSantex.exe  - computador da fabrica (tem a chave: NAO distribuir)
+REM   PainelProducaoSantex-versao.exe  - computador da fabrica (tem a chave: NAO distribuir)
 REM   Painel de Producao.exe    - computadores de fora (sem chave: pode copiar; tambem vai para a VPS)
 REM   painel-nuvem-<versao>.tar.gz - pacote da VPS (alternativa ao git pull)
 REM Duplo clique e escolha. Precisa do Python no PATH e do .env na raiz.
@@ -10,7 +10,7 @@ cd /d "%~dp0.."
 echo ============================================================
 echo  Painel de Producao - gerar entregaveis  (saida: distribuir\)
 echo ============================================================
-echo   1) Aplicativo da fabrica   (PainelProducaoSantex.exe)
+echo   1) Aplicativo da fabrica   (PainelProducaoSantex-versao.exe)
 echo   2) Programa remoto         (Painel de Producao.exe - tambem publicado no painel da VPS)
 echo   3) Pacote da VPS           (painel-nuvem-versao.tar.gz)
 echo   4) Tudo

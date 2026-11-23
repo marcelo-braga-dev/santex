@@ -20,7 +20,7 @@ app/
 
 gerar/                  # Geradores (na raiz do projeto) - saída em distribuir/
 ├── gerar.bat           # Duplo clique: menu (fábrica / remoto / VPS / tudo)
-├── exe_fabrica.py      # PyInstaller do PainelProducaoSantex.exe (este aplicativo)
+├── exe_fabrica.py      # PyInstaller do PainelProducaoSantex-<versão>.exe (este aplicativo)
 ├── exe_remoto.py       # PainelSantexRemoto.exe (computadores de fora - ver docs/nuvem-vps.md)
 └── pacote_vps.ps1      # Pacote da VPS (alternativa ao git pull)
 ```
@@ -125,7 +125,7 @@ python gerar/exe_fabrica.py
 fora da empresa** — para eles existe o `PainelSantexRemoto.exe` (opção 2 do
 `gerar.bat`), que só abre o painel da VPS e não leva segredo nenhum.
 
-Gera **`distribuir/PainelProducaoSantex.exe`** — um único arquivo, com
+Gera **`distribuir/PainelProducaoSantex-<versão>.exe`** — um único arquivo, com
 Python, `pywebview`, `pyserial`, `sqlite3` e o painel inteiro embutidos.
 Quem for instalar não precisa ter Python nem rodar `pip install` — só esse
 `.exe`.
@@ -321,7 +321,7 @@ conferindo de hora em hora (`ferramentas/backup_banco.py`):
 1. **Abrir com o Windows** (no notebook que serve o painel):
    ```powershell
    cd ferramentas
-   .\instalar_inicio_automatico.ps1 "C:\Programas\PainelProducaoSantex.exe"
+   .\instalar_inicio_automatico.ps1 "C:\Programas\PainelProducaoSantex-<versão>.exe"
    ```
    (`-Remover` desfaz.)
 2. **Energia**: na tomada, "Suspender" = Nunca — com o notebook suspenso o
