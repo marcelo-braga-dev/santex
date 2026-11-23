@@ -85,6 +85,10 @@ MAX_CICLOS_POR_ENVIO = 500
 MAX_HISTORICO_POR_ENVIO = 500
 DISPOSITIVO_SERIAL = "NOTEBOOK-SERIAL"  # ciclos lidos pela USB (sem serie do ESP32)
 CURSOR_HISTORICO = "cursor_historico_nuvem"  # notebook: ate qual id local a VPS confirmou
+# 1.7.1: reenvio unico do historico inteiro para a VPS completar a hora dos
+# ciclos que o ESP32 mandou sem hora (a VPS nao duplica nada). Guarda a URL ja
+# reenviada; trocar o valor faz um novo reenvio unico.
+REENVIO_HORA = "reenvio_hora_nuvem_1_7_1"
 
 
 def _agora_iso():
@@ -905,6 +909,13 @@ class EnviadorConfig:
         url = cfg["url"]
         try:
             ate = self._cursor(url)
+            if self.banco.obter_segredo(REENVIO_HORA) != url:
+                # 1.7.1: uma vez por VPS, reenvia tudo - a VPS completa a hora
+                # dos ciclos que chegaram do ESP32 sem hora (SEM_HORA)
+                if ate > 0:
+                    ate = 0
+                    self._salvar_cursor(url, 0)
+                self.banco.salvar_segredo(REENVIO_HORA, url)
             total_local = self.banco.total_ciclos(self.setor)
             if conferir is None:
                 conferir = time.monotonic() - self._ultima_conferencia > self.CONFERIR_TOTAIS_S

@@ -61,6 +61,27 @@ class TesteBanco(unittest.TestCase):
         self.assertEqual(b.ultimo_id_origem("403F07000000-AAAAAAAA"), 10)
         self.assertEqual(b.ultimo_id_origem("403F07000000-BBBBBBBB"), 0)
 
+    def test_ciclo_sem_hora_recebe_a_hora_depois(self):
+        # 1.7.1: o ESP32 mandou sem hora (SEM_HORA); a versao com hora chega
+        # depois (notebook) e so completa a hora - sem duplicar
+        b = novo_banco()
+        self.assertTrue(b.gravar_ciclo_remoto("s", "AA-01", 7, 2, 50, "?", "?", 39.0, "CICLO_CURTO+SEM_HORA"))
+        self.assertTrue(b.gravar_ciclo_remoto("s", "BB-01", 7, 2, 50, "2026-11-23T08:11:57", "2026-11-23T08:12:35",
+                                              39.0, "CICLO_CURTO", "2026-11-23 08:12:35"))
+        linhas = b._conn.execute("SELECT inicio_ms, fim_ms, obs, gravado_em FROM ciclos").fetchall()
+        self.assertEqual([tuple(l) for l in linhas],
+                         [("2026-11-23T08:11:57", "2026-11-23T08:12:35", "CICLO_CURTO", "2026-11-23 08:12:35")])
+        # com hora ele nunca mais muda; e outra versao sem hora nao apaga a hora
+        self.assertFalse(b.gravar_ciclo_remoto("s", "AA-01", 7, 2, 50, "2026-11-23T09:00:00", "2026-11-23T09:00:39",
+                                               39.0, "", "2026-11-23 09:00:39"))
+        self.assertFalse(b.gravar_ciclo_remoto("s", "AA-01", 7, 2, 50, "?", "?", 39.0, "SEM_HORA"))
+        # dados diferentes (outra maquina/duracao) com o mesmo id: nao mexe
+        b.gravar_ciclo_remoto("s", "AA-01", 8, 1, 9, "?", "?", 10.0, "SEM_HORA")
+        self.assertFalse(b.gravar_ciclo_remoto("s", "AA-01", 8, 3, 9, "2026-11-23T08:00:00", "2026-11-23T08:00:10",
+                                               10.0, "", "2026-11-23 08:00:10"))
+        self.assertEqual(b._conn.execute("SELECT fim_ms FROM ciclos WHERE origem_id = 8").fetchone()[0], "?")
+        self.assertEqual(b.total_ciclos("s"), 2)
+
     def test_motivos_de_parada_sao_salvos_e_sincronizados(self):
         # 1.3.0: motivos de parada = chave nova em config_extra, versionada como as outras
         import nuvem

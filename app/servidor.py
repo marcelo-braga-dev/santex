@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.7.0"
+APP_VERSAO = "1.7.1"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))

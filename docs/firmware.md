@@ -255,6 +255,39 @@ não conhece, então o app antigo continua funcionando com o firmware novo.
 Gravação: Arduino IDE, placa **ESP32 Dev Module**, esquema de partição padrão (o firmware usa
 ~84% da área de programa). A versão anterior fica em `firmware/_backup/controle_producao_horimetro_v1.ino`.
 
+## Firmware 3.2: atualização pelo Wi-Fi e VPS sem ciclos "sem hora"
+
+**Atualizar o firmware pelo Wi-Fi (OTA)** — a partir do 3.2 (o 3.2 em si
+ainda é gravado pela USB):
+
+1. Arduino IDE → **Sketch → Exportar binário compilado**. Na pasta
+   `build/esp32.esp32.esp32/` do sketch sai o
+   `controle_producao_horimetro.ino.bin` (use esse, **não** o `.merged.bin`).
+2. No notebook (ou celular) conectado à rede da empresa/repetidor, abra
+   `http://192.168.15.200/atualizar` — ou, perto da máquina, conecte na rede
+   `HORIMETRO_SANTEX` e abra `http://192.168.4.1/atualizar`. Há um link no
+   fim da página do controlador.
+3. Escolha o `.bin`, digite a senha do equipamento (`AP_SENHA`) e clique em
+   **Enviar e atualizar**. Leva ~30 s; o controlador reinicia sozinho na
+   versão nova (confira o "Firmware" na página).
+
+Detalhes: a senha é conferida antes de gravar qualquer byte; arquivo que não
+começa com o byte de firmware do ESP32 (0xE9) é recusado; o firmware novo vai
+para a outra partição de aplicativo (esquema de partição padrão, 2 slots) e
+só é ativado se chegar inteiro e válido — se o envio cair, o atual continua.
+Ciclos (LittleFS) e configuração (NVS) não são tocados. **Não troque o
+esquema de partição** no Arduino IDE: um esquema diferente muda a área do
+LittleFS e apaga os ciclos guardados. Durante o envio a leitura dos contatos
+pausa (o laço principal fica ocupado) — prefira atualizar com as máquinas
+paradas. Bluetooth foi descartado: a pilha não cabe na memória e divide o
+rádio com o Wi-Fi.
+
+**Envio para a VPS só com hora**: ciclo gravado sem hora neste boot (sem RTC,
+antes de o PC ou a internet acertarem o relógio) fica na fila até o acerto e
+vai depois com a hora real. Antes ele ia como `?`/`SEM_HORA` e a VPS recusava
+a versão certa que o notebook mandava (23/11/2026). Ciclo sem hora de boot
+anterior segue como `?`, para não travar a fila.
+
 ## Firmware 3.1: envio para a VPS mais estável
 
 Diagnóstico (19/11/2026): o ESP32 falhava por períodos de 1 a 6 min ao enviar

@@ -286,7 +286,24 @@ class BancoDados:
                 (setor, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em, dispositivo, origem_id,
                  origem_id, dispositivo, _padrao_serie(dispositivo)),
             )
-        return cursor.rowcount == 1
+            if cursor.rowcount == 1:
+                return True
+            # 1.7.1: o ciclo ja existe, mas foi gravado SEM hora (o ESP32
+            # enviou para a VPS 1 s antes de o PC acertar o relogio, e o
+            # notebook manda depois a versao com a hora real calculada pelo
+            # firmware). So completa a hora: mesma maquina, mesmo ciclo, mesma
+            # duracao - nada mais muda e um ciclo com hora nunca e alterado.
+            if gravado_em is None or "SEM_HORA" in (obs or ""):
+                return False
+            cursor = self._conn.execute(
+                "UPDATE ciclos SET inicio_ms = ?, fim_ms = ?, obs = ?, gravado_em = ? "
+                "WHERE origem_id = ? AND (dispositivo = ? OR dispositivo LIKE ?) "
+                "AND maquina = ? AND ciclo = ? AND abs(duracao_s - ?) < 1 "
+                "AND obs LIKE '%SEM_HORA%' AND (fim_ms IS NULL OR fim_ms NOT LIKE '____-__-__T__:__:__')",
+                (inicio, fim, obs, gravado_em, origem_id, dispositivo, _padrao_serie(dispositivo),
+                 maquina, ciclo, duracao_s),
+            )
+        return cursor.rowcount > 0
 
     def ultimo_id_origem(self, dispositivo):
         """Maior id de ciclo deste ESP32 ja gravado aqui (0 = nenhum) -

@@ -300,6 +300,44 @@ class TesteHistoricoNaNuvem(unittest.TestCase):
         enviador.enviar_historico(conferir=True)
         self.assertEqual(self.total_na_vps(), 1233)
 
+    def test_reenvio_unico_completa_a_hora_na_vps(self):
+        # 1.7.1 (23/11/2026): o ESP32 mandou a VPS 3 ciclos SEM_HORA 1 s antes
+        # do acerto do relogio; o notebook, que ja tinha enviado tudo, os tem
+        # com a hora real -> o reenvio unico completa a hora na VPS
+        serie = "77777777"
+        local = tempfile.mkdtemp(prefix="painel_notebook_reenvio_")
+        with open(os.path.join(local, "nuvem.json"), "w", encoding="utf-8") as f:
+            json.dump({"url": self.base, "chave": CHAVE}, f)
+        b = BancoDados(os.path.join(local, "painel.db"))
+        for i in (1, 2, 3):
+            b.gravar_ciclo_remoto("enfestadeiras", f"704BCA02D640-{serie}", i, i, 100 + i, f"2026-11-23T07:0{i}:00",
+                                  f"2026-11-23T07:0{i}:30", 30.0, "", f"2026-11-23 07:0{i}:30")
+        b.salvar_segredo(nuvem.CURSOR_HISTORICO, json.dumps({"url": self.base, "ate": 3}))  # "ja enviado"
+        lote = {"dispositivo": f"704BCA02D640-{serie}", "firmware": "3.0", "hora": "?", "hora_valida": False,
+                "ultimo_id": 3, "lido_ate": 3, "perdidos": 0, "maquinas": [],
+                "ciclos": "id,maquina,ciclo,inicio,fim,duracao_s,obs\n" + "".join(
+                    f"{i},{i},{100 + i},?,?,30.0,SEM_HORA\n" for i in (1, 2, 3))}
+        req = urllib.request.Request(self.base + "/api/nuvem/enviar", data=json.dumps(lote).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "X-Chave-Nuvem": CHAVE})
+        urllib.request.urlopen(req, timeout=5).close()
+
+        def na_vps():
+            con = __import__("sqlite3").connect(os.path.join(self.dados, "painel.db"))
+            try:
+                return con.execute("SELECT origem_id, fim_ms, obs FROM ciclos WHERE dispositivo LIKE ? ORDER BY origem_id",
+                                   (f"%-{serie}",)).fetchall()
+            finally:
+                con.close()
+
+        self.assertEqual([l[1] for l in na_vps()], ["?", "?", "?"])
+        enviador = nuvem.EnviadorConfig(b, local, "enfestadeiras")
+        enviador.enviar_historico(conferir=False)
+        self.assertEqual(na_vps(), [(1, "2026-11-23T07:01:30", ""), (2, "2026-11-23T07:02:30", ""),
+                                    (3, "2026-11-23T07:03:30", "")])
+        # o reenvio e unico: a rodada seguinte nao reenvia nada
+        self.assertEqual(enviador.enviar_historico(conferir=False), 0)
+        self.assertEqual(json.loads(b.obter_segredo(nuvem.CURSOR_HISTORICO))["ate"], 3)
+
     def test_vps_antiga_sem_rota_mostra_motivo(self):
         import http.server
         import threading

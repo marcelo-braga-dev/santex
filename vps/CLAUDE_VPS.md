@@ -102,6 +102,13 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
+**1.7.1** (deploy seguinte ao `181bf94`): a VPS completa a hora dos ciclos que
+o ESP32 enviou sem hora (`SEM_HORA`) quando o notebook manda o mesmo ciclo
+com hora - `UPDATE` só nesses ciclos (data/hora e obs; máquina, ciclo e
+duração precisam bater). O notebook 1.7.1 reenvia o histórico uma vez
+(sem duplicar). Corrige os 55 ciclos de 23/11/2026 07:06-08:11. Deploy comum;
+o `ping` responde `"versao": "1.7.1"`.
+
 **1.7.0** (deploy seguinte ao `1b68143`): o notebook vira segunda fonte do
 estado ao vivo (campo `ao_vivo` em `/api/nuvem/historico`; `/sincronizacao`
 ganha `fonte`). Deploy comum; o `ping` responde `"versao": "1.7.0"`.
@@ -195,7 +202,7 @@ pode aparecer duplicado — inofensivo.
    curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/status             # 401
    curl -s https://santex.rexar.com.br/ | grep -c 'Senha de acesso'                         # 1
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/ping -H "X-Chave-Nuvem: $NUVEM_CHAVE"'
-   #   -> {"ok": true, "versao": "1.7.0"}
+   #   -> {"ok": true, "versao": "1.7.1"}
    sudo bash -c '. /etc/painel-nuvem.env; curl -s -X POST https://santex.rexar.com.br/api/nuvem/historico -H "Content-Type: application/json" -H "X-Chave-Nuvem: $NUVEM_CHAVE" -d "{\"ciclos\": []}"'
    #   -> {"ok": true, "gravados": 0, "total": N}   (N = ciclos que a VPS tem; a rota nova existe)
    ```

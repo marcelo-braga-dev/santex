@@ -1,5 +1,37 @@
 # Histórico de versões
 
+## 1.7.1 — VPS com a hora certa quando o ESP32 envia sem hora (app 1.7.1 · firmware 3.2 · programa remoto 1.2.0, sem mudança)
+
+Diagnóstico que motivou (23/11/2026): o ESP32 reiniciou por panic no dia
+anterior e, com o RTC fora (SDA sem pull-up), ficou sem hora; o repetidor não
+repassava a internet. Às 08:12:02 a rede voltou e o ESP32 mandou para a VPS
+os 55 ciclos da manhã (07:06–08:11) **sem hora**, 1 s antes de o notebook
+acertar o relógio (08:12:03). A VPS os guardou como `SEM_HORA` (fora dos dias
+e turnos) e depois ignorou a versão com hora que o notebook enviou, por já ter
+o ciclo. O notebook estava certo; a VPS ficou sem ~1 h 10 min de produção.
+
+- **O notebook corrige a VPS**: quando chega um ciclo que a VPS (ou o
+  notebook) tem gravado `SEM_HORA` e a nova versão tem hora, a hora é
+  completada (início, fim, obs e hora de registro). Só nesse caso, e só se
+  máquina, ciclo e duração baterem; ciclo com hora nunca é alterado.
+- **Reenvio único do histórico**: o app 1.7.1 manda o histórico inteiro para
+  a VPS uma vez (sem duplicar) — corrige os ciclos de 23/11 e qualquer outro
+  que tenha chegado sem hora enquanto o notebook tinha a hora certa.
+- **Firmware 3.2**: o envio direto para a VPS espera o acerto do relógio (PC
+  ou internet) antes de mandar ciclos deste boot ainda sem hora — eles vão
+  depois, já com a hora real. Ciclos sem hora de um boot anterior (não há mais
+  como calcular) seguem como antes, para não travar a fila.
+- **Firmware 3.2 — atualização pelo Wi-Fi (OTA)**: página
+  `http://<ip do controlador>/atualizar` (link no fim da página do ESP32),
+  pela rede própria (192.168.4.1) ou pela rede da empresa/repetidor. Pede a
+  senha do equipamento, conferida antes de gravar; aceita só o
+  `controle_producao_horimetro.ino.bin` (Arduino IDE → Sketch → Exportar
+  binário compilado). Grava na outra partição de aplicativo: ciclos e
+  configuração são mantidos e, se o envio cair, o firmware atual continua.
+  **A gravação do 3.2 ainda é pela USB**; a partir dele, as próximas vão
+  pelo Wi-Fi.
+- 2 testes novos (43).
+
 ## 1.7.0 — notebook como segunda fonte da VPS e firmware 3.1 (app 1.7.0 · firmware 3.1 · programa remoto 1.2.0, sem mudança)
 
 Diagnóstico que motivou: o ESP32 falha por períodos ao enviar direto para a

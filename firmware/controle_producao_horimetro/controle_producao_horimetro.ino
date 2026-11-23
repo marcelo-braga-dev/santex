@@ -111,6 +111,7 @@
 #include <sys/time.h>
 #include <NetworkClientSecure.h>
 #include <HTTPClient.h>
+#include <Update.h>   // 3.2: atualizacao do firmware pelo Wi-Fi (/atualizar)
 
 // ---------------------------------------------------------------------
 // Configuracao da rede (valores de fabrica - depois, tudo pela pagina
@@ -262,6 +263,7 @@ volatile uint32_t nuvemAte = 0;              // ultimo id confirmado pela VPS
 volatile unsigned long nuvemUltimoOkMs = 0;  // ultimo envio confirmado (0 = nenhum desde o boot)
 volatile uint32_t nuvemEnviosOk = 0;
 char nuvemErro[128] = "";                    // ultimo erro ("" = ultimo envio deu certo)
+volatile bool nuvemAguardandoHora = false;   // 3.2: fila parada num ciclo deste boot ainda sem hora
 // 3.1: a conexao HTTPS com a VPS fica aberta entre os envios (keep-alive) - sem
 // um handshake TLS novo a cada 10 s (era o ponto das falhas intermitentes)
 NetworkClientSecure *nuvemCliente = nullptr;
@@ -311,7 +313,7 @@ uint32_t contagemBoots = 0;
 //  - reinicio seguro se a memoria livre ficar perigosamente baixa
 //  - registro dos ultimos eventos na flash (sobrevive a reinicios)
 // ---------------------------------------------------------------------
-const char *FIRMWARE_VERSAO = "3.1";
+const char *FIRMWARE_VERSAO = "3.2";
 const unsigned long INTERVALO_REDETECTAR_RTC_MS = 30000UL;   // testa o RTC a cada 30 s
 const uint8_t FALHAS_PARA_RTC_AUSENTE = 3;                   // 3 falhas seguidas = RTC sumiu
 const unsigned long SEM_PC_PARA_RECONECTAR_MS = 15UL * 60UL * 1000UL; // 15 min sem o PC alcancar
@@ -844,7 +846,10 @@ bool lerRegistroDaFlash(File &f, uint32_t id, RegistroCiclo &r) {
 void corrigirCiclosSemHora() {
   if (ciclosSemHoraNesteBoot == 0 || !horaValida || !armazenamentoOk) return;
   File f = LittleFS.open(ARQUIVO_CICLOS, "r+");
-  if (!f) return;
+  if (!f) {
+    ciclosSemHoraNesteBoot = 0; // 3.2: nao segura a fila da nuvem para sempre
+    return;
+  }
   uint32_t agora = agoraEpoch();
   uint32_t ligadoAgora = (uint32_t)segundosLigadoEsp();
   uint16_t boot = (uint16_t)(contagemBoots & 0xFFFF);
@@ -1543,9 +1548,11 @@ void iniciarWifi() {
   servidor.on("/limpar", HTTP_POST, responderLimpar);
   servidor.on("/eventos", HTTP_GET, responderEventos);
   servidor.on("/acao", HTTP_POST, responderAcao);
+  servidor.on("/atualizar", HTTP_GET, responderPaginaOta);             // 3.2: OTA pelo Wi-Fi
+  servidor.on("/atualizar", HTTP_POST, responderFimOta, receberArquivoOta);
   servidor.onNotFound([]() { servidor.send(404, "text/plain", "nao encontrado"); });
-  static const char *cabecalhos[] = {"X-Chave"}; // o WebServer so guarda os cabecalhos pedidos
-  servidor.collectHeaders(cabecalhos, 1);
+  static const char *cabecalhos[] = {"X-Chave", "X-Senha"}; // o WebServer so guarda os cabecalhos pedidos
+  servidor.collectHeaders(cabecalhos, 2);
   servidor.begin();
 }
 
@@ -1677,7 +1684,7 @@ small{color:#6b7280;font-weight:400}button{margin-top:16px;padding:11px 18px;bor
 <label>Senha do equipamento <small>(a mesma da rede HORIMETRO_SANTEX)</small></label><input type="password" name="senha_equip" required>
 <button>Salvar e reiniciar</button>
 <small>Reiniciar não perde nenhum ciclo: os que estão em andamento continuam de onde pararam.</small>
-</form></section></body></html>)html";
+</form></section><p><a href="/atualizar">Atualizar firmware pelo Wi-Fi</a></p></body></html>)html";
 
 String spanCor(const char *classe, const String &texto) {
   return String("<span class=\"") + classe + "\">" + texto + "</span>";
@@ -1979,6 +1986,105 @@ void responderSalvarConfig() {
 }
 
 // ---------------------------------------------------------------------
+// 3.2: atualizacao do firmware pelo Wi-Fi (OTA) - pagina /atualizar, pela
+// rede propria (192.168.4.1) ou pela rede da empresa. Exige a senha do
+// equipamento (AP_SENHA) no cabecalho X-Senha, conferida ANTES de gravar
+// qualquer byte. O .bin vai para a outra particao de aplicativo (esquema
+// padrao, com 2 slots OTA): os ciclos (LittleFS) e a configuracao (NVS) nao
+// sao tocados, e se a transmissao cair o firmware atual continua.
+// Arquivo: Arduino IDE -> Sketch -> Exportar binario compilado
+// (controle_producao_horimetro.ino.bin, NAO o .merged.bin).
+// ---------------------------------------------------------------------
+bool otaAutorizado = false;
+String otaErro;
+size_t otaBytes = 0;
+
+const char PAGINA_OTA[] PROGMEM = R"html(<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Atualizar firmware - Horímetro Santex</title>
+<style>body{font-family:system-ui,Segoe UI,sans-serif;max-width:560px;margin:0 auto;padding:16px;background:#f3f4f6;color:#1f2937}
+section{background:#fff;border-radius:10px;padding:14px 16px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+label{display:block;margin:12px 0 4px;font-weight:600}input{width:100%;padding:9px;box-sizing:border-box;border:1px solid #c7cbd1;border-radius:6px;font-size:1em}
+button{margin-top:16px;padding:11px 18px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:1em;width:100%}
+button:disabled{background:#93a3b8}progress{width:100%;height:18px;margin-top:14px}small{color:#6b7280}#msg{margin-top:12px;font-weight:600}</style></head><body>
+<h1>Atualizar firmware</h1>
+<section><p>Firmware atual: <b>%VERSAO%</b> <small>(compilado em %COMPILADO%)</small></p>
+<p><small>Use o arquivo <b>controle_producao_horimetro.ino.bin</b> (Arduino IDE &rarr; Sketch &rarr; Exportar binário compilado), não o <i>.merged.bin</i>.
+Os ciclos guardados e a configuração do Wi-Fi são mantidos. Prefira atualizar com as máquinas paradas: durante o envio (cerca de 30 s) a leitura dos contatos pausa.</small></p>
+<label>Arquivo .bin</label><input type="file" id="arq" accept=".bin">
+<label>Senha do equipamento</label><input type="password" id="senha" autocomplete="off">
+<button id="btn" onclick="enviar()">Enviar e atualizar</button>
+<progress id="prog" value="0" max="100" hidden></progress><div id="msg"></div></section>
+<p><a href="/">Voltar</a></p>
+<script>
+function enviar(){var a=document.getElementById('arq').files[0],s=document.getElementById('senha').value,m=document.getElementById('msg'),p=document.getElementById('prog'),b=document.getElementById('btn');
+if(!a){m.textContent='Escolha o arquivo .bin';return}if(/merged/i.test(a.name)){m.textContent='Use o .ino.bin, não o .merged.bin';return}
+if(!s){m.textContent='Informe a senha do equipamento';return}
+var x=new XMLHttpRequest(),f=new FormData();f.append('firmware',a,a.name);x.open('POST','/atualizar');x.setRequestHeader('X-Senha',s);
+x.upload.onprogress=function(e){if(e.lengthComputable){p.value=Math.round(e.loaded*100/e.total);m.textContent='Enviando... '+p.value+'%'}};
+x.onload=function(){m.textContent=x.responseText;if(x.status==200){m.style.color='#15803d';setTimeout(function(){location.href='/'},20000)}else{m.style.color='#b91c1c';b.disabled=false}};
+x.onerror=function(){m.textContent='A conexão caiu durante o envio. O firmware atual continua; tente de novo.';m.style.color='#b91c1c';b.disabled=false};
+b.disabled=true;p.hidden=false;m.style.color='';m.textContent='Enviando...';x.send(f)}
+</script></body></html>)html";
+
+void responderPaginaOta() {
+  String pagina = FPSTR(PAGINA_OTA);
+  pagina.replace("%VERSAO%", FIRMWARE_VERSAO);
+  pagina.replace("%COMPILADO%", F(__DATE__ " " __TIME__));
+  servidor.send(200, "text/html; charset=utf-8", pagina);
+}
+
+// Recebe o arquivo em pedacos (chamado pelo WebServer durante o upload).
+void receberArquivoOta() {
+  HTTPUpload &up = servidor.upload();
+  if (up.status == UPLOAD_FILE_START) {
+    otaBytes = 0;
+    otaErro = "";
+    otaAutorizado = servidor.header("X-Senha") == AP_SENHA;
+    if (!otaAutorizado) { otaErro = F("Senha do equipamento incorreta. Nada foi gravado."); return; }
+    Serial.print(F("# Atualizacao pelo Wi-Fi: recebendo "));
+    Serial.println(up.filename);
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) otaErro = String(F("Não foi possível iniciar: ")) + Update.errorString();
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (!otaAutorizado || otaErro.length()) return;
+    if (otaBytes == 0 && up.currentSize && up.buf[0] != 0xE9) { // todo firmware ESP32 comeca com 0xE9
+      otaErro = F("Arquivo não é um firmware do ESP32 (.ino.bin). Nada foi alterado.");
+      Update.abort();
+      return;
+    }
+    if (Update.write(up.buf, up.currentSize) != up.currentSize) {
+      otaErro = String(F("Falha ao gravar: ")) + Update.errorString();
+      Update.abort();
+      return;
+    }
+    otaBytes += up.currentSize;
+  } else if (up.status == UPLOAD_FILE_END) {
+    if (!otaAutorizado || otaErro.length()) return;
+    if (!Update.end(true)) otaErro = String(F("Arquivo incompleto ou inválido: ")) + Update.errorString() + F(". O firmware atual continua.");
+  } else if (up.status == UPLOAD_FILE_ABORTED) {
+    if (otaAutorizado && !otaErro.length()) Update.abort();
+    otaErro = F("Envio interrompido. O firmware atual continua.");
+  }
+}
+
+// Resposta no fim do upload.
+void responderFimOta() {
+  if (!otaAutorizado) {
+    servidor.send(403, "text/plain; charset=utf-8", otaErro.length() ? otaErro : String(F("Senha do equipamento incorreta.")));
+    return;
+  }
+  if (otaErro.length() || otaBytes == 0) {
+    servidor.send(400, "text/plain; charset=utf-8", otaErro.length() ? otaErro : String(F("Nenhum arquivo recebido.")));
+    otaAutorizado = false;
+    return;
+  }
+  registrarEvento(String(F("Firmware atualizado pelo Wi-Fi (")) + (otaBytes / 1024) + F(" KB) - reiniciando"));
+  servidor.send(200, "text/plain; charset=utf-8",
+                String(F("Firmware gravado (")) + (otaBytes / 1024) + F(" KB). O controlador está reiniciando - a página volta em 20 s."));
+  otaAutorizado = false;
+  reiniciarEmMs = millis() + 1500; // salva o estado das maquinas e reinicia na versao nova
+}
+
+// ---------------------------------------------------------------------
 // Comandos via Serial: L1-L4, D1-D4, R1-R4 (controle manual, substituem
 // os botoes do LCD), T<data hora> (acerta o relogio) e I (informacoes).
 // ---------------------------------------------------------------------
@@ -2174,14 +2280,27 @@ uint32_t montarEnvioNuvem(String &corpo, uint32_t &perdidos) {
     corpo += '}';
   }
   corpo += F("],\"ciclos\":\"id,maquina,ciclo,inicio,fim,duracao_s,obs\\n");
+  nuvemAguardandoHora = false;
   File f = LittleFS.open(ARQUIVO_CICLOS, "r");
   if (f) {
     uint32_t enviados = 0;
+    uint16_t bootAtual = (uint16_t)(contagemBoots & 0xFFFF);
     for (uint32_t id = inicio; id <= ultimo && enviados < NUVEM_MAX_CICLOS_POR_ENVIO; id++) {
-      lidoAte = id;
       RegistroCiclo r;
-      if (!lerRegistroDaFlash(f, id, r)) continue; // slot vazio/sobrescrito: so avanca
+      if (!lerRegistroDaFlash(f, id, r)) { lidoAte = id; continue; } // slot vazio/sobrescrito: so avanca
       bool relativa = r.flags & FLAG_HORA_RELATIVA;
+      // 3.2: ciclo deste boot ainda sem hora - espera o acerto (PC ou NTP):
+      // corrigirCiclosSemHora() vai dar a hora real a ele. Antes ia para a
+      // VPS como "?" e a VPS recusava depois a versao com hora (23/11/2026:
+      // envio 1 s antes do acerto). De boot anterior nao tem mais como
+      // calcular a hora: vai como "?" mesmo, para nao travar a fila.
+      // (ciclosSemHoraNesteBoot > 0 com hora valida = definirHora() esta no
+      // meio da correcao, no outro nucleo - espera ela terminar)
+      if (relativa && r.reservado == bootAtual && (!horaValida || ciclosSemHoraNesteBoot > 0)) {
+        nuvemAguardandoHora = true;
+        break;
+      }
+      lidoAte = id;
       char ini[20], fim[20], obs[64], linha[160];
       formatarEpoch(relativa ? 0 : r.inicioEpoch, ini);
       formatarEpoch(relativa ? 0 : r.fimEpoch, fim);
@@ -2256,6 +2375,7 @@ int enviarLoteNuvem(Preferences &p) {
     nuvemUltimoOkMs = millis();
     nuvemEnviosOk = nuvemEnviosOk + 1;
     nuvemErro[0] = '\0';
+    if (nuvemAguardandoHora) return 0; // fila parada esperando a hora: ritmo normal, sem repetir a cada 300 ms
     return lidoAte < ultimoIdCiclo ? 1 : 0;
   }
   nuvemFalhas = nuvemFalhas + 1;
