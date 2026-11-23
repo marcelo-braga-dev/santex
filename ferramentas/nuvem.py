@@ -89,7 +89,7 @@ CURSOR_HISTORICO = "cursor_historico_nuvem"  # notebook: ate qual id local a VPS
 # 1.7.1: reenvio unico do historico inteiro para a VPS completar a hora dos
 # ciclos que o ESP32 mandou sem hora (a VPS nao duplica nada). Guarda a URL ja
 # reenviada; trocar o valor faz um novo reenvio unico.
-REENVIO_HORA = "reenvio_hora_nuvem_1_7_1"
+REENVIO_HORA = "reenvio_hora_nuvem_1_7_2"  # 1.7.2: nome novo - o reenvio da 1.7.1 pode ter ido para uma VPS antiga
 
 
 def _agora_iso():
@@ -855,6 +855,7 @@ class EnviadorConfig:
                         "historico": {"ate": 0, "pendentes": None, "total_nuvem": None, "ultimo_envio": "", "erro": ""}}
         self._ultimo_hash, self._ultimo_ok = None, 0.0
         self._ultima_conferencia = 0.0
+        self._proximo_teste_reenvio = 0.0
         self._trava = threading.Lock()
         self._status["ao_vivo"] = {"ultimo_envio": "", "esp_direto_s": None, "repassando": False, "erro": ""}
 
@@ -923,6 +924,18 @@ class EnviadorConfig:
     def _salvar_cursor(self, url, ate):
         self.banco.salvar_segredo(CURSOR_HISTORICO, json.dumps({"url": url, "ate": int(ate)}))
 
+    def _vps_completa_hora(self, cfg):
+        """True se a VPS responde ao ping com versao >= 1.7.1 (a que completa
+        a hora dos ciclos SEM_HORA). Falha de rede = False (tenta depois)."""
+        try:
+            req = urllib.request.Request(cfg["url"] + "/api/nuvem/ping", data=b"{}", method="POST",
+                                         headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
+                versao = str(json.loads(resp.read().decode("utf-8")).get("versao", ""))
+            return tuple(int(p) for p in versao.split(".")[:3]) >= (1, 7, 1)
+        except (OSError, ValueError, HTTPError):
+            return False
+
     def _post_historico(self, cfg, linhas):
         corpo = json.dumps({"setor": self.setor, "ciclos": linhas}, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(cfg["url"] + "/api/nuvem/historico", data=corpo, method="POST",
@@ -939,13 +952,18 @@ class EnviadorConfig:
         url = cfg["url"]
         try:
             ate = self._cursor(url)
-            if self.banco.obter_segredo(REENVIO_HORA) != url:
+            if self.banco.obter_segredo(REENVIO_HORA) != url and time.monotonic() >= self._proximo_teste_reenvio:
                 # 1.7.1: uma vez por VPS, reenvia tudo - a VPS completa a hora
-                # dos ciclos que chegaram do ESP32 sem hora (SEM_HORA)
-                if ate > 0:
-                    ate = 0
-                    self._salvar_cursor(url, 0)
-                self.banco.salvar_segredo(REENVIO_HORA, url)
+                # dos ciclos que chegaram do ESP32 sem hora (SEM_HORA). 1.7.2:
+                # so quando a VPS ja sabe completar (1.7.1 ou mais nova) - VPS
+                # antiga aceitaria o reenvio sem corrigir nada; tenta a cada 10 min
+                if self._vps_completa_hora(cfg):
+                    if ate > 0:
+                        ate = 0
+                        self._salvar_cursor(url, 0)
+                    self.banco.salvar_segredo(REENVIO_HORA, url)
+                else:
+                    self._proximo_teste_reenvio = time.monotonic() + 600
             total_local = self.banco.total_ciclos(self.setor)
             if conferir is None:
                 conferir = time.monotonic() - self._ultima_conferencia > self.CONFERIR_TOTAIS_S
