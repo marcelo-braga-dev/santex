@@ -1,5 +1,30 @@
 # Histórico de versões
 
+## 1.7.4 — atualizar o firmware do controlador pelo painel (app 1.7.4 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
+
+- **Diagnóstico do controlador → Atualizar firmware**: escolha o
+  `controle_producao_horimetro.ino.bin` e clique em **Enviar e atualizar**. O
+  aplicativo repassa o arquivo ao ESP32 (rota `/atualizar` do firmware 3.2)
+  com a **senha do equipamento embutida no app** — nada para digitar —,
+  espera o controlador reiniciar e mostra a versão antes → depois.
+- A senha vem do `.env` (`AP_SENHA`) para o `app/segredos_app.json`
+  (`ap_senha`), como a chave da API; `conexao.json` pode sobrepor com
+  `senha_equipamento`. Depois de atualizar o app: `python
+  ferramentas/gerar_segredos.py` e gerar o `.exe` de novo.
+- Só no painel do próprio computador da fábrica (mesmas proteções das senhas
+  guardadas: `localhost`, sem `Origin` de fora, sem CORS); escondido na VPS.
+- Recusa antes de enviar: arquivo que não é firmware do ESP32 (`.merged.bin`,
+  bootloader, partições) ou maior que a partição; uma atualização por vez.
+- **Rodapé sem a pill "✏ Edição remota"**: quem entra pela internet com a
+  senha de edição não vê mais esse aviso (desnecessário); a pill de
+  "somente leitura" continua para quem só visualiza.
+- **Avisos do rodapé curtos e diretos** (não quebram mais no celular): só
+  o título, sem a frase de explicação — "Enfestadeira 1 parada 12 min",
+  "2 máquinas paradas", "3 paradas sem motivo", "Leitura pausada", "Sem dados
+  do controlador", "Sem sinal das máquinas". A explicação continua no tooltip
+  e no sino de notificações; o texto longo é cortado com "…" se não couber.
+- 1 teste novo (45), com um ESP32 simulado.
+
 ## 1.7.3 — RTC DS1302 como alternativa ao DS3231 (app 1.7.3 · firmware 3.2 · programa remoto 1.2.0, sem mudança)
 
 - **Firmware 3.2 aceita o RTC DS1302** (o DS3231 instalado parou de

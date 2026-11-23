@@ -104,8 +104,10 @@ def main():
     with open(ARQ_SAIDA, "w", encoding="utf-8", newline="\n") as arquivo:
         arquivo.write("\n".join(linhas))
     with open(ARQ_SAIDA_APP, "w", encoding="utf-8") as arquivo:
+        # ap_senha (1.7.4): o notebook atualiza o firmware do ESP32 pelo painel
+        # sem pedir a senha do equipamento (POST /atualizar exige X-Senha)
         json.dump({"api_chave": valores["API_CHAVE"], "nuvem_url": valores["NUVEM_URL"],
-                   "nuvem_chave": valores["NUVEM_CHAVE"]}, arquivo)
+                   "nuvem_chave": valores["NUVEM_CHAVE"], "ap_senha": valores["AP_SENHA"]}, arquivo)
     print(f"OK: {os.path.relpath(ARQ_SAIDA, RAIZ)} e {os.path.relpath(ARQ_SAIDA_APP, RAIZ)} atualizados a partir do .env.")
     print("Grave o firmware E gere o .exe de novo (gerar/gerar.bat) - os dois usam as mesmas chaves.")
     print(f"Acesso remoto: {'ligado -> ' + valores['NUVEM_URL'] if valores['NUVEM_URL'] else 'desligado (NUVEM_URL vazia)'}")

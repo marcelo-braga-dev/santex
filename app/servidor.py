@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.7.3"
+APP_VERSAO = "1.7.4"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -723,6 +723,25 @@ class Handler(BaseHTTPRequestHandler):
             self._redirecionar("/", f"{nuvem.COOKIE_SESSAO}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax")
             return
         if not self._autorizar_visitante():
+            return
+        if rota == "/esp/firmware":  # 1.7.4: atualizar o firmware do ESP32 pelo painel deste computador
+            if not self._so_este_computador():
+                return
+            try:
+                tamanho = int(self.headers.get("Content-Length", 0) or 0)
+            except ValueError:
+                tamanho = 0
+            if not 0 < tamanho <= monitor_wifi.TAMANHO_MAX_FIRMWARE:
+                mensagem = (monitor_wifi.validar_firmware(b"") if tamanho <= 0 else
+                            "Arquivo grande demais para o controlador — use o controle_producao_horimetro.ino.bin "
+                            "(não o .merged.bin).")
+                self._responder_json({"ok": False, "mensagem": mensagem}, status=400, cors=False)
+                return
+            self.connection.settimeout(120)  # 1,3 MB pela rede local
+            dados = self.rfile.read(tamanho)
+            nome = unquote(self.headers.get("X-Arquivo", "") or "firmware.bin")
+            r = monitor_wifi.atualizar_firmware_esp(status_sincronizacao(), dados, nome, dir_dados_usuario())
+            self._responder_json(r, status=200 if r.get("ok") else 400, cors=False)
             return
         if rota == "/acesso-remoto/guardar":  # 1.7.2: guarda o texto de uma senha remota que ja vale
             if not self._so_este_computador():

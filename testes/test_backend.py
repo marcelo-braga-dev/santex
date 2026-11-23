@@ -486,6 +486,75 @@ class TesteServidor(unittest.TestCase):
         self.assertEqual(self.pedir("/acesso-remoto/guardar", "POST", {"papel": "edicao", "senha": "x"},
                                     {"Content-Type": "application/json"})[0], 403)
 
+    def test_atualizar_firmware_pelo_painel(self):
+        # 1.7.4: o notebook repassa o .bin ao ESP32 com a senha do equipamento (X-Senha)
+        import http.server
+        import threading
+        import monitor_wifi
+        recebido = {}
+        versao = {"v": "3.2", "compilado": "Nov 23 2026 10:29:51"}
+
+        class EspFalso(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _json(self, corpo, status=200):
+                dados = json.dumps(corpo).encode()
+                self.send_response(status)
+                self.send_header("Content-Length", str(len(dados)))
+                self.end_headers()
+                self.wfile.write(dados)
+
+            def do_GET(self):
+                self._json({"versao": versao["v"], "firmware": versao["compilado"]})
+
+            def do_POST(self):
+                corpo = self.rfile.read(int(self.headers["Content-Length"]))
+                recebido.update(senha=self.headers.get("X-Senha"), tipo=self.headers.get("Content-Type"), corpo=corpo)
+                if self.headers.get("X-Senha") != "senha-do-equip":
+                    self.send_response(403); self.send_header("Content-Length", "0"); self.end_headers(); return
+                versao.update(v="3.3", compilado="Nov 24 2026 08:00:00")  # "reinicia" na versao nova
+                dados = "Firmware gravado".encode()
+                self.send_response(200); self.send_header("Content-Length", str(len(dados))); self.end_headers()
+                self.wfile.write(dados)
+
+        esp = http.server.ThreadingHTTPServer(("127.0.0.1", 0), EspFalso)
+        threading.Thread(target=esp.serve_forever, daemon=True).start()
+        self.addCleanup(esp.shutdown)
+        status = {"modo": "wifi", "endereco": f"127.0.0.1:{esp.server_address[1]}"}
+        dir_dados = tempfile.mkdtemp(dir=TMP)
+        bin_ok = bytes([0xE9]) + b"\x00" * (200 * 1024)
+
+        # arquivos errados: recusados antes de falar com o ESP32
+        self.assertIn("não é um firmware", monitor_wifi.validar_firmware(b"\xff" * (300 * 1024)))   # .merged.bin
+        self.assertIn("grande demais", monitor_wifi.validar_firmware(bytes([0xE9]) + b"\0" * 2_000_000))
+        # senha errada no conexao.json: o ESP32 recusa e nada muda
+        with open(os.path.join(dir_dados, "conexao.json"), "w", encoding="utf-8") as f:
+            json.dump({"senha_equipamento": "errada"}, f)
+        r = monitor_wifi.atualizar_firmware_esp(status, bin_ok, "x.ino.bin", dir_dados, espera_s=5)
+        self.assertFalse(r["ok"])
+        self.assertIn("recusou a senha", r["mensagem"])
+        # senha certa: envia multipart com X-Senha, espera voltar e compara a versao
+        with open(os.path.join(dir_dados, "conexao.json"), "w", encoding="utf-8") as f:
+            json.dump({"senha_equipamento": "senha-do-equip"}, f)
+        r = monitor_wifi.atualizar_firmware_esp(status, bin_ok, "controle_producao_horimetro.ino.bin", dir_dados, espera_s=10)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual((r["antes"]["versao"], r["depois"]["versao"]), ("3.2", "3.3"))
+        self.assertTrue(recebido["tipo"].startswith("multipart/form-data"))
+        self.assertIn(bin_ok, recebido["corpo"])
+
+        # rota do painel: so neste computador, com o cabecalho do painel
+        st, _, corpo = self.pedir("/esp/firmware", "POST", None, {"Content-Type": "application/octet-stream"})
+        self.assertEqual(st, 403)
+        req = urllib.request.Request(self.base + "/esp/firmware", data=b"\xff" * 1000, method="POST",
+                                     headers={"X-Painel-Edicao": "1", "Content-Type": "application/octet-stream"})
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            self.fail("arquivo invalido deveria ser recusado")
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.code, 400)
+            self.assertIn("não é um firmware", json.loads(e.read())["mensagem"])
+
     def test_post_desconhecido_404(self):
         self.assertEqual(self.pedir("/apagar-tudo", "POST")[0], 404)
 

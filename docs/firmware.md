@@ -263,7 +263,11 @@ ainda é gravado pela USB):
 1. Arduino IDE → **Sketch → Exportar binário compilado**. Na pasta
    `build/esp32.esp32.esp32/` do sketch sai o
    `controle_producao_horimetro.ino.bin` (use esse, **não** o `.merged.bin`).
-2. No notebook (ou celular) conectado à rede da empresa/repetidor, abra
+2. **Mais simples (app 1.7.4+)**: no painel do computador da fábrica, aba
+   **Diagnóstico do controlador → Atualizar firmware**, escolha o `.bin` e
+   clique em **Enviar e atualizar** — o app usa a senha do equipamento
+   embutida e mostra a versão antes → depois. Ou, sem o app: no notebook (ou
+   celular) conectado à rede da empresa/repetidor, abra
    `http://192.168.15.200/atualizar` — ou, perto da máquina, conecte na rede
    `HORIMETRO_SANTEX` e abra `http://192.168.4.1/atualizar`. Há um link no
    fim da página do controlador.

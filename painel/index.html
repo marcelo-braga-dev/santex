@@ -1869,7 +1869,7 @@
   .statusbar .fb-destaque .dq-ico { width: 18px; height: 18px; border-radius: 50%; }
   .statusbar .fb-destaque .dq-ico svg { width: 11px; height: 11px; }
   .statusbar .fb-destaque .dq-txt { flex-direction: row; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
-  .statusbar .fb-destaque strong { font-size: 12px; flex: none; }
+  .statusbar .fb-destaque strong { font-size: 12px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .statusbar .fb-destaque small { display: block; font-size: 11.5px; -webkit-line-clamp: unset; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .statusbar .fb-destaque small::before { content: "· "; }
   @media (max-width: 760px) {
@@ -2606,6 +2606,26 @@
         <div><a class="btn small" id="esp-config-link" href="#" target="_blank" rel="noopener" hidden>Abrir configuração do Wi-Fi do controlador</a></div>
         <div class="settings-note" id="esp-config-indisponivel" style="text-transform:none;letter-spacing:normal;font-weight:400">Disponível quando o controlador estiver conectado pelo Wi-Fi. Também dá para acessar direto: conecte na rede Wi-Fi própria do controlador e abra http://192.168.4.1</div>
         </div>
+      </div>
+    </section>
+    <section class="panel" id="esp-firmware-panel" hidden>
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <span class="panel-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 15V3M7 8l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <div>
+            <div class="panel-title">Atualizar firmware</div>
+            <div class="panel-hint" id="fw-atual">Firmware do controlador: —</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body esp-conexao">
+        <label class="config-field" for="fw-arquivo">Arquivo do firmware (.bin)
+          <input type="file" id="fw-arquivo" class="input" accept=".bin" />
+        </label>
+        <div class="settings-note">Use o <strong>controle_producao_horimetro.ino.bin</strong> (Arduino IDE → Sketch → Exportar binário compilado), não o <em>.merged.bin</em>. Os ciclos guardados e a configuração do Wi-Fi são mantidos; se o envio cair, o firmware atual continua. Prefira atualizar com as máquinas paradas: durante a gravação (cerca de 30 s) a leitura dos contatos pausa. Só funciona neste computador.</div>
+        <div><button class="btn primary small" id="fw-enviar" type="button">Enviar e atualizar</button></div>
+        <progress id="fw-progresso" max="100" value="0" hidden style="width:100%"></progress>
+        <div class="esp-msg" id="fw-msg" role="status"></div>
       </div>
     </section>
     <div class="esp-grid" id="esp-grid"></div>
@@ -6462,9 +6482,10 @@
   function renderSomenteLeitura() {
     const nota = $("#ro-note");
     if (nota) {
-      const editorRemoto = modoNuvem && podeEditar;
-      nota.hidden = !servidorOnline || (podeEditar && !editorRemoto);
-      nota.textContent = editorRemoto ? "✏ Edição remota" : modoNuvem ? "🔒 Acesso remoto · somente leitura" : "🔒 Somente leitura";
+      // 1.7.4: quem pode editar (inclusive pela internet, com a senha de
+      // edicao) nao ve pill nenhuma - so o "somente leitura" continua
+      nota.hidden = !servidorOnline || podeEditar;
+      nota.textContent = modoNuvem ? "🔒 Acesso remoto · somente leitura" : "🔒 Somente leitura";
     }
     const v = $("#foot-versao");
     if (v) v.textContent = versaoApp ? `· v${versaoApp}` : "";
@@ -7910,7 +7931,8 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
       // uma linha so (sem legenda); os detalhes ficam no tooltip
       return { nivel: "critico", ico: "parada", chave: "parada|" + alertas.map((x) => x.id).sort().join(","),
         tituloLog: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada além do limite do alerta` : `${alertas.length} máquinas paradas além do limite: ${alertas.map((x) => `"${machineName(x.id)}"`).join(", ")}`,
-        titulo: alertas.length === 1 ? `"${machineName(alertas[0].id)}" parada · ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
+        // 1.7.4: texto curto (cabe no celular); os detalhes ficam no tooltip
+        titulo: alertas.length === 1 ? `${machineName(alertas[0].id)} parada ${fmtTempoCurto(alertas[0].al.ms)}` : `${alertas.length} máquinas paradas`,
         detalhe: "", dica: alertas.map((x) => `"${machineName(x.id)}" parada há ${fmtHaQuanto(x.al.ms)}`).join("\n"),
         acao: () => irParaVisaoGeral("#machine-grid") };
     }
@@ -7919,23 +7941,25 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     // 2) dados sem atualizar durante o turno
     if (noTurno && servidorOnline && estadoAoVivo) {
       if (!estadoAoVivo.rodando) {
-        return { nivel: "atencao", ico: "sinal", titulo: modoNuvem ? "Controlador sem enviar dados" : "Leitura do controlador pausada",
-          detalhe: modoNuvem ? "O painel não está recebendo os ciclos agora" : "Os dados não estão atualizando — clique em Ativar no rodapé",
+        return { nivel: "atencao", ico: "sinal", titulo: modoNuvem ? "Sem dados do controlador" : "Leitura pausada", detalhe: "",
+          dica: modoNuvem ? "O painel não está recebendo os ciclos agora" : "Os dados não estão atualizando — clique em Ativar no rodapé",
           acao: () => { const t = document.getElementById("sync-toggle"); if (t && !t.closest("[hidden]")) t.click(); } };
       }
       if (MACHINE_IDS.every((id) => maquinaLigadaAgora(id) === null)) {
-        return { nivel: "atencao", ico: "sinal", titulo: "Sem sinal das máquinas", detalhe: "O controlador não informou o estado das máquinas nos últimos segundos",
+        return { nivel: "atencao", ico: "sinal", titulo: "Sem sinal das máquinas", detalhe: "",
+          dica: "O controlador não informou o estado das máquinas nos últimos segundos",
           acao: () => { const t = document.getElementById("sync-toggle"); if (t && !t.closest("[hidden]")) t.click(); } };
       }
     } else if (noTurno && !servidorOnline && todosRegistros.length && (CONTROLE_URL.startsWith("http"))) {
-      return { nivel: "atencao", ico: "sinal", titulo: "Servidor fora do ar", detalhe: "O painel está mostrando os últimos dados carregados", acao: null };
+      return { nivel: "atencao", ico: "sinal", titulo: "Servidor fora do ar", detalhe: "", dica: "O painel está mostrando os últimos dados carregados", acao: null };
     }
     // 3) paradas longas de hoje sem motivo (so quem pode marcar)
     if (podeEditar && usingRealTime && periodoSelecionado === "dia" && periodoEhAtual()) {
       const longas = paradasDoResumo(resumoJanelas()).filter((p) => p.durS > paradaLongaS() && !p.emAndamento && !motivoDe(p.id, p.inicio));
       if (longas.length) {
-        return { nivel: "info", ico: "motivo", chave: "motivo|" + chaveDia(Date.now()), titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} longa${longas.length > 1 ? "s" : ""} sem motivo`,
-          detalhe: `${rotuloLonga().replace("acima", "Acima")} hoje — clique numa parada da linha do tempo para marcar`, acao: () => irParaVisaoGeral("#timeline-wrap") };
+        return { nivel: "info", ico: "motivo", chave: "motivo|" + chaveDia(Date.now()), titulo: `${longas.length} parada${longas.length > 1 ? "s" : ""} sem motivo`,
+          detalhe: "", dica: `${rotuloLonga().replace("acima", "Paradas acima")} hoje sem motivo — clique numa parada da linha do tempo para marcar`,
+          acao: () => irParaVisaoGeral("#timeline-wrap") };
       }
     }
     return null;
@@ -10989,6 +11013,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     }
     espCarregando = false;
     renderEspPagina();
+    renderFirmwareEsp();
   }
 
   async function executarAcaoEsp(acao) {
@@ -11014,6 +11039,47 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   }
 
   document.querySelectorAll("[data-esp-acao]").forEach((b) => b.addEventListener("click", () => executarAcaoEsp(b.dataset.espAcao)));
+
+  // 1.7.4: atualizar o firmware do controlador pelo painel - o servidor
+  // deste computador repassa o .bin ao ESP32 com a senha do equipamento
+  // embutida no aplicativo (sem digitar nada). So no computador da fabrica.
+  function renderFirmwareEsp() {
+    const painel = $("#esp-firmware-panel");
+    painel.hidden = modoNuvem;
+    const i = espDados && espDados.ok ? espDados.info : null;
+    $("#fw-atual").textContent = i
+      ? `Firmware do controlador: ${i.versao || "?"}${i.firmware ? ` · compilado em ${i.firmware}` : ""}`
+      : "Firmware do controlador: — (controlador sem responder)";
+  }
+
+  async function enviarFirmwareEsp() {
+    const arquivo = $("#fw-arquivo").files[0], msg = $("#fw-msg"), btn = $("#fw-enviar"), prog = $("#fw-progresso");
+    msg.className = "esp-msg erro";
+    if (!arquivo) { msg.textContent = "Escolha o arquivo .bin do firmware."; return; }
+    if (/merged|bootloader|partitions/i.test(arquivo.name)) { msg.textContent = "Use o controle_producao_horimetro.ino.bin (não o .merged.bin, .bootloader.bin ou .partitions.bin)."; return; }
+    if (!confirm(`Gravar "${arquivo.name}" no controlador agora?\n\nEle reinicia sozinho no fim (cerca de 30 s a 1 min). Os ciclos guardados são mantidos.`)) return;
+    btn.disabled = true; prog.hidden = false; prog.value = 0;
+    msg.className = "esp-msg"; msg.textContent = "Enviando o arquivo…";
+    const r = await new Promise((resolve) => {
+      const x = new XMLHttpRequest();
+      x.open("POST", CONTROLE_URL + "/esp/firmware");
+      Object.entries(cabecalhosControle({ "Content-Type": "application/octet-stream", "X-Arquivo": encodeURIComponent(arquivo.name) }))
+        .forEach(([k, v]) => x.setRequestHeader(k, v));
+      x.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        prog.value = Math.round((e.loaded * 100) / e.total);
+        if (e.loaded >= e.total) msg.textContent = "Gravando no controlador e aguardando ele reiniciar (até 2 min)…";
+      };
+      x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) { /* resposta vazia */ } resolve(d.mensagem ? d : { ok: false, mensagem: `O aplicativo respondeu ${x.status}.` }); };
+      x.onerror = () => resolve({ ok: false, mensagem: "O aplicativo deste computador não respondeu." });
+      x.send(arquivo);
+    });
+    prog.hidden = true; btn.disabled = false;
+    msg.className = "esp-msg " + (r.ok ? "ok" : "erro");
+    msg.textContent = r.mensagem;
+    if (r.ok) { $("#fw-arquivo").value = ""; setTimeout(carregarDiagnosticoEsp, 1000); }
+  }
+  $("#fw-enviar").addEventListener("click", enviarFirmwareEsp);
   ABRIR_POPUP.esp = () => mostrarView("esp", true);
 
   // =====================================================================

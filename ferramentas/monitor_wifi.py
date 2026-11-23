@@ -39,6 +39,7 @@ monitor_serial.monitorar().
 import http.client
 import json
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -535,6 +536,125 @@ def acao_esp(status, acao):
                 return {"ok": False, "mensagem": "O firmware deste controlador é antigo e não tem esta função — grave o firmware 2.0."}
             ultimo_erro = f"{endereco}: {erro}"
     return {"ok": False, "mensagem": f"O controlador não respondeu ({ultimo_erro})."}
+
+
+# ---------------------------------------------------------------------
+# 1.7.4: atualizacao do firmware pelo painel do notebook. O ESP32 (firmware
+# 3.2+) recebe o .bin em POST /atualizar com a senha do equipamento no
+# cabecalho X-Senha - o notebook usa a AP_SENHA embutida no app
+# (segredos_app.json, gerado do .env). Grava na outra particao e reinicia;
+# se algo falhar no meio, o firmware atual continua.
+# ---------------------------------------------------------------------
+TAMANHO_MAX_FIRMWARE = 1_310_720  # particao de aplicativo do esquema padrao (2 slots OTA)
+TIMEOUT_ENVIO_FIRMWARE_S = 150
+ESPERA_VOLTA_FIRMWARE_S = 90
+_trava_firmware = threading.Lock()
+
+
+def _senha_equipamento(dir_dados=DIR_DADOS_PADRAO):
+    """conexao.json ("senha_equipamento") tem prioridade sobre a embutida."""
+    senha = str(_ler_config_conexao(dir_dados).get("senha_equipamento") or "").strip()
+    if senha:
+        return senha
+    try:
+        with open(ARQUIVO_CHAVE_APP, "r", encoding="utf-8") as arquivo:
+            return str(json.load(arquivo).get("ap_senha") or "").strip()
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def validar_firmware(dados):
+    """Mensagem de erro ou "" se o arquivo parece um .ino.bin do ESP32."""
+    if not dados:
+        return "Nenhum arquivo recebido."
+    if len(dados) > TAMANHO_MAX_FIRMWARE:
+        return ("Arquivo grande demais para o controlador — use o controle_producao_horimetro.ino.bin "
+                "(não o .merged.bin nem o .bootloader.bin).")
+    if dados[0] != 0xE9 or len(dados) < 64 * 1024:
+        return ("Este arquivo não é um firmware do ESP32. Use o controle_producao_horimetro.ino.bin "
+                "(Arduino IDE → Sketch → Exportar binário compilado), não o .merged.bin.")
+    return ""
+
+
+def _multipart(nome_arquivo, dados):
+    limite = "----painelsantex" + os.urandom(8).hex()
+    nome = re.sub(r'[^A-Za-z0-9._-]', "_", nome_arquivo or "firmware.bin")[:80]
+    inicio = (f"--{limite}\r\nContent-Disposition: form-data; name=\"firmware\"; filename=\"{nome}\"\r\n"
+              "Content-Type: application/octet-stream\r\n\r\n").encode("ascii")
+    return limite, inicio + dados + f"\r\n--{limite}--\r\n".encode("ascii")
+
+
+def _resumo_versao(info):
+    return {"versao": str(info.get("versao") or "?"), "compilado": str(info.get("firmware") or "")}
+
+
+def atualizar_firmware_esp(status, dados, nome_arquivo="firmware.bin", dir_dados=DIR_DADOS_PADRAO,
+                           espera_s=ESPERA_VOLTA_FIRMWARE_S):
+    """Envia o firmware ao ESP32 e espera ele voltar. Devolve {"ok",
+    "mensagem", "antes", "depois", "endereco"}. Uma atualizacao por vez."""
+    erro = validar_firmware(dados)
+    if erro:
+        return {"ok": False, "mensagem": erro}
+    if status.get("modo") != "wifi":
+        return {"ok": False, "mensagem": "Disponível só com a leitura pelo Wi-Fi."}
+    senha = _senha_equipamento(dir_dados)
+    if not senha:
+        return {"ok": False, "mensagem": "A senha do equipamento não está no aplicativo — rode "
+                "python ferramentas/gerar_segredos.py e gere o .exe de novo."}
+    if not _trava_firmware.acquire(blocking=False):
+        return {"ok": False, "mensagem": "Já há uma atualização de firmware em andamento."}
+    try:
+        endereco, antes, ultimo_erro = None, None, "nenhum endereço configurado"
+        for candidato in _candidatos_esp(status):
+            try:
+                antes = _json_do_esp(candidato, "/info")
+                endereco = candidato
+                break
+            except Exception as e:  # noqa: BLE001 - tenta o proximo endereco
+                ultimo_erro = f"{candidato}: {e}"
+        if not endereco:
+            return {"ok": False, "mensagem": f"O controlador não respondeu ({ultimo_erro})."}
+        limite, corpo = _multipart(nome_arquivo, dados)
+        req = Request(f"http://{endereco}/atualizar", data=corpo, method="POST",
+                      headers={"Content-Type": f"multipart/form-data; boundary={limite}", "X-Senha": senha})
+        try:
+            with urlopen(req, timeout=TIMEOUT_ENVIO_FIRMWARE_S) as resp:
+                resposta = resp.read().decode("utf-8", errors="replace")
+        except HTTPError as e:
+            texto = e.read().decode("utf-8", errors="replace").strip()
+            if e.code == 404:
+                return {"ok": False, "mensagem": "O firmware deste controlador não aceita atualização pelo Wi-Fi "
+                        "(precisa do 3.2 ou mais novo, gravado uma vez pela USB)."}
+            if e.code == 403:
+                return {"ok": False, "mensagem": "O controlador recusou a senha do equipamento (AP_SENHA do .env "
+                        "diferente da gravada no firmware). Nada foi alterado."}
+            return {"ok": False, "mensagem": texto or f"O controlador respondeu HTTP {e.code}. O firmware atual continua."}
+        except _ERROS_DE_REDE as e:
+            return {"ok": False, "mensagem": f"A conexão com o controlador caiu durante o envio ({e}). "
+                    "O firmware atual continua; tente de novo."}
+        # o ESP32 reinicia ~1,5 s depois de responder: espera ele voltar
+        fim = time.monotonic() + espera_s
+        time.sleep(4)
+        depois = None
+        while time.monotonic() < fim:
+            try:
+                depois = _json_do_esp(endereco, "/info")
+                break
+            except Exception:  # noqa: BLE001 - ainda reiniciando
+                time.sleep(2)
+        r = {"endereco": endereco, "antes": _resumo_versao(antes), "resposta": resposta}
+        if depois is None:
+            return {**r, "ok": True, "mensagem": "Firmware enviado, mas o controlador ainda não voltou a responder. "
+                    "Aguarde um minuto e atualize o diagnóstico."}
+        r["depois"] = _resumo_versao(depois)
+        mudou = r["depois"] != r["antes"]
+        return {**r, "ok": True, "mensagem": (
+            f"Firmware atualizado: {r['antes']['versao']} → {r['depois']['versao']} "
+            f"(compilado em {r['depois']['compilado']})." if mudou else
+            f"O controlador voltou com o mesmo firmware ({r['depois']['versao']}, compilado em "
+            f"{r['depois']['compilado']}) — o arquivo enviado era o mesmo já gravado?")}
+    finally:
+        _trava_firmware.release()
 
 
 def main():
