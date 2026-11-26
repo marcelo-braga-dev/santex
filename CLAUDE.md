@@ -22,6 +22,15 @@ o desenvolvimento no notebook (Windows).
 
 Documentação: `README.md`, `docs/` (`nuvem-vps.md` = acesso remoto e edição remota), `CHANGELOG.md`.
 
+## Versão 2.0 em desenvolvimento (desde 26/11/2026)
+
+A `main` tem a 2.0 em andamento: vários setores e ~50 ESP32 (um por
+máquina). **Produção = tag `v1.7.5`.** Antes de continuar, leia
+`docs/progresso-2.0.md` (onde parou, próxima etapa, cuidados) e
+`docs/plano-2.0.md` (plano completo e decisões). **Não faça deploy da `main`
+na VPS nem gere o `.exe` da fábrica a partir dela** até a 2.0 ser liberada.
+Ao fim de cada sessão, atualize `docs/progresso-2.0.md`.
+
 ## Regras do projeto
 
 - **Commits direto na `main`**, sem branches; versões por tag (`v1.0.0` é
@@ -51,7 +60,7 @@ Documentação: `README.md`, `docs/` (`nuvem-vps.md` = acesso remoto e edição 
 ## Testes e build
 
 ```
-python -m unittest discover -s testes -v      # 45 testes, pasta temporária
+python -m unittest discover -s testes -v      # 59 testes, pasta temporária
 python ferramentas/gerar_segredos.py          # .env -> segredos.h + app/segredos_app.json
 gerar\gerar.bat                               # menu: .exe da fábrica / .exe remoto / pacote VPS -> distribuir\
 python gerar/exe_fabrica.py                   # (ou cada um direto)

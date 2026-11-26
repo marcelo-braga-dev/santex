@@ -236,7 +236,22 @@ CREATE TABLE IF NOT EXISTS turnos (
     dias TEXT,
     PRIMARY KEY (setor, ordem)
 );
+
+-- 2.0: cadastro de setores (criados e editados pelo painel). "setor" e o
+-- slug gravado em todas as outras tabelas - nunca muda depois de criado.
+CREATE TABLE IF NOT EXISTS setores (
+    setor TEXT PRIMARY KEY,
+    nome TEXT NOT NULL,
+    tipo_coleta TEXT NOT NULL DEFAULT 'multi',
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativo INTEGER NOT NULL DEFAULT 1,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
 """
+
+# Setor que ja existia antes da 2.0 (todos os dados da 1.x sao dele): entra
+# sozinho no cadastro de setores na primeira abertura da 2.0.
+SETOR_INICIAL = ("enfestadeiras", "Enfestadeiras", "multi")
 
 
 def _padrao_serie(dispositivo):
@@ -259,6 +274,7 @@ class BancoDados:
             self._conn.executescript(_ESQUEMA)
         self._migrar_colunas_origem()
         self._migrar_csv_antigo_se_existir()
+        self._semear_setores()
 
     # -- ciclos ---------------------------------------------------------
 
@@ -606,6 +622,62 @@ class BancoDados:
         with self._lock:
             return [dict(l) for l in self._conn.execute(
                 "SELECT quando, origem, autor, chave, resumo FROM alteracoes ORDER BY id DESC LIMIT ?", (limite,))]
+
+    # -- setores (2.0) ---------------------------------------------------------
+
+    def listar_setores(self, incluir_inativos=True):
+        """[{"setor", "nome", "tipoColeta", "ordem", "ativo", "criadoEm"}] na
+        ordem do seletor."""
+        with self._lock:
+            linhas = self._conn.execute(
+                "SELECT setor, nome, tipo_coleta, ordem, ativo, criado_em FROM setores "
+                + ("" if incluir_inativos else "WHERE ativo = 1 ") + "ORDER BY ordem, nome"
+            ).fetchall()
+        return [{"setor": l["setor"], "nome": l["nome"], "tipoColeta": l["tipo_coleta"], "ordem": l["ordem"],
+                 "ativo": bool(l["ativo"]), "criadoEm": l["criado_em"]} for l in linhas]
+
+    def obter_setor(self, setor):
+        return next((s for s in self.listar_setores() if s["setor"] == setor), None)
+
+    def salvar_setor(self, setor, nome, tipo_coleta, ordem, ativo):
+        """Cria ou atualiza (o slug nunca muda: e a chave)."""
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO setores (setor, nome, tipo_coleta, ordem, ativo) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(setor) DO UPDATE SET nome = excluded.nome, tipo_coleta = excluded.tipo_coleta, "
+                "ordem = excluded.ordem, ativo = excluded.ativo",
+                (setor, nome, tipo_coleta, int(ordem), 1 if ativo else 0),
+            )
+
+    def setor_tem_dados(self, setor):
+        """True se o setor tem ciclos ou maquinas - entao so pode ser
+        desativado, nunca apagado."""
+        with self._lock:
+            return any(
+                self._conn.execute(f"SELECT 1 FROM {tabela} WHERE setor = ? LIMIT 1", (setor,)).fetchone()
+                for tabela in ("ciclos", "maquinas")
+            )
+
+    def apagar_setor(self, setor):
+        """Apaga do cadastro (e a configuracao que ele tiver) - so setor sem
+        ciclos nem maquinas. Devolve True se apagou."""
+        if self.setor_tem_dados(setor):
+            return False
+        with self._lock, self._conn:
+            for tabela in ("config_setor", "turnos", "config_extra", "estado_ao_vivo"):
+                self._conn.execute(f"DELETE FROM {tabela} WHERE setor = ?", (setor,))
+            return self._conn.execute("DELETE FROM setores WHERE setor = ?", (setor,)).rowcount > 0
+
+    def _semear_setores(self):
+        """Banco sem nenhum setor cadastrado (vindo da 1.x ou novo): cadastra
+        o setor inicial, dono de todos os dados anteriores. Nada mais muda."""
+        with self._lock, self._conn:
+            if self._conn.execute("SELECT 1 FROM setores LIMIT 1").fetchone():
+                return
+            slug, nome, tipo = SETOR_INICIAL
+            self._conn.execute(
+                "INSERT INTO setores (setor, nome, tipo_coleta, ordem, ativo) VALUES (?, ?, ?, 0, 1)", (slug, nome, tipo)
+            )
 
     # -- migracao do formato antigo ---------------------------------------
 

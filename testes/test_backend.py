@@ -83,16 +83,16 @@ class TesteBanco(unittest.TestCase):
         self.assertEqual(b.total_ciclos("s"), 2)
 
     def test_motivos_de_parada_sao_salvos_e_sincronizados(self):
-        # 1.3.0: motivos de parada = chave nova em config_extra, versionada como as outras
+        # (2.0: o setor precisa estar no cadastro - o legado esta sempre) 1.3.0: motivos de parada = chave nova em config_extra, versionada como as outras
         import nuvem
         from banco_dados import normalizar_extras
         b = novo_banco()
         motivos = {"catalogo": [{"id": "material", "nome": "Falta de material", "cor": "#d0453a"}],
                    "marcas": {"2|1763546400": {"m": "material", "obs": "rolo"}}}
-        b.salvar_extras("s", normalizar_extras({"motivos": motivos, "desconhecida": {"x": 1}}))
-        self.assertEqual(b.obter_extras("s"), {"motivos": motivos})
+        b.salvar_extras("enfestadeiras", normalizar_extras({"motivos": motivos, "desconhecida": {"x": 1}}))
+        self.assertEqual(b.obter_extras("enfestadeiras"), {"motivos": motivos})
         self.assertTrue(nuvem.chave_item_valida("extras:motivos"))
-        self.assertEqual(nuvem.itens_atuais(b, "s")["extras:motivos"], motivos)
+        self.assertEqual(nuvem.itens_atuais(b, "enfestadeiras")["extras:motivos"], motivos)
         self.assertEqual(nuvem.nome_item("extras:motivos"), "Motivos de parada")
         # taxa na auditoria em metros por hora (guardada em m/min)
         self.assertIn("2000 m/h", nuvem.resumo_item("maquina:1", {"nome": "E1", "metrosPorMin": 2000 / 60}))
@@ -121,11 +121,11 @@ class TesteBanco(unittest.TestCase):
         b = novo_banco()
         sp = {"regra": {"minutos": 30, "pausaMax": 10},
               "periodos": [{"id": "abc123", "maquina": 2, "inicio": 1795000000000, "fim": None, "origemFim": None, "motivo": "Manutenção"}]}
-        b.salvar_extras("s", normalizar_extras({"semProducao": sp}))
-        self.assertEqual(b.obter_extras("s")["semProducao"], sp)
+        b.salvar_extras("enfestadeiras", normalizar_extras({"semProducao": sp}))
+        self.assertEqual(b.obter_extras("enfestadeiras")["semProducao"], sp)
         self.assertNotIn("semProducao", b.obter_extras("outro"))  # por setor (nao e geral)
         self.assertTrue(nuvem.chave_item_valida("extras:semProducao"))
-        self.assertEqual(nuvem.itens_atuais(b, "s")["extras:semProducao"], sp)
+        self.assertEqual(nuvem.itens_atuais(b, "enfestadeiras")["extras:semProducao"], sp)
         self.assertEqual(nuvem.nome_item("extras:semProducao"), "Máquinas sem produção")
 
     def test_notebook_e_segunda_fonte_do_estado_ao_vivo(self):
@@ -136,27 +136,27 @@ class TesteBanco(unittest.TestCase):
         ao_vivo = {"contato_s": 3, "maquinas": [{"maquina": 1, "ligado": True, "segundos": 120}]}
         # ESP32 enviou agora: o notebook nao sobrescreve
         nuvem._atualizar_status(pasta, ultimo_contato=nuvem._agora_iso())
-        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": ao_vivo}, "s")
+        r = nuvem.receber_historico(b, pasta, {"setor": "enfestadeiras", "ciclos": [], "ao_vivo": ao_vivo}, "enfestadeiras")
         self.assertFalse(r["ao_vivo_aplicado"])
         self.assertLessEqual(r["esp_direto_s"], 2)
-        self.assertEqual(b.obter_estado_ao_vivo("s"), {})
+        self.assertEqual(b.obter_estado_ao_vivo("enfestadeiras"), {})
         self.assertEqual(nuvem.status_nuvem(pasta)["fonte"], "esp")
         # ESP32 sem enviar ha 5 min: vale o notebook e o status diz a fonte
         velho = (dt.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
         nuvem._atualizar_status(pasta, ultimo_contato=velho)
-        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": ao_vivo}, "s")
+        r = nuvem.receber_historico(b, pasta, {"setor": "enfestadeiras", "ciclos": [], "ao_vivo": ao_vivo}, "enfestadeiras")
         self.assertTrue(r["ao_vivo_aplicado"])
         self.assertGreaterEqual(r["esp_direto_s"], 290)
-        self.assertTrue(b.obter_estado_ao_vivo("s")["1"]["ligado"])
+        self.assertTrue(b.obter_estado_ao_vivo("enfestadeiras")["1"]["ligado"])
         st = nuvem.status_nuvem(pasta)
         self.assertEqual((st["fonte"], st["estado"], st["rodando"]), ("notebook", "conectado", True))
         # leitura do notebook velha demais: nao vale
         nuvem._atualizar_status(pasta, ultimo_contato_notebook=velho)
-        r = nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": [], "ao_vivo": {**ao_vivo, "contato_s": 120}}, "s")
+        r = nuvem.receber_historico(b, pasta, {"setor": "enfestadeiras", "ciclos": [], "ao_vivo": {**ao_vivo, "contato_s": 120}}, "enfestadeiras")
         self.assertFalse(r["ao_vivo_aplicado"])
         self.assertEqual(nuvem.status_nuvem(pasta)["estado"], "sem_resposta")
         # sem "ao_vivo" (notebook antigo): resposta como antes
-        self.assertNotIn("esp_direto_s", nuvem.receber_historico(b, pasta, {"setor": "s", "ciclos": []}, "s"))
+        self.assertNotIn("esp_direto_s", nuvem.receber_historico(b, pasta, {"setor": "enfestadeiras", "ciclos": []}, "enfestadeiras"))
 
     def test_notebook_monta_o_estado_ao_vivo_que_leu_do_esp(self):
         import nuvem

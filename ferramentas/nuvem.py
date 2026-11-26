@@ -61,6 +61,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 
+import setores as cadastro_setores
 from banco_dados import normalizar_extras, normalizar_turnos
 from monitor_serial import SETOR_PADRAO
 from monitor_wifi import ARQUIVO_CHAVE_APP, _gravar_json, gravar_linhas_ciclos
@@ -188,13 +189,23 @@ def _aplicar_campos(banco, corpo, setor):
 # Itens versionados da configuracao (sincronizacao nas duas maos, 1.2.0)
 # ---------------------------------------------------------------------
 EXTRAS_SINCRONIZADOS = ("pausas", "calendario", "historico", "avisos", "visual", "motivos", "logo", "semProducao")
-_RE_CHAVE_ITEM = re.compile(r"^(maquina:\d{1,2}|meta_pct|turnos|extras:(pausas|calendario|historico|avisos|visual|motivos|logo|semProducao)"
-                            r"|senha_leitura|senha_edicao|edicao_remota)$")
+EXTRAS_DO_SETOR = ("pausas", "calendario", "historico", "avisos", "motivos", "semProducao")
+EXTRAS_GLOBAIS = ("visual", "logo")
+# 2.0: itens de configuracao por setor. Os do setor que ja existia na 1.x
+# continuam SEM prefixo ("maquina:1", "turnos" - o formato que a VPS 1.x
+# conhece); os dos outros setores levam o slug: "costura/maquina:1".
+# Itens globais (identidade visual, logo, senhas, edicao remota, cadastro de
+# setores) nunca tem prefixo.
+SETOR_LEGADO = SETOR_PADRAO
+_RE_ITEM_SETOR = re.compile(r"^(?:([a-z][a-z0-9-]{0,39})/)?"
+                            r"(maquina:\d{1,2}|meta_pct|turnos|extras:(?:pausas|calendario|historico|avisos|motivos|semProducao))$")
+_RE_ITEM_GLOBAL = re.compile(r"^(?:extras:(?:visual|logo)|senha_leitura|senha_edicao|edicao_remota|setores)$")
 _NOMES_ITEM = {
     "meta_pct": "Meta", "turnos": "Turnos", "extras:pausas": "Intervalos de refeição",
     "extras:calendario": "Calendário", "extras:historico": "Histórico de configurações",
     "extras:avisos": "Avisos", "extras:visual": "Identidade visual", "extras:motivos": "Motivos de parada", "extras:logo": "Logo da empresa", "extras:semProducao": "Máquinas sem produção",
     "senha_leitura": "Senha de visualização", "senha_edicao": "Senha de edição", "edicao_remota": "Edição remota",
+    "setores": "Setores",
 }
 _versao_config = {"v": time.time_ns()}
 
@@ -213,12 +224,37 @@ def _agora_utc():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
+def separar_chave(chave):
+    """"costura/maquina:3" -> ("costura", "maquina:3"); "turnos" -> (setor
+    legado, "turnos"); item global -> (None, chave); invalida -> (None, None)."""
+    chave = str(chave or "")
+    if _RE_ITEM_GLOBAL.match(chave):
+        return None, chave
+    m = _RE_ITEM_SETOR.match(chave)
+    if not m or m.group(1) == SETOR_LEGADO:  # o setor legado nunca leva prefixo
+        return None, None
+    return m.group(1) or SETOR_LEGADO, m.group(2)
+
+
+def chave_do_setor(setor, base):
+    return base if setor == SETOR_LEGADO else f"{setor}/{base}"
+
+
 def chave_item_valida(chave):
-    return bool(_RE_CHAVE_ITEM.match(str(chave or "")))
+    return separar_chave(chave)[1] is not None
+
+
+def _ordem_sync(itens):
+    """O cadastro de setores primeiro: os itens de um setor novo chegam
+    junto com ele."""
+    return sorted(itens.items(), key=lambda kv: kv[0] != "setores")
 
 
 def nome_item(chave):
-    return f"Máquina {chave.split(':', 1)[1]}" if chave.startswith("maquina:") else _NOMES_ITEM.get(chave, chave)
+    setor, base = separar_chave(chave)
+    base = base or chave
+    texto = f"Máquina {base.split(':', 1)[1]}" if base.startswith("maquina:") else _NOMES_ITEM.get(base, base)
+    return f"{setor} · {texto}" if setor and setor != SETOR_LEGADO else texto
 
 
 def _segredo_json(banco, chave):
@@ -234,21 +270,29 @@ def _dados_hash(banco, chave):
     return dados if _hash_valido(dados.get("hash")) else {}
 
 
-def itens_atuais(banco, setor):
-    """{chave: valor} de toda a configuracao versionada."""
+def itens_atuais(banco, setor=None):
+    """{chave: valor} de toda a configuracao versionada - de TODOS os setores
+    do cadastro (2.0) mais os itens globais. ("setor" ficou so por
+    compatibilidade com quem chama.)"""
     itens = {}
-    for n, m in banco.obter_maquinas(setor).items():
-        itens[f"maquina:{n}"] = {"nome": m["nome"], "metrosPorMin": m["metrosPorMin"]}
-    meta = banco.obter_meta_pct_dia(setor)
-    if meta is not None:
-        itens["meta_pct"] = meta
-    turnos = banco.obter_turnos(setor)
-    if turnos:
-        itens["turnos"] = turnos
-    extras = banco.obter_extras(setor)
-    for k in EXTRAS_SINCRONIZADOS:
-        if k in extras:
-            itens[f"extras:{k}"] = extras[k]
+    slugs = [s["setor"] for s in banco.listar_setores()]
+    for slug in slugs:
+        for n, m in banco.obter_maquinas(slug).items():
+            itens[chave_do_setor(slug, f"maquina:{n}")] = {"nome": m["nome"], "metrosPorMin": m["metrosPorMin"]}
+        meta = banco.obter_meta_pct_dia(slug)
+        if meta is not None:
+            itens[chave_do_setor(slug, "meta_pct")] = meta
+        turnos = banco.obter_turnos(slug)
+        if turnos:
+            itens[chave_do_setor(slug, "turnos")] = turnos
+        extras = banco.obter_extras(slug)
+        for k in EXTRAS_DO_SETOR:
+            if k in extras:
+                itens[chave_do_setor(slug, f"extras:{k}")] = extras[k]
+    globais = banco.obter_extras(slugs[0] if slugs else SETOR_LEGADO)
+    for k in EXTRAS_GLOBAIS:
+        if k in globais:
+            itens[f"extras:{k}"] = globais[k]
     for chave, segredo in (("senha_leitura", SEGREDO_SENHA_REMOTA), ("senha_edicao", SEGREDO_SENHA_EDICAO)):
         dados = _dados_hash(banco, segredo)
         if dados:
@@ -256,6 +300,7 @@ def itens_atuais(banco, setor):
     er = _segredo_json(banco, SEGREDO_EDICAO_REMOTA)
     if er:
         itens["edicao_remota"] = {"ativa": bool(er.get("ativa", True))}
+    itens["setores"] = cadastro_setores.lista_para_sync(banco)  # 2.0: cadastro de setores (global)
     return itens
 
 
@@ -264,7 +309,12 @@ def ler_item(banco, setor, chave):
 
 
 def gravar_item(banco, setor, chave, valor):
-    """Grava um item vindo da sincronizacao nas tabelas de sempre."""
+    """Grava um item vindo da sincronizacao nas tabelas de sempre. O setor
+    vem da propria chave ("costura/turnos"); sem prefixo = setor legado."""
+    alvo, chave = separar_chave(chave)
+    if chave is None:
+        raise ValueError("chave de configuracao invalida")
+    setor = alvo or setor
     if chave.startswith("maquina:") and isinstance(valor, dict):
         n = int(chave.split(":", 1)[1])
         try:
@@ -288,6 +338,8 @@ def gravar_item(banco, setor, chave, valor):
     elif chave == "edicao_remota":
         ativa = bool(valor.get("ativa", True)) if isinstance(valor, dict) else bool(valor)
         banco.salvar_segredo(SEGREDO_EDICAO_REMOTA, json.dumps({"ativa": ativa}))
+    elif chave == "setores":
+        cadastro_setores.aplicar_lista(banco, valor)
     _tocar_config()
 
 
@@ -296,6 +348,7 @@ def _igual(a, b):
 
 
 def resumo_item(chave, valor):
+    chave = separar_chave(chave)[1] or chave
     try:
         if chave.startswith("maquina:"):
             return f"{valor['nome']} · {round(float(valor['metrosPorMin']) * 60, 1):g} m/h"
@@ -307,6 +360,8 @@ def resumo_item(chave, valor):
             return "alterada"
         if chave == "edicao_remota":
             return "ligada" if valor.get("ativa", True) else "desligada"
+        if chave == "setores":
+            return ", ".join(s["nome"] + ("" if s.get("ativo", True) else " (desativado)") for s in valor)
     except (KeyError, TypeError, ValueError, AttributeError):
         pass
     return "alterado"
@@ -328,6 +383,24 @@ def registrar_mudancas(banco, antes, depois, origem, autor):
         banco.registrar_alteracao(agora, origem, autor, c, f"{nome_item(c)}: {resumo_item(c, depois[c])}")
     _tocar_config()
     return mudou
+
+
+@_em_ordem
+def alterar_setores(banco, acao, dados, origem, autor):
+    """2.0: criar/editar/apagar um setor pelo painel (aqui ou na VPS), com
+    revisao e auditoria do item global "setores" - assim a mudanca chega ao
+    outro lado. ErroSetor (ValueError) se o pedido for invalido."""
+    antes = itens_atuais(banco, SETOR_PADRAO)
+    if acao == "criar":
+        resultado = cadastro_setores.criar(banco, dados)
+    elif acao == "editar":
+        resultado = cadastro_setores.editar(banco, dados)
+    elif acao == "apagar":
+        resultado = cadastro_setores.apagar(banco, dados.get("setor"))
+    else:
+        raise cadastro_setores.ErroSetor("Ação inválida.")
+    registrar_mudancas(banco, antes, itens_atuais(banco, SETOR_PADRAO), origem, autor)
+    return resultado
 
 
 def itens_de_corpo_legado(corpo):
@@ -453,7 +526,7 @@ def sincronizar_config(banco, dir_dados, corpo, setor_padrao):
         rev_conhecida = 0
     itens = corpo.get("itens") if isinstance(corpo.get("itens"), dict) else {}
     aceitos, rejeitados = [], []
-    for chave, info in itens.items():
+    for chave, info in _ordem_sync(itens):
         if not chave_item_valida(chave) or not isinstance(info, dict):
             continue
         atual = banco.obter_rev(chave)
@@ -508,7 +581,9 @@ def aplicar_ao_vivo_notebook(banco, dir_dados, setor, ao_vivo):
     campos = {"notebook_visto_em": _agora_iso()}
     aplicou = False
     if contato_s <= AO_VIVO_MAX_IDADE_S:
-        idade_esp = _idade_s(_ler_status(dir_dados).get("ultimo_contato", ""))
+        # o ESP32 multi (firmware 3.x) so envia direto o setor legado; nos
+        # outros setores o notebook e a unica fonte do estado ao vivo
+        idade_esp = _idade_s(_ler_status(dir_dados).get("ultimo_contato", "")) if setor == SETOR_LEGADO else None
         if idade_esp is None or idade_esp > contato_s + 2:
             for m in ao_vivo.get("maquinas") or []:
                 try:
@@ -525,7 +600,9 @@ def aplicar_ao_vivo_notebook(banco, dir_dados, setor, ao_vivo):
 def receber_historico(banco, dir_dados, corpo, setor_padrao):
     """VPS: grava um lote do historico enviado pelo notebook. Lote vazio so
     devolve o total (o notebook usa para conferir se falta algo)."""
-    setor = str(corpo.get("setor", setor_padrao))[:40]
+    setor = str(corpo.get("setor") or setor_padrao)[:40]
+    if not cadastro_setores.slug_valido(setor):
+        raise ValueError("setor invalido")
     linhas = corpo.get("ciclos") or []
     if not isinstance(linhas, list) or len(linhas) > MAX_HISTORICO_POR_ENVIO:
         raise ValueError("lote invalido ou grande demais")
@@ -864,10 +941,15 @@ class EnviadorConfig:
             return {**self._status, "historico": dict(self._status["historico"]), "ao_vivo": dict(self._status["ao_vivo"])}
 
     # -- estado ao vivo -> VPS (1.7.0: notebook como segunda fonte) ---------
-    def corpo_ao_vivo(self):
+    def _setores_envio(self):
+        """Setores do cadastro (2.0) - o legado sempre primeiro."""
+        slugs = [s["setor"] for s in self.banco.listar_setores()]
+        return sorted(slugs, key=lambda s: s != self.setor)
+
+    def corpo_ao_vivo(self, setor=None):
         """{"contato_s", "maquinas": [{maquina, ligado, segundos}]} com o que o
         notebook leu do ESP32 (ou None se nao tiver leitura recente)."""
-        estado = self.banco.obter_estado_ao_vivo(self.setor)
+        estado = self.banco.obter_estado_ao_vivo(setor or self.setor)
         agora = datetime.now()
         maquinas, idades = [], []
         for num, m in estado.items():
@@ -885,44 +967,69 @@ class EnviadorConfig:
         return {"contato_s": max(0, min(idades)), "maquinas": maquinas}
 
     def enviar_ao_vivo(self):
-        """Manda o estado ao vivo. Devolve True se a VPS disse que o ESP32
-        esta sem enviar direto (o laco passa a rodar a cada 5 s)."""
+        """Manda o estado ao vivo de cada setor com leitura recente. Devolve
+        True se o laco deve rodar a cada 5 s: a VPS disse que o ESP32 do setor
+        legado esta sem enviar direto, ou ha outro setor com estado ao vivo (2.0:
+        nesses o notebook e a unica fonte da VPS)."""
         cfg = config_nuvem_app(self.dir_dados)
-        corpo = self.corpo_ao_vivo() if cfg["url"] else None
-        if corpo is None:
+        if not cfg["url"]:
             return False
-        try:
-            req = urllib.request.Request(
-                cfg["url"] + "/api/nuvem/historico", method="POST",
-                data=json.dumps({"setor": self.setor, "ciclos": [], "ao_vivo": corpo}).encode("utf-8"),
-                headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
-            with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
-                r = json.loads(resp.read().decode("utf-8"))
-        except (OSError, ValueError, HTTPError) as erro:
+        rapido = False
+        for setor in self._setores_envio():
+            corpo = self.corpo_ao_vivo(setor)
+            if corpo is None:
+                continue
+            try:
+                req = urllib.request.Request(
+                    cfg["url"] + "/api/nuvem/historico", method="POST",
+                    data=json.dumps({"setor": setor, "ciclos": [], "ao_vivo": corpo}).encode("utf-8"),
+                    headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
+                with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
+                    r = json.loads(resp.read().decode("utf-8"))
+            except (OSError, ValueError, HTTPError) as erro:
+                with self._trava:
+                    self._status["ao_vivo"].update(erro=f"{type(erro).__name__}: {erro}")
+                return rapido
+            if setor != self.setor:
+                rapido = True
+                continue
+            esp_s = r.get("esp_direto_s") if "esp_direto_s" in r else 0  # VPS antiga: nao sabe -> ritmo normal
+            rapido = rapido or esp_s is None or esp_s > ESP_SEM_ENVIAR_S
             with self._trava:
-                self._status["ao_vivo"].update(erro=f"{type(erro).__name__}: {erro}")
-            return False
-        esp_s = r.get("esp_direto_s") if "esp_direto_s" in r else 0  # VPS antiga: nao sabe -> ritmo normal
-        atrasado = esp_s is None or esp_s > ESP_SEM_ENVIAR_S
-        with self._trava:
-            self._status["ao_vivo"].update(ultimo_envio=_agora_iso(), esp_direto_s=esp_s, repassando=bool(r.get("ao_vivo_aplicado")), erro="")
-        return atrasado
+                self._status["ao_vivo"].update(ultimo_envio=_agora_iso(), esp_direto_s=esp_s,
+                                               repassando=bool(r.get("ao_vivo_aplicado")), erro="")
+        return rapido
 
     def _atualizar_historico(self, **campos):
         with self._trava:
             self._status["historico"].update(campos)
 
     # -- historico de ciclos -> VPS ---------------------------------------
-    def _cursor(self, url):
-        """Ate qual id local a VPS confirmou (por URL: trocar a VPS recomeca)."""
+    def _dados_cursor(self, url):
         try:
             dados = json.loads(self.banco.obter_segredo(CURSOR_HISTORICO) or "{}")
         except ValueError:
             dados = {}
-        return int(dados.get("ate", 0)) if dados.get("url") == url else 0
+        if not isinstance(dados, dict) or dados.get("url") != url:
+            return {"url": url, "ate": 0, "setores": {}}
+        return dados
 
-    def _salvar_cursor(self, url, ate):
-        self.banco.salvar_segredo(CURSOR_HISTORICO, json.dumps({"url": url, "ate": int(ate)}))
+    def _cursor(self, url, setor=None):
+        """Ate qual id local a VPS confirmou, por setor (por URL: trocar a VPS
+        recomeca). O setor legado fica em "ate" (formato da 1.x); os outros
+        (2.0) em "setores"."""
+        dados = self._dados_cursor(url)
+        if (setor or self.setor) == self.setor:
+            return int(dados.get("ate", 0))
+        return int((dados.get("setores") or {}).get(setor, 0))
+
+    def _salvar_cursor(self, url, ate, setor=None):
+        dados = self._dados_cursor(url)
+        if (setor or self.setor) == self.setor:
+            dados["ate"] = int(ate)
+        else:
+            dados.setdefault("setores", {})[setor] = int(ate)
+        self.banco.salvar_segredo(CURSOR_HISTORICO, json.dumps(dados))
 
     def _vps_completa_hora(self, cfg):
         """True se a VPS responde ao ping com versao >= 1.7.1 (a que completa
@@ -936,8 +1043,8 @@ class EnviadorConfig:
         except (OSError, ValueError, HTTPError):
             return False
 
-    def _post_historico(self, cfg, linhas):
-        corpo = json.dumps({"setor": self.setor, "ciclos": linhas}, ensure_ascii=False).encode("utf-8")
+    def _post_historico(self, cfg, linhas, setor=None):
+        corpo = json.dumps({"setor": setor or self.setor, "ciclos": linhas}, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(cfg["url"] + "/api/nuvem/historico", data=corpo, method="POST",
                                      headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
         with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
@@ -964,32 +1071,20 @@ class EnviadorConfig:
                     self.banco.salvar_segredo(REENVIO_HORA, url)
                 else:
                     self._proximo_teste_reenvio = time.monotonic() + 600
-            total_local = self.banco.total_ciclos(self.setor)
             if conferir is None:
                 conferir = time.monotonic() - self._ultima_conferencia > self.CONFERIR_TOTAIS_S
-            if conferir and ate > 0:
-                # a VPS ainda tem tudo o que ja foi enviado? (lote vazio = so o total)
-                total_nuvem = self._post_historico(cfg, [])["total"]
-                self._ultima_conferencia = time.monotonic()
-                self._atualizar_historico(total_nuvem=total_nuvem)
-                if total_nuvem < self.banco.total_ciclos(self.setor) - self.banco.total_ciclos(self.setor, ate):
-                    ate = 0  # faltam ciclos que ja tinham ido: reenvia tudo (a VPS nao duplica)
-                    self._salvar_cursor(url, 0)
-            gravados = 0
-            for _ in range(self.LOTES_POR_RODADA):
-                lote = self.banco.ciclos_para_nuvem(self.setor, ate, MAX_HISTORICO_POR_ENVIO)
-                if not lote:
-                    break
-                linhas = [[c["id"], c["maquina"], c["ciclo"], c["inicio_ms"], c["fim_ms"], c["duracao_s"],
-                           c["obs"], c["gravado_em"], c["dispositivo"], c["origem_id"]] for c in lote]
-                resposta = self._post_historico(cfg, linhas)
-                gravados += int(resposta.get("gravados", 0))
-                ate = lote[-1]["id"]
-                self._salvar_cursor(url, ate)
-                self._atualizar_historico(total_nuvem=resposta.get("total"), ultimo_envio=_agora_iso())
+            gravados, pendentes = 0, 0
+            for setor in self._setores_envio():
+                g, ate_setor = self._enviar_historico_setor(cfg, url, setor, ate if setor == self.setor else None, conferir)
+                gravados += g
+                pendentes += self.banco.total_ciclos(setor, ate_setor)
+                if setor == self.setor:
+                    ate = ate_setor
                 if self.parar_evento.is_set():
                     break
-            self._atualizar_historico(ate=ate, pendentes=self.banco.total_ciclos(self.setor, ate), erro="")
+            if conferir:
+                self._ultima_conferencia = time.monotonic()
+            self._atualizar_historico(ate=ate, pendentes=pendentes, erro="")
             return gravados
         except HTTPError as erro:
             if erro.code == 404:
@@ -1000,8 +1095,41 @@ class EnviadorConfig:
                 motivo = f"HTTP {erro.code}"
         except (OSError, ValueError, KeyError) as erro:
             motivo = f"sem conexão com a VPS ({erro})"
-        self._atualizar_historico(erro=motivo, pendentes=self.banco.total_ciclos(self.setor, self._cursor(url)))
+        self._atualizar_historico(erro=motivo, pendentes=sum(
+            self.banco.total_ciclos(st, self._cursor(url, st)) for st in self._setores_envio()))
         return None
+
+    def _enviar_historico_setor(self, cfg, url, setor, ate=None, conferir=False):
+        """Envia o que falta do historico de um setor. Devolve (ciclos
+        gravados na VPS, ate qual id local ela confirmou)."""
+        if ate is None:
+            ate = self._cursor(url, setor)
+        if conferir and ate > 0:
+            # a VPS ainda tem tudo o que ja foi enviado? (lote vazio = so o total)
+            total_nuvem = self._post_historico(cfg, [], setor)["total"]
+            if setor == self.setor:
+                self._atualizar_historico(total_nuvem=total_nuvem)
+            if total_nuvem < self.banco.total_ciclos(setor) - self.banco.total_ciclos(setor, ate):
+                ate = 0  # faltam ciclos que ja tinham ido: reenvia tudo (a VPS nao duplica)
+                self._salvar_cursor(url, 0, setor)
+        gravados = 0
+        for _ in range(self.LOTES_POR_RODADA):
+            lote = self.banco.ciclos_para_nuvem(setor, ate, MAX_HISTORICO_POR_ENVIO)
+            if not lote:
+                break
+            linhas = [[c["id"], c["maquina"], c["ciclo"], c["inicio_ms"], c["fim_ms"], c["duracao_s"],
+                       c["obs"], c["gravado_em"], c["dispositivo"], c["origem_id"]] for c in lote]
+            resposta = self._post_historico(cfg, linhas, setor)
+            gravados += int(resposta.get("gravados", 0))
+            ate = lote[-1]["id"]
+            self._salvar_cursor(url, ate, setor)
+            if setor == self.setor:
+                self._atualizar_historico(total_nuvem=resposta.get("total"), ultimo_envio=_agora_iso())
+            else:
+                self._atualizar_historico(ultimo_envio=_agora_iso())
+            if self.parar_evento.is_set():
+                break
+        return gravados, ate
 
     def _atualizar(self, **campos):
         with self._trava:
@@ -1078,7 +1206,7 @@ class EnviadorConfig:
             else:  # mudou de novo aqui: continua pendente, agora sobre a revisao nova
                 local = self.banco.obter_rev(chave) or {}
                 self.banco.marcar_rev(chave, r["rev"], local.get("editado_em", _agora_utc()), "notebook", "notebook", True)
-        for chave, r in itens.items():
+        for chave, r in _ordem_sync(itens):
             if chave in aceitos or not chave_item_valida(chave) or r.get("valor") is None:
                 continue
             local = self.banco.obter_rev(chave)

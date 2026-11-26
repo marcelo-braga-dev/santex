@@ -63,6 +63,7 @@ import backup_banco  # noqa: E402 (precisa do sys.path.insert acima)
 import monitor_serial  # noqa: E402
 import monitor_wifi  # noqa: E402
 import nuvem  # noqa: E402
+import setores as cadastro_setores  # noqa: E402
 from banco_dados import BancoDados, NOME_ARQUIVO, imagem_do_logo  # noqa: E402
 from monitor_serial import SETOR_PADRAO  # noqa: E402
 
@@ -77,9 +78,10 @@ _trava_leitura = threading.Lock()
 
 _TIPOS_EXTRAS = {".ico": "image/x-icon"}
 
-# CSV de /dados ja montado (e comprimido) para a versao atual dos ciclos -
-# varios aparelhos consultando a cada 5 s nao remontam o historico inteiro.
-_cache_csv = {"versao": None, "bruto": b"", "gzip": b""}
+# CSV de /dados ja montado (e comprimido) para a versao atual dos ciclos de
+# cada setor - varios aparelhos consultando a cada 5 s nao remontam o
+# historico inteiro. {setor: {"versao", "bruto", "gzip"}}
+_cache_csv = {}
 _trava_cache = threading.Lock()
 
 
@@ -193,13 +195,15 @@ def _eh_loopback(ip):
     return ip in _ENDERECOS_LOCAIS or ip.startswith("127.") or ip.startswith("::ffff:127.")
 
 
-def _csv_atual():
-    versao = banco.versao_ciclos(SETOR_PADRAO)
+def _csv_atual(setor):
+    versao = banco.versao_ciclos(setor)
     with _trava_cache:
-        if _cache_csv["versao"] != versao:
-            bruto = banco.csv_do_setor(SETOR_PADRAO).encode("utf-8")
-            _cache_csv.update({"versao": versao, "bruto": bruto, "gzip": gzip.compress(bruto, 6)})
-        return dict(_cache_csv)
+        atual = _cache_csv.get(setor)
+        if atual is None or atual["versao"] != versao:
+            bruto = banco.csv_do_setor(setor).encode("utf-8")
+            atual = {"versao": versao, "bruto": bruto, "gzip": gzip.compress(bruto, 6)}
+            _cache_csv[setor] = atual
+        return dict(atual)
 
 
 # ---------------------------------------------------------------------
@@ -496,7 +500,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         url = urlparse(self.path)
         consulta = parse_qs(url.query)
-        setor = consulta.get("setor", [SETOR_PADRAO])[0]
+        setor = cadastro_setores.resolver(banco, consulta.get("setor", [""])[0])
+        if setor is None and url.path in ("/dados", "/ao-vivo", "/config"):
+            self._responder_json({"ok": False, "erro": "setor_desconhecido",
+                                  "mensagem": "Setor não encontrado."}, status=404)
+            return
         if url.path == "/status":
             if MODO_NUVEM:
                 s = nuvem.status_nuvem(dir_dados_usuario())
@@ -517,7 +525,11 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/sincronizacao":
             self._responder_json(status_sincronizacao())
         elif url.path == "/dados":
-            self._responder_csv()
+            self._responder_csv(setor)
+        elif url.path == "/setores":
+            self._responder_json({"setores": banco.listar_setores(),
+                                  "padrao": cadastro_setores.setor_padrao(banco),
+                                  "tiposColeta": list(cadastro_setores.TIPOS_COLETA)})
         elif url.path == "/ao-vivo":
             rodando = nuvem.status_nuvem(dir_dados_usuario())["rodando"] if MODO_NUVEM else esta_rodando()
             self._responder_json({"rodando": rodando, "maquinas": banco.obter_estado_ao_vivo(setor)})
@@ -529,6 +541,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._responder_json(monitor_wifi.diagnostico_esp(status_sincronizacao()))
         elif url.path == "/config":
             config = nuvem.config_do_setor(banco, setor)
+            config["setor"] = setor
             if not MODO_NUVEM and self._pode_editar():  # notebook: situacao das senhas remotas (nunca o hash)
                 config["acessoRemoto"] = {**nuvem.status_senha_remota(banco),
                                           "url": nuvem.config_nuvem_app(dir_dados_usuario())["url"]}
@@ -605,13 +618,13 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 self.wfile.write(bloco)
 
-    def _responder_csv(self):
+    def _responder_csv(self, setor):
         """Historico completo em CSV. Com If-None-Match igual a versao atual
         responde 304 (sem corpo) - o painel consulta a cada 5 s, mas o
         historico so muda quando chega um ciclo novo. Comprimido com gzip
         quando o navegador aceita (CSV encolhe ~6x)."""
-        atual = _csv_atual()
-        etag = f'"{atual["versao"]}"'
+        atual = _csv_atual(setor)
+        etag = f'"{setor}-{atual["versao"]}"'
         if self.headers.get("If-None-Match", "") == etag:
             self.send_response(304)
             self.send_header("ETag", etag)
@@ -760,7 +773,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._responder_json({"ok": True, "senhas": nuvem.senhas_guardadas(banco)}, cors=False)
             return
-        if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao"):
+        if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao", "/setores"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -783,6 +796,8 @@ class Handler(BaseHTTPRequestHandler):
             self._responder_json({"rodando": esta_rodando()})
         elif rota == "/config":
             self._salvar_config()
+        elif rota == "/setores":
+            self._salvar_setores()
         elif rota == "/esp/acao":
             try:
                 corpo = self._corpo_json()
@@ -827,17 +842,43 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._responder_json(resposta)
 
+    def _origem_autor(self):
+        if MODO_NUVEM:
+            return "nuvem", f"edição remota ({self._ip_cliente()})"
+        # o proprio computador da fabrica, ou um aparelho da rede com o PIN
+        return "notebook", ("notebook" if _eh_este_computador(self.client_address[0])
+                            else f"rede local ({self.client_address[0]})")
+
+    def _salvar_setores(self):
+        """2.0: POST /setores {"acao": "criar"|"editar"|"apagar", ...}."""
+        try:
+            corpo = self._corpo_json()
+        except (ValueError, UnicodeDecodeError):
+            self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
+            return
+        origem, autor = self._origem_autor()
+        try:
+            setor = nuvem.alterar_setores(banco, str(corpo.get("acao", "")), corpo, origem, autor)
+        except cadastro_setores.ErroSetor as erro:
+            self._responder_json({"ok": False, "erro": str(erro)}, status=400)
+            return
+        if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima troca
+            threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
+        self._responder_json({"ok": True, "setor": setor, "setores": banco.listar_setores(),
+                              "padrao": cadastro_setores.setor_padrao(banco), "configRev": nuvem.versao_config()})
+
     def _salvar_config(self):
         try:
             corpo = self._corpo_json()
         except (ValueError, UnicodeDecodeError):
             self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
             return
-        origem = "nuvem" if MODO_NUVEM else "notebook"
-        if MODO_NUVEM:
-            autor = f"edição remota ({self._ip_cliente()})"
-        else:  # o proprio computador da fabrica, ou um aparelho da rede com o PIN
-            autor = "notebook" if _eh_este_computador(self.client_address[0]) else f"rede local ({self.client_address[0]})"
+        setor = cadastro_setores.resolver(banco, corpo.get("setor"))
+        if setor is None:
+            self._responder_json({"ok": False, "erro": "Setor não encontrado."}, status=404)
+            return
+        corpo["setor"] = setor
+        origem, autor = self._origem_autor()
         senhas = {papel: corpo[campo] for campo, papel in (("senhaRemota", "leitura"), ("senhaEdicao", "edicao"))
                   if campo in corpo}
         cabecalhos = {}

@@ -1,5 +1,18 @@
 # Histórico de versões
 
+## 2.0.0 — em desenvolvimento (vários setores e um ESP32 por máquina)
+
+Plano em `docs/plano-2.0.md`, andamento em `docs/progresso-2.0.md`. Ainda
+não liberada: produção continua na 1.7.5.
+
+- **Cadastro de setores** no banco (tabela `setores`): criar, renomear,
+  ordenar, desativar e apagar (só setor sem dados). As Enfestadeiras entram
+  sozinhas no cadastro, com todo o histórico. Rotas `GET/POST /setores`;
+  `/dados`, `/ao-vivo` e `/config` por setor.
+- **Sincronização com a VPS por setor**: configuração (chaves `setor/item`
+  para os setores novos; as Enfestadeiras no formato da 1.x), cadastro de
+  setores, histórico e estado ao vivo de todos os setores.
+
 ## 1.7.5 — Configurações em abas e histórico de notificações enxuto (app 1.7.5 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 
 - **Configurações em abas**: Produção (máquinas e meta, turnos/calendário/

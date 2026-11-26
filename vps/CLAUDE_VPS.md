@@ -11,6 +11,12 @@ o caminho usado hoje; este arquivo é `vps/CLAUDE_VPS.md`, e o `CLAUDE.md`
 da raiz aponta para cá) ou o pacote `painel-nuvem-<versão>.tar.gz` (este
 arquivo vira o `CLAUDE.md` dele). Guia humano equivalente: `docs/nuvem-vps.md`.
 
+> **⚠ 2.0 em desenvolvimento na `main` (desde 26/11/2026).** Produção =
+> tag **`v1.7.5`**. **Não instale a `main`** (`vps/instalar.sh`) até a 2.0
+> ser liberada. Para um deploy de correção da 1.7.x, use a tag dela
+> (`git checkout v1.7.x` e depois `sudo bash vps/instalar.sh`). Detalhes em
+> `docs/progresso-2.0.md`. Na dúvida, pergunte antes ao usuário.
+
 **Pedido mais comum: "faça o deploy" depois de um `git pull`** → vá direto
 para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das regras.
 
