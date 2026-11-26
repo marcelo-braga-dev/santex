@@ -124,6 +124,54 @@ class TesteSincronizacaoSetores(unittest.TestCase):
         nuvem.gravar_item(nb, "enfestadeiras", "setores", r["itens"]["setores"]["valor"])
         self.assertEqual(nb.obter_setor("costura")["nome"], "Costura Reta")
 
+    @staticmethod
+    def _troca(nb, vps, dir_vps, enviador, rev_conhecida):
+        """Uma rodada da sincronizacao sem rede: o que o EnviadorConfig manda,
+        a VPS aplica (sincronizar_config) e o notebook aplica a resposta."""
+        atuais = nuvem.itens_atuais(nb)
+        enviados = {p["chave"]: {"valor": atuais[p["chave"]], "base_rev": p["rev"], "editado_em": p["editado_em"]}
+                    for p in nb.pendentes() if p["chave"] in atuais}
+        r = nuvem.sincronizar_config(vps, dir_vps, {"versao": 2, "rev_conhecida": rev_conhecida, "itens": enviados},
+                                     "enfestadeiras")
+        enviador._aplicar_resposta("http://vps-teste", enviados, r)
+        return r
+
+    def test_setor_com_dados_mantido_pela_vps_volta_ao_notebook(self):
+        # VPS tem "Costura" com maquina; o notebook (sem saber dela) cria "Corte"
+        # e manda a lista dele. A VPS aceita mas nao apaga a Costura (tem
+        # dados) - o notebook junta a lista e os dois lados ficam iguais.
+        nb, vps = novo_banco(), novo_banco()
+        dir_vps, dir_nb = tempfile.mkdtemp(dir=TMP), tempfile.mkdtemp(dir=TMP)
+        enviador = nuvem.EnviadorConfig(nb, dir_nb, "enfestadeiras")
+        nuvem.alterar_setores(vps, "criar", {"nome": "Costura"}, "nuvem", "edição remota")
+        vps.salvar_maquina("costura", 1, "Reta 1", 0)
+        nuvem.alterar_setores(nb, "criar", {"nome": "Corte"}, "notebook", "notebook")
+        r = self._troca(nb, vps, dir_vps, enviador, 0)
+        self.assertIn("setores", r["aceitos"])
+        slugs = lambda b: sorted(s["setor"] for s in b.listar_setores())  # noqa: E731
+        self.assertEqual(slugs(vps), ["corte", "costura", "enfestadeiras"])
+        self.assertEqual(slugs(nb), slugs(vps))
+        self.assertFalse(nb.obter_rev("setores")["pendente"])
+
+    def test_setor_com_dados_mantido_no_notebook_volta_a_vps(self):
+        # o notebook tem "Tear" com maquina; chega da VPS uma lista sem ele: o
+        # Tear fica, o item volta a ficar pendente e a proxima troca leva a
+        # lista completa para a VPS
+        nb, vps = novo_banco(), novo_banco()
+        dir_vps, dir_nb = tempfile.mkdtemp(dir=TMP), tempfile.mkdtemp(dir=TMP)
+        enviador = nuvem.EnviadorConfig(nb, dir_nb, "enfestadeiras")
+        setores.criar(nb, {"nome": "Tear"})
+        nb.salvar_maquina("tear", 1, "Tear 1", 0)
+        nuvem.alterar_setores(vps, "editar", {"setor": "enfestadeiras", "nome": "Enfesto"}, "nuvem", "edição remota")
+        r = self._troca(nb, vps, dir_vps, enviador, 0)
+        self.assertEqual(nb.obter_setor("enfestadeiras")["nome"], "Enfesto")  # a edicao da VPS chegou
+        self.assertIsNotNone(nb.obter_setor("tear"))
+        self.assertTrue(nb.obter_rev("setores")["pendente"])
+        self._troca(nb, vps, dir_vps, enviador, r["rev_atual"])
+        self.assertIsNotNone(vps.obter_setor("tear"))
+        self.assertEqual(vps.obter_setor("enfestadeiras")["nome"], "Enfesto")
+        self.assertFalse(nb.obter_rev("setores")["pendente"])
+
 
 class TesteConfigPorSetor(unittest.TestCase):
     def test_chaves_com_setor(self):
@@ -297,8 +345,111 @@ class TesteRotasSetores(unittest.TestCase):
         self.assertEqual(self.pedir("/setores", {"acao": "apagar", "setor": "tecelagem"})[0], 400)
         st, r = self.pedir("/setores", {"acao": "editar", "setor": "tecelagem", "ativo": False})
         self.assertEqual((st, r["setor"]["ativo"]), (200, False))
+        # o painel recebe a contagem de maquinas e se o setor tem dados (botao Apagar)
+        tec = next(s for s in self.pedir("/setores")[1]["setores"] if s["setor"] == "tecelagem")
+        self.assertEqual((tec["maquinas"], tec["temDados"]), (1, True))
+        # /dados por setor: setor desconhecido = 404; rotas sem setor nao consultam o cadastro
+        self.assertEqual(self.pedir("/dados?setor=nao-existe")[0], 404)
+        self.assertEqual(self.pedir("/status?setor=nao-existe")[0], 200)
         servidor.banco.apagar_setor("tecelagem")  # sem efeito: tem maquina
         self.assertIsNotNone(servidor.banco.obter_setor("tecelagem"))
+
+
+def _extrair_tag(tag, destino):
+    """Copia app/, ferramentas/ e painel/ de uma tag do git para a pasta
+    temporaria (sem tocar no repositorio). False se o git ou a tag faltarem."""
+    import io
+    import subprocess
+    import tarfile
+    from test_nuvem import RAIZ
+    try:
+        tar = subprocess.run(["git", "-C", RAIZ, "archive", "--format=tar", tag, "app", "ferramentas", "painel"],
+                             capture_output=True, check=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    with tarfile.open(fileobj=io.BytesIO(tar)) as arq:
+        arq.extractall(destino, filter="data") if hasattr(tarfile, "data_filter") else arq.extractall(destino)
+    return True
+
+
+class TesteCompatibilidadeVps175(unittest.TestCase):
+    """Notebook 2.0 contra a VPS 1.7.5 de verdade (codigo da tag v1.7.5, em
+    processo separado e pasta temporaria): as Enfestadeiras seguem normais e
+    os itens dos setores novos ficam pendentes no notebook, sem erro."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        import time
+        from test_nuvem import CHAVE, porta_livre
+        cls.codigo = tempfile.mkdtemp(prefix="painel_v175_", dir=TMP)
+        if not _extrair_tag("v1.7.5", cls.codigo):
+            raise unittest.SkipTest("git ou tag v1.7.5 indisponivel")
+        cls.chave = CHAVE
+        cls.dados_vps = tempfile.mkdtemp(prefix="painel_vps175_dados_", dir=TMP)
+        porta = porta_livre()
+        env = {**os.environ, "PAINEL_MODO": "nuvem", "PAINEL_DADOS": cls.dados_vps,
+               "PAINEL_PORTA": str(porta), "NUVEM_CHAVE": CHAVE, "PYTHONIOENCODING": "utf-8"}
+        cls.proc = subprocess.Popen([sys.executable, os.path.join(cls.codigo, "ferramentas", "controle_leitura_server.py")],
+                                    env=env, cwd=cls.codigo, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.base = f"http://127.0.0.1:{porta}"
+        for _ in range(150):
+            try:
+                urllib.request.urlopen(cls.base + "/assets/logo.png", timeout=1).close()
+                break
+            except OSError:
+                time.sleep(0.1)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.proc.terminate()
+        cls.proc.wait(timeout=10)
+
+    def test_notebook_2_0_com_vps_1_7_5(self):
+        local = tempfile.mkdtemp(dir=TMP)
+        with open(os.path.join(local, "nuvem.json"), "w", encoding="utf-8") as f:
+            json.dump({"url": self.base, "chave": self.chave}, f)
+        b = type(novo_banco())(os.path.join(local, "painel.db"))
+        nuvem.alterar_setores(b, "criar", {"nome": "Costura", "tipoColeta": "unitario"}, "notebook", "notebook")
+        nuvem.aplicar_config(b, {"setor": "enfestadeiras", "maquinas": {"1": {"nome": "Enf 1", "metrosPorMin": 2}}},
+                             "enfestadeiras", origem="notebook", autor="notebook")
+        nuvem.aplicar_config(b, {"setor": "costura", "maquinas": {"3": {"nome": "Reta 3", "metrosPorMin": 1}}},
+                             "enfestadeiras", origem="notebook", autor="notebook")
+        enviador = nuvem.EnviadorConfig(b, local, "enfestadeiras")
+        self.assertTrue(enviador.enviar_agora())
+        self.assertTrue(enviador.enviar_agora())  # a segunda troca tambem nao quebra nada
+        pendentes = {p["chave"] for p in b.pendentes()}
+        self.assertNotIn("maquina:1", pendentes)  # Enfestadeiras: aceita pela VPS antiga
+        self.assertTrue({"setores", "costura/maquina:3"} <= pendentes)  # setor novo: espera a VPS 2.0
+        self.assertEqual(enviador.status()["erro"], "")
+        # historico: as Enfestadeiras chegam; o setor novo tambem e aceito (a 1.7.5 grava pelo nome)
+        b.gravar_ciclo_remoto("enfestadeiras", "AA-11111111", 1, 1, 1, "?", "?", 10.0, "", "2026-12-01 08:00:00")
+        b.gravar_ciclo_remoto("costura", "ESP01-SERIE001", 1, 3, 1, "?", "?", 20.0, "", "2026-12-01 09:00:00")
+        self.assertEqual(enviador.enviar_historico(conferir=False), 2)
+        vps = type(b)(os.path.join(self.dados_vps, "painel.db"))
+        self.assertEqual(vps.obter_maquinas("enfestadeiras")["1"]["nome"], "Enf 1")
+        self.assertEqual(vps.total_ciclos("enfestadeiras"), 1)
+
+
+class TesteGeradoresLevamOsModulos(unittest.TestCase):
+    """O .exe da fabrica e o pacote da VPS precisam levar todo modulo de
+    ferramentas/ que o servidor importa (a 2.0 criou o setores.py)."""
+
+    def test_modulos_importados_estao_nos_geradores(self):
+        import re
+        from test_nuvem import RAIZ
+        ler = lambda *p: open(os.path.join(RAIZ, *p), encoding="utf-8").read()  # noqa: E731
+        locais = {os.path.splitext(n)[0] for n in os.listdir(os.path.join(RAIZ, "ferramentas")) if n.endswith(".py")}
+        usados = set()
+        for arquivo in (("app", "servidor.py"), ("ferramentas", "nuvem.py"), ("ferramentas", "setores.py")):
+            usados |= {m for m in re.findall(r"^\s*(?:import|from)\s+(\w+)", ler(*arquivo), re.M) if m in locais}
+        exe, pacote = ler("gerar", "exe_fabrica.py"), ler("gerar", "pacote_vps.ps1")
+        for modulo in sorted(usados):
+            with self.subTest(modulo=modulo):
+                self.assertIn(f"ferramentas\\{modulo}.py", pacote)
+                self.assertRegex(exe, rf'"ferramentas",\s*"{modulo}\.py"')
+        self.assertIn(r'painel\js', pacote)
+        self.assertIn("'js'", exe)
 
 
 if __name__ == "__main__":

@@ -492,7 +492,9 @@ nem do hardware e pode começar já.
 | Mini-PC desligado | Painel parado (sem perda) | Energia protegida, início automático, BIOS Power On; alerta na VPS "servidor local sem contato" |
 | Aparelho trocado sem registro | Ciclos na máquina errada | Adoção obrigatória; aparelho não adotado não grava |
 | Histórico grande deixa o painel lento | Painel inutilizável | API por período + `resumo_dia` na fase 1, antes das 50 máquinas |
-| Configuração v3 quebra a VPS 1.7.x | Sincronização parada | VPS primeiro; v2 aceito; teste em cópia |
+| Configuração v3 quebra a VPS 1.7.x | Sincronização parada | VPS primeiro; v2 aceito; teste em cópia (`TesteCompatibilidadeVps175` roda o notebook 2.0 contra a VPS da tag `v1.7.5`) |
+| Setores criados ao mesmo tempo no notebook e na VPS | O cadastro sincroniza como lista inteira: o setor **sem dados** do lado que perdeu some | Raro (janela de 15 s). Setor com dados nunca some e a lista converge sozinha. Se incomodar: um item por setor com exclusão explícita (ver `docs/progresso-2.0.md`, revisão da fase 1) |
+| Arquivo novo fora dos geradores | `.exe` ou VPS sem o módulo: não abre | `TesteGeradoresLevamOsModulos` confere `gerar/exe_fabrica.py` e `gerar/pacote_vps.ps1` |
 | Chave vazada | Dados falsos | Chave por aparelho, HMAC, revogação, mestra fora do git |
 | OTA ruim em 50 aparelhos | Coleta parada | Canário, ondas, rollback automático |
 | Bateria do RTC | Ciclos sem hora | Hora do servidor a cada envio; alerta de relógio; troca da CR2032 a cada ~2 anos |

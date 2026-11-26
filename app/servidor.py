@@ -195,6 +195,17 @@ def _eh_loopback(ip):
     return ip in _ENDERECOS_LOCAIS or ip.startswith("127.") or ip.startswith("::ffff:127.")
 
 
+def _resposta_setores():
+    """GET /setores (e resposta do POST): o cadastro, o setor padrao e, por
+    setor, quantas maquinas tem e se tem dados (com dados: so desativar)."""
+    lista = banco.listar_setores()
+    for s in lista:
+        s["maquinas"] = len(banco.obter_maquinas(s["setor"]))
+        s["temDados"] = banco.setor_tem_dados(s["setor"])
+    return {"setores": lista, "padrao": cadastro_setores.setor_padrao(banco),
+            "tiposColeta": list(cadastro_setores.TIPOS_COLETA)}
+
+
 def _csv_atual(setor):
     versao = banco.versao_ciclos(setor)
     with _trava_cache:
@@ -500,11 +511,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         url = urlparse(self.path)
         consulta = parse_qs(url.query)
-        setor = cadastro_setores.resolver(banco, consulta.get("setor", [""])[0])
-        if setor is None and url.path in ("/dados", "/ao-vivo", "/config"):
-            self._responder_json({"ok": False, "erro": "setor_desconhecido",
-                                  "mensagem": "Setor não encontrado."}, status=404)
-            return
+        setor = None
+        if url.path in ("/dados", "/ao-vivo", "/config"):  # so as rotas por setor consultam o cadastro
+            setor = cadastro_setores.resolver(banco, consulta.get("setor", [""])[0])
+            if setor is None:
+                self._responder_json({"ok": False, "erro": "setor_desconhecido",
+                                      "mensagem": "Setor não encontrado."}, status=404)
+                return
         if url.path == "/status":
             if MODO_NUVEM:
                 s = nuvem.status_nuvem(dir_dados_usuario())
@@ -527,9 +540,7 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/dados":
             self._responder_csv(setor)
         elif url.path == "/setores":
-            self._responder_json({"setores": banco.listar_setores(),
-                                  "padrao": cadastro_setores.setor_padrao(banco),
-                                  "tiposColeta": list(cadastro_setores.TIPOS_COLETA)})
+            self._responder_json(_resposta_setores())
         elif url.path == "/ao-vivo":
             rodando = nuvem.status_nuvem(dir_dados_usuario())["rodando"] if MODO_NUVEM else esta_rodando()
             self._responder_json({"rodando": rodando, "maquinas": banco.obter_estado_ao_vivo(setor)})
@@ -864,8 +875,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima troca
             threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
-        self._responder_json({"ok": True, "setor": setor, "setores": banco.listar_setores(),
-                              "padrao": cadastro_setores.setor_padrao(banco), "configRev": nuvem.versao_config()})
+        self._responder_json({"ok": True, "setor": setor, **_resposta_setores(), "configRev": nuvem.versao_config()})
 
     def _salvar_config(self):
         try:

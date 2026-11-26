@@ -43,6 +43,7 @@ MONITOR_WIFI_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "monitor_wifi.py")
 BANCO_DADOS_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "banco_dados.py")
 BACKUP_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "backup_banco.py")
 NUVEM_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "nuvem.py")
+SETORES_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "setores.py")  # 2.0: cadastro de setores
 # Chave das acoes no ESP32 (gerada por ferramentas/gerar_segredos.py a partir
 # do .env) - o firmware gravado precisa ter a mesma.
 SEGREDOS_APP = os.path.join(DIR_BASE, "segredos_app.json")
@@ -73,15 +74,17 @@ ARGS = [
     "--onefile",
     "--windowed",
     f"--icon={ICONE}",
-    # so o painel em uso (index.html + assets) - copias antigas em
+    # so o painel em uso (index.html + assets + js) - copias antigas em
     # painel/_backup/ nao entram no .exe nem ficam acessiveis pela rede
     f"--add-data={os.path.join(PAINEL_SRC, 'index.html')}{SEP}painel",
     f"--add-data={os.path.join(PAINEL_SRC, 'assets')}{SEP}painel/assets",
+    f"--add-data={os.path.join(PAINEL_SRC, 'js')}{SEP}painel/js",  # 2.0: modulos novos do painel
     f"--add-data={MONITOR_SRC}{SEP}ferramentas",
     f"--add-data={MONITOR_WIFI_SRC}{SEP}ferramentas",
     f"--add-data={BANCO_DADOS_SRC}{SEP}ferramentas",
     f"--add-data={BACKUP_SRC}{SEP}ferramentas",
     f"--add-data={NUVEM_SRC}{SEP}ferramentas",
+    f"--add-data={SETORES_SRC}{SEP}ferramentas",
     f"--add-data={SEGREDOS_APP}{SEP}app",
     f"--add-data={BUILD_INFO}{SEP}app",
     "--hidden-import=serial.tools.list_ports",
@@ -99,6 +102,8 @@ ARGS = [
     # nuvem.py (acesso remoto): login e envio da configuracao para a VPS
     "--hidden-import=base64",
     "--hidden-import=hashlib",
+    # setores.py (2.0): nome do setor -> identificador sem acento
+    "--hidden-import=unicodedata",
     # anuncio http://painel.local (anuncio_rede.py): o zeroconf tem modulos
     # compilados carregados dinamicamente - inclui todos para nao faltar nada
     "--collect-submodules=zeroconf",

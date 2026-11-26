@@ -1202,6 +1202,12 @@ class EnviadorConfig:
             if not r:
                 continue
             if _igual(ler_item(self.banco, self.setor, chave), enviados.get(chave, {}).get("valor")):
+                if chave == "setores" and r.get("valor") is not None and not _igual(r["valor"], enviados[chave]["valor"]):
+                    # a VPS aceitou, mas manteve um setor com dados que faltava na
+                    # lista enviada: junta aqui tambem (os dois lados ficam iguais)
+                    gravar_item(self.banco, self.setor, chave, r["valor"])
+                    if self._setores_divergem(r["valor"], r["rev"]):
+                        continue
                 self.banco.marcar_rev(chave, r["rev"], r["editado_em"], "notebook", "notebook", False)
             else:  # mudou de novo aqui: continua pendente, agora sobre a revisao nova
                 local = self.banco.obter_rev(chave) or {}
@@ -1221,7 +1227,22 @@ class EnviadorConfig:
                 if chave in rejeitados and (local or {}).get("editado_em") != SEMENTE_EM:
                     self._avisar(f"Sua alteração em {nome_item(chave)} foi substituída por uma mais recente "
                                  f"({r.get('autor') or r.get('origem')}).")
+                if chave == "setores" and self._setores_divergem(r["valor"], r["rev"]):
+                    continue
             self.banco.marcar_rev(chave, r["rev"], r["editado_em"], r.get("origem", ""), r.get("autor", ""), False)
+
+    def _setores_divergem(self, recebido, rev):
+        """Depois de aplicar o cadastro de setores vindo da VPS: se aqui ficou
+        diferente (um setor com dados nunca some, mesmo fora da lista
+        recebida), o item fica pendente sobre a revisao recebida - a lista
+        daqui volta para a VPS na proxima troca e os dois lados convergem."""
+        if _igual(ler_item(self.banco, self.setor, "setores"), recebido):
+            return False
+        agora = _agora_utc()
+        self.banco.marcar_rev("setores", rev, agora, "notebook", "notebook", True)
+        self.banco.registrar_alteracao(agora, "notebook", "notebook", "setores",
+                                       "Setores: mantido aqui um setor com dados que faltava na lista da nuvem")
+        return True
         self.banco.salvar_segredo(SEGREDO_SYNC_CONFIG, json.dumps({"url": url, "rev": int(resposta.get("rev_atual", 0))}))
         self.banco.salvar_segredo(SEGREDO_AUDITORIA_NUVEM, json.dumps(resposta.get("auditoria") or [], ensure_ascii=False))
 

@@ -12,6 +12,23 @@ não liberada: produção continua na 1.7.5.
 - **Sincronização com a VPS por setor**: configuração (chaves `setor/item`
   para os setores novos; as Enfestadeiras no formato da 1.x), cadastro de
   setores, histórico e estado ao vivo de todos os setores.
+- **Cadastro de setores convergente**: quando um lado mantém um setor com
+  dados que faltava na lista recebida, a lista dele volta para o outro lado
+  (antes os dois ficavam diferentes sem aviso).
+- **Painel: seletor de setor** no cabeçalho (só os ativos; lembra a escolha
+  no aparelho; `?setor=` no endereço abre direto, até um setor desativado).
+  Trocar de setor recarrega máquinas, configuração, dados e estado ao vivo, e
+  descarta respostas atrasadas do setor anterior. `/dados` passou a pedir o
+  setor.
+- **Configurações → Produção → Setores**: criar (com quantas máquinas),
+  renomear, mudar a ordem, desativar/reativar, apagar (só sem dados) e
+  “+ Máquina”. Somente leitura sem permissão de edição. Código novo em
+  `painel/js/setores.js`.
+- Servidor: só `/dados`, `/ao-vivo` e `/config` consultam o cadastro de
+  setores; `GET /setores` informa máquinas e se há dados por setor.
+- Geradores: o `.exe` da fábrica e o pacote da VPS levam `setores.py` e
+  `painel/js/` (sem isso, a 2.0 não abriria). Teste novo confere os
+  geradores, e outro roda o notebook 2.0 contra a VPS 1.7.5 da tag.
 
 ## 1.7.5 — Configurações em abas e histórico de notificações enxuto (app 1.7.5 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 

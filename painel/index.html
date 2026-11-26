@@ -1299,6 +1299,19 @@
   .cfg-lista .cfg-linha strong { color: var(--ink-900); font-weight: 600; }
   .cfg-lista .cfg-linha span:last-child { font-family: var(--font-mono); color: var(--ink-900); }
   .cfg-botoes { display: flex; flex-direction: column; gap: 8px; }
+  /* 2.0: cadastro de setores (js/setores.js) */
+  .st-lista { display: flex; flex-direction: column; gap: 6px; }
+  .st-linha { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 9px; background: var(--surface-sunken); font-size: 12.5px; }
+  .st-linha.inativo { opacity: 0.62; }
+  .st-linha .st-nome { font-weight: 600; color: var(--ink-900); min-width: 0; overflow-wrap: anywhere; }
+  .st-linha .st-info { color: var(--ink-600); font-size: 11.5px; }
+  .st-linha .st-acoes { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .st-linha .input { height: 30px; min-width: 0; flex: 1 1 160px; }
+  .st-selo { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); white-space: nowrap; }
+  .st-selo.off { background: var(--surface-raised); color: var(--ink-600); box-shadow: 0 0 0 1px var(--border); }
+  .st-novo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px; gap: 10px; align-items: end; }
+  @media (max-width: 640px) { .st-novo { grid-template-columns: 1fr; } }
+  .st-erro { color: var(--danger, #c0392b); font-size: 12px; min-height: 1em; }
   .cfg-acao { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--ink-900); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, transform .12s; }
   .cfg-acao:hover { border-color: var(--accent); transform: translateY(-1px); }
   .cfg-acao strong { font-size: 13.5px; }
@@ -2444,6 +2457,10 @@
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-maquinas-lista"></div></div>
         <footer class="cfg-card-acoes"><button class="btn small" type="button" data-abrir-popup="maquinas">Editar máquinas</button><button class="btn small" type="button" data-abrir-popup="meta">Meta de rendimento</button></footer>
       </section>
+      <section class="cfg-card cfg-largo" data-cfg="setores" data-aba="producao" id="cfg-setores">
+        <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8" stroke="currentColor" stroke-width="1.8"/><path d="M17.25 14v6.5M14 17.25h6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Setores</h3><p>Os setores da fábrica: cada um com suas máquinas, turnos, calendário e metas</p></div></header>
+        <div class="cfg-card-corpo" id="cfg-setores-corpo"><div class="cfg-nota">Carregando…</div></div>
+      </section>
       <section class="cfg-card" data-cfg="turnos" data-aba="producao" id="cfg-turnos">
         <header class="cfg-card-cab"><span class="cfg-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><h3>Turnos, calendário e motivos</h3><p>Horários, refeição, calendário, motivos de parada, máquinas sem produção e histórico</p></div></header>
         <div class="cfg-card-corpo"><div class="cfg-lista" id="cfg-turnos-lista"></div></div>
@@ -3297,8 +3314,12 @@
     };
   })();
 
-  const SETORES = [
-    { id: "enfestadeiras", nome: "Enfestadeiras", machineIds: [1, 2, 3, 4] }
+  // 2.0: a lista vem do cadastro do servidor (GET /setores, js/setores.js).
+  // Ate ela chegar - ou sem servidor (arquivo local) - vale o setor que ja
+  // existia na 1.x, com as 4 maquinas do ESP32 multi.
+  const SETOR_LEGADO = "enfestadeiras";
+  let SETORES = [
+    { id: SETOR_LEGADO, nome: "Enfestadeiras", tipoColeta: "multi", ativo: true, machineIds: [1, 2, 3, 4] }
   ];
 
   let setorAtual = SETORES[0];
@@ -3314,7 +3335,9 @@
   let MACHINE_META = {};
   function rebuildMachineMeta() {
     MACHINE_META = {};
-    MACHINE_IDS.forEach((id, idx) => { MACHINE_META[id] = { colorVar: `--m${idx + 1}` }; });
+    // ate 6 cores validadas; setor com mais maquinas repete a paleta (2.0 -
+    // a visao para 50 maquinas vem na fase 4)
+    MACHINE_IDS.forEach((id, idx) => { MACHINE_META[id] = { colorVar: `--m${(idx % 6) + 1}` }; });
     aplicarCoresMaquinas();
   }
   // 1.7.5: cor escolhida para cada maquina (popup "Configurar máquina").
@@ -3366,23 +3389,49 @@
 
   function popularSeletorSetores() {
     const sel = $("#sector-select");
-    sel.innerHTML = SETORES.map((s) => `<option value="${s.id}">${s.nome}</option>`).join("");
+    // so os ativos (o atual sempre aparece, mesmo desativado agora ha pouco)
+    const visiveis = SETORES.filter((s) => s.ativo !== false || s.id === setorAtual.id);
+    sel.innerHTML = visiveis.map((s) => `<option value="${escaparHtml(s.id)}">${escaparHtml(s.nome)}</option>`).join("");
     sel.value = setorAtual.id;
     // Um setor so: mostra o nome sem cara de lista (nada para escolher).
-    const unico = SETORES.length < 2;
+    const unico = visiveis.length < 2;
     $("#fb-sector").classList.toggle("single", unico);
     sel.tabIndex = unico ? -1 : 0;
+  }
+
+  // 2.0: troca a lista de setores (cadastro do servidor). Mantem o atual se
+  // ele continuar existindo; so atualiza nome/tipo/situacao.
+  function definirSetores(lista) {
+    if (!Array.isArray(lista) || !lista.length) return;
+    SETORES = lista.map((s) => {
+      const antigo = SETORES.find((x) => x.id === s.setor);
+      return {
+        id: s.setor, nome: s.nome, tipoColeta: s.tipoColeta, ativo: s.ativo !== false, ordem: s.ordem,
+        machineIds: antigo ? antigo.machineIds : s.setor === SETOR_LEGADO ? [1, 2, 3, 4] : [],
+      };
+    });
+    const atual = SETORES.find((s) => s.id === setorAtual.id);
+    if (atual) { setorAtual = atual; atualizarTituloSetor(); }
+    popularSeletorSetores();
   }
 
   // Troca de setor: cada setor tem suas proprias maquinas e seus proprios
   // dados - trocar de setor nunca mistura configuracao nem dados carregados
   // de um setor com os de outro (ver machineSettingsKey()/metaKey() acima,
-  // que ja isolam por setorAtual.id).
-  function selecionarSetor(id) {
+  // que ja isolam por setorAtual.id). machineIds (2.0) = maquinas cadastradas
+  // no setor (js/setores.js le do /config antes de trocar); o setor legado
+  // sempre tem as 4 do ESP32 multi.
+  function selecionarSetor(id, machineIds) {
     const setor = SETORES.find((s) => s.id === id) || SETORES[0];
-    if (setor.id === setorAtual.id) return;
+    if (Array.isArray(machineIds)) {
+      const ids = setor.id === SETOR_LEGADO ? [1, 2, 3, 4].concat(machineIds) : machineIds;
+      setor.machineIds = [...new Set(ids.map(Number).filter((n) => n >= 1 && n <= 64))].sort((a, b) => a - b);
+    }
+    if (setor.id === setorAtual.id && (!Array.isArray(machineIds) || setor.machineIds.join() === MACHINE_IDS.join())) return;
     setorAtual = setor;
     MACHINE_IDS = setorAtual.machineIds.slice();
+    // os cartoes sao por numero de maquina: os do setor anterior saem
+    document.querySelectorAll("#machine-grid .machine-card").forEach((c) => c.remove());
     rebuildMachineMeta();
     machineSettings = loadMachineSettings();
     turnos = loadTurnos();
@@ -3401,12 +3450,19 @@
     dataReferencia = new Date();
     usingRealTime = false;
 
+    estadoAoVivo = null;
+    etagDados = null;
+
     atualizarTituloSetor();
+    popularSeletorSetores();
     renderMachineSelectorButtons();
     renderShiftSelector();
     atualizarBarraPeriodo();
     renderAll();
     sincronizarConfigComServidor();
+    // 2.0: dados e estado ao vivo do setor novo na hora (sem esperar os 5 s)
+    autoAtualizarDados(true);
+    consultarAoVivo();
   }
 
   // ---------------------------------------------------------------------
@@ -5090,12 +5146,16 @@
   }
 
   async function consultarAoVivo() {
+    const setorPedido = setorAtual.id;
+    let estado = null;
     try {
-      const res = await fetch(CONTROLE_URL + "/ao-vivo?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
-      estadoAoVivo = res.ok ? await res.json() : null;
+      const res = await fetch(CONTROLE_URL + "/ao-vivo?setor=" + encodeURIComponent(setorPedido), { cache: "no-store" });
+      estado = res.ok ? await res.json() : null;
     } catch (e) {
-      estadoAoVivo = null; // sem servidor local - o indicador some
+      estado = null; // sem servidor local - o indicador some
     }
+    if (setorPedido !== setorAtual.id) return; // 2.0: trocou de setor no meio
+    estadoAoVivo = estado;
     renderMachineGrid(); // inclui o ciclo em andamento nos valores (chama renderAoVivo)
   }
 
@@ -6598,6 +6658,7 @@
     }
     const v = $("#foot-versao");
     if (v) v.textContent = versaoApp ? `· v${versaoApp}` : "";
+    if (window.PainelSetores) window.PainelSetores.renderCartao(); // 2.0: botoes de edicao do cadastro
   }
   let restaurandoConfig = null;
   let ultimaRestauracao = 0;
@@ -6628,7 +6689,7 @@
       erro.somenteLeitura = true;
       throw erro;
     }
-    if (rota === "/config" && res.ok) { // gravacao deste painel: nao e "alteracao de outro usuario"
+    if ((rota === "/config" || rota === "/setores") && res.ok) { // gravacao deste painel: nao e "alteracao de outro usuario"
       const d = await res.clone().json().catch(() => ({}));
       if (d.configRev) configRevConhecida = d.configRev;
     }
@@ -6677,9 +6738,19 @@
   async function sincronizarConfigComServidor() {
     sincronizandoConfig = true;
     try {
-      const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
+      const setorPedido = setorAtual.id;
+      const res = await fetch(CONTROLE_URL + "/config?setor=" + encodeURIComponent(setorPedido), { cache: "no-store" });
       if (!res.ok) return;
       const dados = await res.json();
+      if (setorPedido !== setorAtual.id) return; // 2.0: trocou de setor no meio (a troca ja pediu de novo)
+      // 2.0: as maquinas do setor sao as cadastradas no servidor (o legado
+      // sempre tem as 4 do ESP32 multi). Mudou a lista: refaz a tela do setor.
+      const idsServidor = Object.keys(dados.maquinas || {}).map(Number).filter((n) => n >= 1 && n <= 64);
+      const idsEsperados = [...new Set((setorAtual.id === SETOR_LEGADO ? [1, 2, 3, 4] : []).concat(idsServidor))].sort((a, b) => a - b);
+      if (idsEsperados.join() !== MACHINE_IDS.join()) {
+        selecionarSetor(setorAtual.id, idsServidor); // pede a configuracao de novo, ja com as maquinas certas
+        return;
+      }
 
       // Meta (%) primeiro: o historico (mais abaixo) se alinha a ela.
       metaHorasServidor = isFinite(dados.metaHorasDia) && dados.metaHorasDia > 0 ? dados.metaHorasDia : null;
@@ -7073,17 +7144,22 @@
     return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
   }
 
-  async function autoAtualizarDados() {
-    if (buscandoDados) return; // consulta anterior ainda em andamento
+  // forcar (2.0): troca de setor - busca mesmo com a consulta anterior (do
+  // setor antigo) em andamento; a resposta dela e descartada ao chegar.
+  async function autoAtualizarDados(forcar) {
+    if (buscandoDados && !forcar) return; // consulta anterior ainda em andamento
     buscandoDados = true;
+    const setorPedido = setorAtual.id;
     try {
-      const res = await fetch(CONTROLE_URL + "/dados", {
+      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorPedido), {
         cache: "no-store",
         headers: etagDados && ultimoTextoAutoRefresh !== null ? { "If-None-Match": etagDados } : {},
       });
+      if (setorPedido !== setorAtual.id) return; // trocou de setor no meio: resposta de outro setor
       if (res.status === 304) { TELA_CARREGANDO.dados(true); return; }
       if (!res.ok) { TELA_CARREGANDO.dados(false); return; }
       const texto = await res.text();
+      if (setorPedido !== setorAtual.id) return;
       etagDados = res.headers.get("ETag");
       if (texto === ultimoTextoAutoRefresh) return; // sem mudanca, evita redesenho a toa
       ultimoTextoAutoRefresh = texto;
@@ -7092,7 +7168,7 @@
     } catch (e) {
       // servidor local fora do ar - consultarStatusLeitura() ja sinaliza isso no chip
     } finally {
-      buscandoDados = false;
+      if (setorPedido === setorAtual.id) buscandoDados = false;
     }
   }
 
@@ -7155,7 +7231,7 @@
   async function baixarBackupBancoDados() {
     let texto = null;
     try {
-      const res = await fetch(CONTROLE_URL + "/dados", { cache: "no-store" });
+      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorAtual.id), { cache: "no-store" });
       if (res.ok) texto = await res.text();
     } catch (e) {
       // fonte local fora do ar - segue para o fallback abaixo
@@ -7168,7 +7244,7 @@
       return;
     }
 
-    const nomeArquivo = `backup_producao_${rotuloArquivoData()}.csv`;
+    const nomeArquivo = `backup_producao_${setorAtual.id === SETOR_LEGADO ? "" : `${setorAtual.id}_`}${rotuloArquivoData()}.csv`;
     const blob = new Blob([texto], { type: "text/csv;charset=utf-8" });
     await salvarArquivoParaUsuario(nomeArquivo, blob);
   }
@@ -11367,6 +11443,7 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   function renderConfiguracoesPagina() {
     renderAbasCfg();
     renderParadaLongaCfg();
+    if (window.PainelSetores) window.PainelSetores.recarregar(); // 2.0: cartao Setores
     // maquinas e meta
     const lm = $("#cfg-maquinas-lista");
     if (lm) lm.innerHTML = MACHINE_IDS.map((id) => `<div class="cfg-linha"><strong>${escaparHtml(machineName(id))}</strong><span>${machineRate(id) > 0 ? fmtTaxaMH(machineRate(id)) : "sem taxa"}</span></div>`).join("") +
@@ -11616,7 +11693,21 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
   renderAll();
   TELA_CARREGANDO.interfacePronta();
   sincronizarConfigComServidor();
+
+  // 2.0: o que os modulos de js/ (fora deste arquivo) podem usar do painel.
+  window.PainelNucleo = {
+    SETOR_LEGADO,
+    get setorAtual() { return setorAtual; },
+    get setores() { return SETORES; },
+    get podeEditar() { return podeEditar; },
+    get modoNuvem() { return modoNuvem; },
+    get servidorOnline() { return servidorOnline; },
+    CONTROLE_URL, definirSetores, selecionarSetor, postControle, cabecalhosControle,
+    escaparHtml, avisoFlutuante, lerLocal, gravarLocal,
+    recarregarConfig: sincronizarConfigComServidor,
+  };
 })();
 </script>
+<script src="js/setores.js"></script>
 </body>
 </html>

@@ -60,7 +60,7 @@ Ao fim de cada sessão, atualize `docs/progresso-2.0.md`.
 ## Testes e build
 
 ```
-python -m unittest discover -s testes -v      # 59 testes, pasta temporária
+python -m unittest discover -s testes -v      # 63 testes, pasta temporária
 python ferramentas/gerar_segredos.py          # .env -> segredos.h + app/segredos_app.json
 gerar\gerar.bat                               # menu: .exe da fábrica / .exe remoto / pacote VPS -> distribuir\
 python gerar/exe_fabrica.py                   # (ou cada um direto)

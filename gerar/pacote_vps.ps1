@@ -25,7 +25,7 @@ $pacote = Join-Path $temp "painel-nuvem"
 $arquivos = @(
     "app\servidor.py", "app\caminhos.py", "app\anuncio_rede.py",
     "ferramentas\banco_dados.py", "ferramentas\backup_banco.py", "ferramentas\monitor_serial.py",
-    "ferramentas\monitor_wifi.py", "ferramentas\nuvem.py",
+    "ferramentas\monitor_wifi.py", "ferramentas\nuvem.py", "ferramentas\setores.py",
     "ferramentas\controle_leitura_server.py",
     "painel\index.html",
     "vps\instalar.sh", "vps\painel-nuvem.service", "vps\Caddyfile", "vps\painel-nuvem.env.exemplo",
@@ -39,6 +39,7 @@ try {
         Copy-Item $a $destino
     }
     Copy-Item "painel\assets" (Join-Path $pacote "painel\assets") -Recurse
+    Copy-Item "painel\js" (Join-Path $pacote "painel\js") -Recurse  # 2.0: modulos novos do painel
     if (Test-Path "vps\app-remoto") { Copy-Item "vps\app-remoto" (Join-Path $pacote "vps\app-remoto") -Recurse }
     Copy-Item "vps\CLAUDE_VPS.md" (Join-Path $pacote "CLAUDE.md")
 
