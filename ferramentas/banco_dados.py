@@ -262,6 +262,41 @@ CREATE TABLE IF NOT EXISTS resumo_dia (
     atualizado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     PRIMARY KEY (setor, maquina, dia)
 );
+-- 2.0 (fase 2): coletores (ESP32). "dispositivo" e o mesmo id gravado em
+-- ciclos.dispositivo. setor/maquina = onde o aparelho esta adotado agora
+-- (NULL = ainda nao adotado ou reserva). situacao: novo | ativo | reserva |
+-- bloqueado. saude = JSON do ultimo contato (sinal, memoria, resets...).
+CREATE TABLE IF NOT EXISTS dispositivos (
+    dispositivo TEXT PRIMARY KEY,
+    perfil TEXT NOT NULL,
+    setor TEXT,
+    maquina INTEGER,
+    apelido TEXT NOT NULL DEFAULT '',
+    situacao TEXT NOT NULL DEFAULT 'novo',
+    firmware TEXT,
+    ip TEXT,
+    rssi INTEGER,
+    bssid TEXT,
+    saude TEXT,
+    ultimo_contato TEXT,
+    adotado_em TEXT,
+    config_rev INTEGER NOT NULL DEFAULT 0,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+-- historico de atribuicoes: qual aparelho esteve em qual maquina e quando
+-- (ate NULL = atribuicao atual). Os ciclos ja levam setor+maquina gravados
+-- na chegada, entao trocar um aparelho nunca muda o historico.
+CREATE TABLE IF NOT EXISTS dispositivo_atribuicoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dispositivo TEXT NOT NULL,
+    setor TEXT NOT NULL,
+    maquina INTEGER NOT NULL,
+    de TEXT NOT NULL,
+    ate TEXT,
+    autor TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_atribuicoes_disp ON dispositivo_atribuicoes(dispositivo, ate);
+
 -- consultas por periodo: gravado_em e a hora real do FIM do ciclo
 -- (inicio_ms/fim_ms sao texto e muitas vezes nao tem hora real)
 CREATE INDEX IF NOT EXISTS idx_ciclos_setor_gravado ON ciclos(setor, gravado_em);
@@ -495,6 +530,13 @@ class BancoDados:
             ).fetchone()
         return linha["ultimo"] or 0
 
+    def ciclos_por_origem(self, dispositivo):
+        """{origem_id: quantas vezes esta no banco} de um aparelho - usado pelo
+        simulador de coletores para conferir perda e duplicacao."""
+        with self._lock:
+            return {l[0]: l[1] for l in self._conn.execute(
+                "SELECT origem_id, COUNT(*) FROM ciclos WHERE dispositivo = ? GROUP BY origem_id", (dispositivo,))}
+
     def ciclos_para_nuvem(self, setor, apos_id, limite):
         """Ciclos com id local > apos_id, em ordem - o historico que o
         notebook envia para a VPS (nuvem.EnviadorConfig)."""
@@ -568,8 +610,23 @@ class BancoDados:
         2.0: desde/ate (dias AAAA-MM-DD, inclusive) limitam pelo fim do ciclo
         (gravado_em) e maquinas filtra por numero - sem eles, o historico
         inteiro, como sempre."""
+        return self.csv_e_ultimo_id(setor, desde=desde, ate=ate, maquinas=maquinas)[0]
+
+    def csv_e_ultimo_id(self, setor, desde=None, ate=None, maquinas=None, apos=None):
+        """(csv, ultimo_id): o CSV do csv_do_setor e o maior id de ciclo que
+        ele cobre - o painel guarda esse id e depois pede so os novos.
+
+        apos (2.0, fase 2): so os ciclos com id > apos (atualizacao
+        incremental - indice setor+id, instantaneo mesmo com milhoes de
+        ciclos). Nesse caso o filtro "desde" e aplicado depois, para o
+        ultimo_id avancar tambem sobre um ciclo antigo que chegou atrasado e
+        ficou fora da janela."""
+        incremental = apos is not None
         filtro, args = "setor = ?", [setor]
-        if desde:
+        if incremental:
+            filtro += " AND id > ?"
+            args.append(int(apos))
+        elif desde:
             filtro += " AND gravado_em >= ?"
             args.append(desde)
         if ate:
@@ -580,22 +637,26 @@ class BancoDados:
             args += list(maquinas)
         # com periodo, forca o indice por gravado_em: senao o SQLite prefere o
         # (setor, id) por causa do ORDER BY e varre o setor inteiro
-        indice = " INDEXED BY idx_ciclos_setor_gravado" if (desde or ate) else ""
+        indice = " INDEXED BY idx_ciclos_setor_gravado" if not incremental and (desde or ate) else ""
         with self._lock:
             linhas = self._conn.execute(
-                "SELECT maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo "
+                "SELECT id, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo "
                 f"FROM ciclos{indice} WHERE {filtro} ORDER BY id",
                 args,
             ).fetchall()
         saida = ["maquina,ciclo,inicio_ms,fim_ms,duracao_s,obs,registrado_em"]
+        ultimo = int(apos) if incremental else 0
         for l in linhas:
+            ultimo = l["id"]
+            if incremental and desde and (l["gravado_em"] or "") < desde:
+                continue
             # (ciclos da Serial enviados pelo notebook a VPS ficam com dispositivo
             # "NOTEBOOK-SERIAL": a hora de chegada deles e real, como no notebook)
             registrado_em = "" if _sem_hora_real(l["dispositivo"], l["obs"]) else (l["gravado_em"] or "").replace(" ", "T")
             saida.append(
                 f"{l['maquina']},{l['ciclo']},{l['inicio_ms']},{l['fim_ms']},{l['duracao_s']},{l['obs']},{registrado_em}"
             )
-        return "\n".join(saida) + "\n"
+        return "\n".join(saida) + "\n", ultimo
 
     # -- configuracao de maquinas ----------------------------------------
 
@@ -834,13 +895,82 @@ class BancoDados:
             )
 
     def setor_tem_dados(self, setor):
-        """True se o setor tem ciclos ou maquinas - entao so pode ser
-        desativado, nunca apagado."""
+        """True se o setor tem ciclos, maquinas ou aparelhos (2.0, fase 2) -
+        entao so pode ser desativado, nunca apagado."""
         with self._lock:
             return any(
                 self._conn.execute(f"SELECT 1 FROM {tabela} WHERE setor = ? LIMIT 1", (setor,)).fetchone()
-                for tabela in ("ciclos", "maquinas")
+                for tabela in ("ciclos", "maquinas", "dispositivos", "dispositivo_atribuicoes")
             )
+
+    # -- dispositivos (2.0, fase 2) - regras em ferramentas/dispositivos.py ----
+
+    _CAMPOS_DISP = ("dispositivo", "perfil", "setor", "maquina", "apelido", "situacao", "firmware", "ip", "rssi",
+                    "bssid", "saude", "ultimo_contato", "adotado_em", "config_rev", "criado_em")
+
+    def _disp_dict(self, linha):
+        d = {k: linha[k] for k in self._CAMPOS_DISP}
+        try:
+            d["saude"] = json.loads(d["saude"]) if d["saude"] else {}
+        except ValueError:
+            d["saude"] = {}
+        return d
+
+    def obter_dispositivo(self, dispositivo):
+        with self._lock:
+            linha = self._conn.execute("SELECT * FROM dispositivos WHERE dispositivo = ?", (dispositivo,)).fetchone()
+        return self._disp_dict(linha) if linha else None
+
+    def listar_dispositivos(self, setor=None):
+        with self._lock:
+            linhas = self._conn.execute(
+                "SELECT * FROM dispositivos" + (" WHERE setor = ?" if setor else "")
+                + " ORDER BY setor IS NULL DESC, setor, maquina, dispositivo", (setor,) if setor else ()).fetchall()
+        return [self._disp_dict(l) for l in linhas]
+
+    def dispositivo_da_maquina(self, setor, maquina):
+        """O aparelho ATIVO adotado nessa maquina (ou None)."""
+        with self._lock:
+            linha = self._conn.execute(
+                "SELECT * FROM dispositivos WHERE setor = ? AND maquina = ? AND situacao = 'ativo'",
+                (setor, maquina)).fetchone()
+        return self._disp_dict(linha) if linha else None
+
+    def salvar_dispositivo(self, d):
+        """Cria ou atualiza o aparelho (dict com os campos de dispositivos)."""
+        valores = {k: d.get(k) for k in self._CAMPOS_DISP if k != "criado_em"}
+        valores["saude"] = json.dumps(valores["saude"] or {}, ensure_ascii=False, separators=(",", ":"))
+        valores["apelido"] = valores["apelido"] or ""
+        valores["config_rev"] = int(valores["config_rev"] or 0)
+        campos = list(valores)
+        with self._lock, self._conn:
+            self._conn.execute(
+                f"INSERT INTO dispositivos ({', '.join(campos)}) VALUES ({', '.join('?' * len(campos))}) "
+                "ON CONFLICT(dispositivo) DO UPDATE SET "
+                + ", ".join(f"{c} = excluded.{c}" for c in campos if c != "dispositivo"),
+                [valores[c] for c in campos])
+
+    def abrir_atribuicao(self, dispositivo, setor, maquina, quando, autor):
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO dispositivo_atribuicoes (dispositivo, setor, maquina, de, autor) VALUES (?, ?, ?, ?, ?)",
+                (dispositivo, setor, maquina, quando, autor))
+
+    def fechar_atribuicao(self, dispositivo, quando):
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE dispositivo_atribuicoes SET ate = ? WHERE dispositivo = ? AND ate IS NULL",
+                               (quando, dispositivo))
+
+    def atribuicoes(self, dispositivo=None, setor=None, maquina=None):
+        filtro, args = [], []
+        for campo, valor in (("dispositivo", dispositivo), ("setor", setor), ("maquina", maquina)):
+            if valor is not None:
+                filtro.append(f"{campo} = ?")
+                args.append(valor)
+        with self._lock:
+            return [dict(l) for l in self._conn.execute(
+                "SELECT dispositivo, setor, maquina, de, ate, autor FROM dispositivo_atribuicoes"
+                + (" WHERE " + " AND ".join(filtro) if filtro else "") + " ORDER BY id", args)]
 
     def apagar_setor(self, setor):
         """Apaga do cadastro (e a configuracao que ele tiver) - so setor sem

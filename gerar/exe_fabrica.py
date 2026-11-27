@@ -44,6 +44,8 @@ BANCO_DADOS_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "banco_dados.py")
 BACKUP_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "backup_banco.py")
 NUVEM_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "nuvem.py")
 SETORES_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "setores.py")  # 2.0: cadastro de setores
+DISPOSITIVOS_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "dispositivos.py")  # 2.0: coletores
+RECEPTOR_SRC = os.path.join(RAIZ_PROJETO, "ferramentas", "receptor_push.py")  # 2.0: /api/v2/coletor
 # Chave das acoes no ESP32 (gerada por ferramentas/gerar_segredos.py a partir
 # do .env) - o firmware gravado precisa ter a mesma.
 SEGREDOS_APP = os.path.join(DIR_BASE, "segredos_app.json")
@@ -85,6 +87,8 @@ ARGS = [
     f"--add-data={BACKUP_SRC}{SEP}ferramentas",
     f"--add-data={NUVEM_SRC}{SEP}ferramentas",
     f"--add-data={SETORES_SRC}{SEP}ferramentas",
+    f"--add-data={DISPOSITIVOS_SRC}{SEP}ferramentas",
+    f"--add-data={RECEPTOR_SRC}{SEP}ferramentas",
     f"--add-data={SEGREDOS_APP}{SEP}app",
     f"--add-data={BUILD_INFO}{SEP}app",
     "--hidden-import=serial.tools.list_ports",

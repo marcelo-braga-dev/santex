@@ -99,6 +99,12 @@ def main():
         janela = (fim_periodo - timedelta(days=dias)).strftime("%Y-%m-%d")
         csv = medir(f"CSV da janela de {dias} dias (/dados?desde=)", b.csv_do_setor, setor, desde=janela)
         print(f"  -> {len(csv) / 1024 / 1024:.1f} MB")
+    janela = (fim_periodo - timedelta(days=16)).strftime("%Y-%m-%d")
+    _, ultimo = b.csv_e_ultimo_id(setor, desde=janela)
+    texto, _ = medir("so os ciclos novos (/dados?desde=&apos=, 50 novos)", b.csv_e_ultimo_id, setor,
+                     desde=janela, apos=ultimo - 50)
+    print(f"  -> {len(texto.splitlines()) - 1} ciclos, {len(texto)} bytes")
+    medir("so os ciclos novos, nenhum novo", b.csv_e_ultimo_id, setor, desde=janela, apos=ultimo)
     medir("versao dos ciclos (ETag do /dados)", b.versao_ciclos, setor)
     csv = medir("CSV do historico inteiro (/dados antigo)", b.csv_do_setor, setor)
     print(f"  -> {len(csv) / 1024 / 1024:.1f} MB")

@@ -300,6 +300,12 @@ class TesteHistoricoPorSetor(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as erro:
             urllib.request.urlopen(req, timeout=5)
         self.assertEqual(erro.exception.code, 400)
+        # 2.0 (fase 2): os coletores so falam com o servidor local - a VPS nao tem a rota
+        req = urllib.request.Request(self.base + "/api/v2/coletor", method="POST", data=b"{}",
+                                     headers={"Content-Type": "application/json"})
+        with self.assertRaises(urllib.error.HTTPError) as erro:
+            urllib.request.urlopen(req, timeout=5)
+        self.assertEqual(erro.exception.code, 404)
 
 
 class TesteRotasSetores(unittest.TestCase):
@@ -557,7 +563,8 @@ class TesteGeradoresLevamOsModulos(unittest.TestCase):
         ler = lambda *p: open(os.path.join(RAIZ, *p), encoding="utf-8").read()  # noqa: E731
         locais = {os.path.splitext(n)[0] for n in os.listdir(os.path.join(RAIZ, "ferramentas")) if n.endswith(".py")}
         usados = set()
-        for arquivo in (("app", "servidor.py"), ("ferramentas", "nuvem.py"), ("ferramentas", "setores.py")):
+        for arquivo in (("app", "servidor.py"), ("ferramentas", "nuvem.py"), ("ferramentas", "setores.py"),
+                        ("ferramentas", "dispositivos.py"), ("ferramentas", "receptor_push.py")):
             usados |= {m for m in re.findall(r"^\s*(?:import|from)\s+(\w+)", ler(*arquivo), re.M) if m in locais}
         exe, pacote = ler("gerar", "exe_fabrica.py"), ler("gerar", "pacote_vps.ps1")
         for modulo in sorted(usados):

@@ -44,7 +44,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "2.0.0-alfa.1"
+APP_VERSAO = "2.0.0-alfa.2"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -66,11 +66,15 @@ import monitor_serial  # noqa: E402
 import monitor_wifi  # noqa: E402
 import nuvem  # noqa: E402
 import setores as cadastro_setores  # noqa: E402
+import dispositivos  # noqa: E402
+import receptor_push  # noqa: E402
 from banco_dados import BancoDados, NOME_ARQUIVO, imagem_do_logo  # noqa: E402
 from monitor_serial import SETOR_PADRAO  # noqa: E402
 
 banco = BancoDados(os.path.join(dir_dados_usuario(), NOME_ARQUIVO))
 limite = nuvem.LimiteTentativas() if MODO_NUVEM else None
+# 2.0 (fase 2): assinaturas erradas no /api/v2/coletor, por IP
+limite_coletor = nuvem.LimiteTentativas()
 sessoes = nuvem.Sessoes(dir_dados_usuario()) if MODO_NUVEM else None
 enviador_nuvem = None  # notebook: EnviadorConfig (configuracao -> VPS)
 
@@ -216,8 +220,9 @@ def _csv_atual(setor, desde=None):
     with _trava_cache:
         atual = _cache_csv.get(chave)
         if atual is None or atual["versao"] != versao:
-            bruto = banco.csv_do_setor(setor, desde=desde).encode("utf-8")
-            atual = {"versao": versao, "bruto": bruto, "gzip": gzip.compress(bruto, 6)}
+            texto, ultimo = banco.csv_e_ultimo_id(setor, desde=desde)
+            bruto = texto.encode("utf-8")
+            atual = {"versao": versao, "bruto": bruto, "gzip": gzip.compress(bruto, 6), "ultimo": ultimo}
             if len(_cache_csv) >= 16:  # varias janelas (aparelhos em dias diferentes): nao cresce sem fim
                 _cache_csv.clear()
             _cache_csv[chave] = atual
@@ -591,13 +596,24 @@ class Handler(BaseHTTPRequestHandler):
             if desde and _dia_valido(desde) is None:
                 self._responder_json({"ok": False, "erro": "desde: use AAAA-MM-DD."}, status=400)
                 return
-            self._responder_csv(setor, desde or None)
+            apos = consulta.get("apos", [""])[0]
+            if apos and not apos.isdigit():
+                self._responder_json({"ok": False, "erro": "apos: id numérico."}, status=400)
+                return
+            if apos:
+                self._responder_csv_novos(setor, desde or None, int(apos))
+            else:
+                self._responder_csv(setor, desde or None)
         elif url.path == "/api/v2/ciclos":
             self._responder_ciclos_periodo(setor, consulta)
         elif url.path == "/api/v2/resumo":
             self._responder_resumo(setor, consulta)
         elif url.path == "/setores":
             self._responder_json(_resposta_setores())
+        elif url.path == "/dispositivos":  # 2.0 (fase 2): coletores; na VPS so leitura
+            self._responder_json({"dispositivos": dispositivos.lista_para_painel(banco),
+                                  "alertas": dispositivos.alertas(banco),
+                                  "semSinalS": dispositivos.SEM_SINAL_S, "podeAlterar": not MODO_NUVEM})
         elif url.path == "/ao-vivo":
             rodando = nuvem.status_nuvem(dir_dados_usuario())["rodando"] if MODO_NUVEM else esta_rodando()
             self._responder_json({"rodando": rodando, "maquinas": banco.obter_estado_ao_vivo(setor)})
@@ -745,20 +761,35 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("If-None-Match", "") == etag:
             self.send_response(304)
             self.send_header("ETag", etag)
+            self.send_header("X-Ultimo-Id", str(atual["ultimo"]))
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Expose-Headers", "ETag")
+            self.send_header("Access-Control-Expose-Headers", "ETag, X-Ultimo-Id")
             self.end_headers()
             return
         usar_gzip = "gzip" in self.headers.get("Accept-Encoding", "")
-        dados = atual["gzip"] if usar_gzip else atual["bruto"]
+        self._enviar_csv(atual["gzip"] if usar_gzip else atual["bruto"], usar_gzip, atual["ultimo"], etag)
+
+    def _responder_csv_novos(self, setor, desde, apos):
+        """2.0 (fase 2): GET /dados?setor=&desde=&apos=<id> - so os ciclos com
+        id > apos (o painel acrescenta ao que ja tem). Sem cache nem ETag: a
+        consulta pelo indice setor+id e instantanea, e sem nada novo a
+        resposta e so o cabecalho do CSV."""
+        texto, ultimo = banco.csv_e_ultimo_id(setor, desde=desde, apos=apos)
+        bruto = texto.encode("utf-8")
+        usar_gzip = "gzip" in self.headers.get("Accept-Encoding", "") and len(bruto) > 1024
+        self._enviar_csv(gzip.compress(bruto, 6) if usar_gzip else bruto, usar_gzip, ultimo)
+
+    def _enviar_csv(self, dados, usar_gzip, ultimo, etag=None):
         self.send_response(200)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("ETag", etag)
+        if etag:
+            self.send_header("ETag", etag)
+        self.send_header("X-Ultimo-Id", str(ultimo))  # 2.0: o painel pede os novos a partir dele
         if usar_gzip:
             self.send_header("Content-Encoding", "gzip")
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Expose-Headers", "ETag")
+        self.send_header("Access-Control-Expose-Headers", "ETag, X-Ultimo-Id")
         self.send_header("Content-Length", str(len(dados)))
         self.end_headers()
         self.wfile.write(dados)
@@ -846,6 +877,14 @@ class Handler(BaseHTTPRequestHandler):
         if MODO_NUVEM and rota.startswith("/api/nuvem/"):
             self._post_nuvem(rota)
             return
+        if rota == "/api/v2/coletor":  # 2.0: coletores autenticam pela assinatura (sem PIN nem login)
+            if MODO_NUVEM:  # os coletores so falam com o servidor local
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._post_coletor()
+            return
         if MODO_NUVEM and rota == "/login":
             self._login()
             return
@@ -890,7 +929,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._responder_json({"ok": True, "senhas": nuvem.senhas_guardadas(banco)}, cors=False)
             return
-        if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao", "/setores"):
+        if rota not in ("/iniciar", "/parar", "/config", "/esp/acao", "/conexao", "/setores", "/dispositivos"):
             self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -915,6 +954,8 @@ class Handler(BaseHTTPRequestHandler):
             self._salvar_config()
         elif rota == "/setores":
             self._salvar_setores()
+        elif rota == "/dispositivos":
+            self._salvar_dispositivos()
         elif rota == "/esp/acao":
             try:
                 corpo = self._corpo_json()
@@ -923,6 +964,30 @@ class Handler(BaseHTTPRequestHandler):
             self._responder_json(monitor_wifi.acao_esp(status_sincronizacao(), str(corpo.get("acao", ""))))
         elif rota == "/conexao":
             self._salvar_conexao()
+
+    def _post_coletor(self):
+        """2.0 (fase 2): POST /api/v2/coletor - ver ferramentas/receptor_push.py."""
+        ip = self.client_address[0]
+        if limite_coletor.bloqueado(ip):
+            self._responder_json({"ok": False, "erro": "muitas tentativas"}, status=429, cors=False)
+            return
+        try:
+            tamanho = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            tamanho = -1
+        if not 0 < tamanho <= receptor_push.MAX_CORPO:
+            self._responder_json({"ok": False, "erro": "tamanho do corpo"}, status=413 if tamanho > 0 else 400, cors=False)
+            return
+        corpo = self.rfile.read(tamanho)
+        try:
+            dados, dispositivo = receptor_push.autenticar(self.headers, corpo, receptor_push.chave_mestra())
+            status, resposta = receptor_push.processar(banco, dados, dispositivo, ip)
+        except receptor_push.ErroColetor as erro:
+            if erro.erro == "assinatura":
+                limite_coletor.falhou(ip)
+            self._responder_json(erro.resposta(), status=erro.status, cors=False)
+            return
+        self._responder_json(resposta, status=status, cors=False)
 
     def _post_nuvem(self, rota):
         """VPS: recebe do ESP32 (/api/nuvem/enviar) e do notebook
@@ -985,6 +1050,32 @@ class Handler(BaseHTTPRequestHandler):
         if enviador_nuvem is not None:  # chega a VPS sem esperar a proxima troca
             threading.Thread(target=enviador_nuvem.enviar_agora, daemon=True).start()
         self._responder_json({"ok": True, "setor": setor, **_resposta_setores(), "configRev": nuvem.versao_config()})
+
+    def _salvar_dispositivos(self):
+        """2.0 (fase 2): POST /dispositivos {"acao": adotar|trocar|liberar|
+        bloquear|desbloquear|renomear, ...}. So no computador da fabrica (a
+        VPS so mostra o cadastro). Adotar numa maquina que ainda nao existe
+        no setor cadastra a maquina pela configuracao (sincroniza com a VPS)."""
+        if MODO_NUVEM:
+            self._responder_json({"ok": False, "erro": "Aparelhos só pelo computador da fábrica."}, status=403)
+            return
+        try:
+            corpo = self._corpo_json()
+        except (ValueError, UnicodeDecodeError):
+            self._responder_json({"ok": False, "erro": "JSON invalido"}, status=400)
+            return
+        origem, autor = self._origem_autor()
+        try:
+            d = dispositivos.executar(banco, str(corpo.get("acao", "")), corpo, autor)
+        except dispositivos.ErroDispositivo as erro:
+            self._responder_json({"ok": False, "erro": str(erro)}, status=400)
+            return
+        if d and d.get("situacao") == "ativo" and d.get("maquina") and str(d["maquina"]) not in banco.obter_maquinas(d["setor"]):
+            nuvem.aplicar_config(banco, {"setor": d["setor"], "maquinas": {str(d["maquina"]): {
+                "nome": d.get("apelido") or f"Máquina {d['maquina']}", "metrosPorMin": 0}}},
+                SETOR_PADRAO, origem=origem, autor=autor)
+        self._responder_json({"ok": True, "dispositivo": d, "dispositivos": dispositivos.lista_para_painel(banco),
+                              "configRev": nuvem.versao_config()})
 
     def _salvar_config(self):
         try:

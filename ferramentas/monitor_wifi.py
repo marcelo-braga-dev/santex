@@ -270,10 +270,22 @@ def gravar_linhas_ciclos(banco, setor, dispositivo, linhas, log=print):
     return novos
 
 
+def registrar_multi_seguro(banco, dispositivo, setor, firmware=None, ip=None):
+    """2.0 (fase 2): o ESP32 multi entra no cadastro de dispositivos (ativo,
+    no setor dele) a cada contato. Nada aqui pode parar a leitura: ate um
+    erro de importacao e engolido."""
+    try:
+        import dispositivos
+        dispositivos.registrar_multi(banco, dispositivo, setor, firmware=firmware, ip=ip)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _baixar_ciclos(cliente, banco, setor, info, log):
     """Baixa tudo o que o banco ainda nao tem. Devolve (ultimo id examinado
     - tudo ate ele esta seguro no banco -, ciclos novos, ciclos perdidos)."""
     dispositivo = info["dispositivo"]
+    registrar_multi_seguro(banco, dispositivo, setor, info.get("firmware"), getattr(cliente, "ip", None))
     desde = banco.ultimo_id_origem(dispositivo)
     # Ciclos entre o que ja temos e o mais antigo que o ESP32 ainda guarda:
     # o buffer circular encheu e eles foram sobrescritos antes de extraidos.

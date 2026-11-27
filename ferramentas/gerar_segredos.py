@@ -11,6 +11,10 @@ API_CHAVE - a mesma chave que o firmware exige nas acoes que alteram o
 ESP32 (/limpar, /hora, /acao). Sem API_CHAVE no .env, uma chave aleatoria
 e criada e acrescentada ao .env automaticamente.
 
+2.0: tambem cria a COLETOR_CHAVE_MESTRA (se faltar) e a poe so no
+segredos_app.json - nunca no segredos.h (os coletores recebem uma chave
+derivada, por aparelho).
+
 Depois de rodar: grave o firmware E gere o .exe de novo (os dois precisam
 da mesma chave).
 
@@ -84,6 +88,18 @@ def main():
                           "# a VPS precisa da mesma (NUVEM_CHAVE em /etc/painel-nuvem.env).\n"
                           f"NUVEM_CHAVE={valores['NUVEM_CHAVE']}\n")
         print("NUVEM_CHAVE criada e acrescentada ao .env.")
+    if not valores.get("COLETOR_CHAVE_MESTRA"):
+        # 2.0 (fase 2): coletores de 1 por maquina. Cada aparelho tem a SUA
+        # chave = HMAC(mestra, id do aparelho), gravada nele no
+        # provisionamento; a mestra fica so aqui e no servidor local (nunca no
+        # firmware, nunca na VPS). Perder um aparelho nao expoe os outros.
+        valores["COLETOR_CHAVE_MESTRA"] = secrets.token_hex(32)
+        with open(ARQ_ENV, "a", encoding="utf-8") as arquivo:
+            arquivo.write("\n# 2.0: chave-mestra dos coletores (1 ESP32 por maquina). Gerada automaticamente.\n"
+                          "# Fica so no servidor local: cada aparelho recebe uma chave derivada dela.\n"
+                          "# TROCAR invalida a chave de TODOS os coletores ja provisionados.\n"
+                          f"COLETOR_CHAVE_MESTRA={valores['COLETOR_CHAVE_MESTRA']}\n")
+        print("COLETOR_CHAVE_MESTRA criada e acrescentada ao .env.")
     url = valores.get("NUVEM_URL", "").strip().rstrip("/")
     if url and not url.startswith("https://"):
         sys.exit("ERRO: NUVEM_URL precisa comecar com https:// (o ESP32 so envia por HTTPS).")
@@ -107,7 +123,8 @@ def main():
         # ap_senha (1.7.4): o notebook atualiza o firmware do ESP32 pelo painel
         # sem pedir a senha do equipamento (POST /atualizar exige X-Senha)
         json.dump({"api_chave": valores["API_CHAVE"], "nuvem_url": valores["NUVEM_URL"],
-                   "nuvem_chave": valores["NUVEM_CHAVE"], "ap_senha": valores["AP_SENHA"]}, arquivo)
+                   "nuvem_chave": valores["NUVEM_CHAVE"], "ap_senha": valores["AP_SENHA"],
+                   "coletor_chave_mestra": valores["COLETOR_CHAVE_MESTRA"]}, arquivo)
     print(f"OK: {os.path.relpath(ARQ_SAIDA, RAIZ)} e {os.path.relpath(ARQ_SAIDA_APP, RAIZ)} atualizados a partir do .env.")
     print("Grave o firmware E gere o .exe de novo (gerar/gerar.bat) - os dois usam as mesmas chaves.")
     print(f"Acesso remoto: {'ligado -> ' + valores['NUVEM_URL'] if valores['NUVEM_URL'] else 'desligado (NUVEM_URL vazia)'}")

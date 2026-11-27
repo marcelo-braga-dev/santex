@@ -13,7 +13,8 @@ arquivo vira o `CLAUDE.md` dele). Guia humano equivalente: `docs/nuvem-vps.md`.
 
 > **⚠ 2.0 em desenvolvimento na `main` (desde 26/11/2026).** Produção =
 > tag **`v1.7.5`**. **Não instale a `main`** (`vps/instalar.sh`) até a 2.0
-> ser liberada. Única exceção: o **deploy de teste da `2.0.0-alfa.1`**
+> ser liberada. Única exceção: o **deploy de teste da 2.0 alfa** (a versão
+> que estiver no `APP_VERSAO` da `main`)
 > (bloco abaixo), **só quando o usuário pedir com essas palavras**. Para um
 > deploy de correção da 1.7.x, use a tag dela (`git checkout v1.7.x` e
 > depois `sudo bash vps/instalar.sh`). Detalhes em `docs/progresso-2.0.md`.
@@ -110,23 +111,28 @@ um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
 
-**2.0.0-alfa.1 — deploy de TESTE, só com o pedido explícito do usuário**
-(seguinte à 1.7.5; a `main` com a fase 1 da 2.0 fechada):
+**2.0 alfa (`2.0.0-alfa.N`, o `APP_VERSAO` da `main`) — deploy de TESTE,
+só com o pedido explícito do usuário** (seguinte à 1.7.5; fase 1 da 2.0
+fechada e a fase 2 em andamento; hoje `2.0.0-alfa.2`):
 - **Ordem: VPS primeiro**, depois o `.exe` do notebook. A VPS 2.0 funciona
   com o notebook 1.7.5 (testado: `TesteCompatibilidadeNotebook175`) e com o
   ESP32 3.2 enviando direto, como hoje.
 - O banco ganha **sozinho, ao iniciar**, só coisas novas: tabelas
   `setores` (com "Enfestadeiras", dona de todo o histórico) e `resumo_dia`
   (calculado dos ciclos existentes na primeira partida — com ~10 mil ciclos,
-  menos de 1 s), e o índice `idx_ciclos_setor_gravado`. Nada é apagado nem
+  menos de 1 s), `dispositivos` e `dispositivo_atribuicoes` (o ESP32 das
+  Enfestadeiras se registra sozinho no primeiro envio), e os índices
+  `idx_ciclos_setor_gravado` e `idx_atribuicoes_disp`. Nada é apagado nem
   reescrito. **Antes do deploy, faça uma cópia do banco** (o backup diário
   já existe, mas esta é a primeira subida de versão grande):
   `sudo -u painel sqlite3 /var/lib/painel-nuvem/painel.db ".backup /var/lib/painel-nuvem/backup-antes-2.0.db"`
   (sem o `sqlite3`: `sudo -u painel python3 -c "import sqlite3; s=sqlite3.connect('/var/lib/painel-nuvem/painel.db'); d=sqlite3.connect('/var/lib/painel-nuvem/backup-antes-2.0.db'); s.backup(d)"`).
-- Arquivos novos: `ferramentas/setores.py` e `painel/js/setores.js` (o
+- Arquivos novos: `ferramentas/setores.py`, `ferramentas/dispositivos.py`,
+  `ferramentas/receptor_push.py` (a rota `/api/v2/coletor` responde 404 na
+  VPS: os coletores só falam com o servidor local) e `painel/js/setores.js` (o
   `vps/instalar.sh` copia as pastas inteiras).
 - No passo 3, o `ping` responde
-  `{"ok": true, "versao": "2.0.0", "versaoCompleta": "2.0.0-alfa.1"}` (o
+  `{"ok": true, "versao": "2.0.0", "versaoCompleta": "2.0.0-alfa.2"}` (o
   "versao" só com números, porque o notebook 1.7.x lê assim). Conferir também:
   ```bash
   sudo python3 -c "import sqlite3; c=sqlite3.connect('file:/var/lib/painel-nuvem/painel.db?mode=ro', uri=True); print('setores:', c.execute('select setor, nome, ativo from setores').fetchall()); print('resumo_dia:', c.execute('select count(*), coalesce(sum(ciclos),0) from resumo_dia').fetchone(), 'ciclos:', c.execute('select count(*) from ciclos').fetchone()[0])"

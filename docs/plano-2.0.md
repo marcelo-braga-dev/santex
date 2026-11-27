@@ -306,6 +306,12 @@ Regras:
 - **Idempotência**: a chave do ciclo é `dispositivo + origem_id`. Reenviar
   o mesmo lote não duplica nada.
 - **Confirmação só depois do COMMIT** no SQLite.
+- **Relógio fora da janela** (feito na 2.3): a assinatura confere mas o
+  `ts` está fora de ±120 s → 401 `{"erro": "relogio", "hora": <epoch do
+  servidor>}`. O aparelho acerta o RTC com essa hora e tenta de novo (sem
+  isso, um RTC com bateria esgotada nunca mais conseguiria enviar).
+- **Chave do aparelho** = `HMAC-SHA256(mestra, id)` em **texto hex** (64
+  caracteres); o firmware usa esse texto como chave do HMAC da assinatura.
 - **Aparelho não adotado**: o servidor responde `adotado: false, ack_ate: 0`.
   Ele aparece em "Novos aparelhos", e os ciclos **ficam guardados no
   ESP32** até a adoção. Não existem ciclos órfãos no banco.
@@ -498,7 +504,7 @@ nem do hardware e pode começar já.
 | Ruído elétrico nas entradas | Ciclos falsos | Optoacoplador, debounce, flag de ciclo curto; validar no piloto |
 | Mini-PC desligado | Painel parado (sem perda) | Energia protegida, início automático, BIOS Power On; alerta na VPS "servidor local sem contato" |
 | Aparelho trocado sem registro | Ciclos na máquina errada | Adoção obrigatória; aparelho não adotado não grava |
-| Histórico grande deixa o painel lento | Painel inutilizável | API por período + `resumo_dia` na fase 1 (feito). Setor novo carrega só uma janela de dias. **Falta na fase 4**: séries do Desempenho (6 meses / 4 anos para trás) e relatórios longos sobre o `resumo_dia`, e atualização incremental (só os ciclos novos) em vez de rebaixar a janela a cada ciclo |
+| Histórico grande deixa o painel lento | Painel inutilizável | API por período + `resumo_dia` na fase 1 (feito). Setor novo carrega só uma janela de dias. Atualização incremental (só os ciclos novos, `apos=`) feita na 2.1. **Falta na fase 4**: séries do Desempenho (6 meses / 4 anos para trás) e relatórios longos sobre o `resumo_dia`, e acrescentar no navegador sem reprocessar o texto todo |
 | Configuração v3 quebra a VPS 1.7.x | Sincronização parada | VPS primeiro; v2 aceito; teste em cópia (`TesteCompatibilidadeVps175` roda o notebook 2.0 contra a VPS da tag `v1.7.5`) |
 | Setores criados ao mesmo tempo no notebook e na VPS | O cadastro sincroniza como lista inteira: o setor **sem dados** do lado que perdeu some | Raro (janela de 15 s). Setor com dados nunca some e a lista converge sozinha. Se incomodar: um item por setor com exclusão explícita (ver `docs/progresso-2.0.md`, revisão da fase 1) |
 | Arquivo novo fora dos geradores | `.exe` ou VPS sem o módulo: não abre | `TesteGeradoresLevamOsModulos` confere `gerar/exe_fabrica.py` e `gerar/pacote_vps.ps1` |

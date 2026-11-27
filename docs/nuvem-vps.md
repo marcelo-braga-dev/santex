@@ -280,7 +280,7 @@ atualização (git pull)", que inclui as verificações.
 
 A `main` tem a 2.0 (vários setores). Produção continua na tag `v1.7.5`:
 **não instale a `main`** até a 2.0 ser liberada. O primeiro deploy de teste
-será o da `2.0.0-alfa.1`, com o passo a passo em `vps/CLAUDE_VPS.md`. Em
+será o de uma versão alfa (`2.0.0-alfa.N`, a da `main`), com o passo a passo em `vps/CLAUDE_VPS.md`. Em
 resumo:
 
 - **VPS primeiro**, depois o `.exe` do notebook. A VPS 2.0 aceita o notebook
@@ -290,7 +290,7 @@ resumo:
 - O banco ganha sozinho só coisas novas (`setores`, `resumo_dia`, um
   índice). Cópia do banco antes do primeiro deploy, de qualquer forma.
 - O `ping` responde `"versao": "2.0.0"` (só números, para o notebook 1.7.x
-  entender) e `"versaoCompleta": "2.0.0-alfa.1"`.
+  entender) e `"versaoCompleta"` com a versão inteira (ex. `"2.0.0-alfa.2"`).
 - Voltar para a 1.7.5: `git checkout v1.7.5` + `sudo bash vps/instalar.sh`.
   A 1.7.5 abre o banco da 2.0 sem problema, e a 2.0, ao subir de novo,
   recalcula o resumo se algo foi gravado nesse meio-tempo.

@@ -183,6 +183,36 @@ class TesteRotasPeriodo(unittest.TestCase):
         self.assertEqual(self.pedir("/dados?setor=tinturaria&desde=2026-10-02", {"If-None-Match": cab_janela["ETag"]})[0], 304)
         self.assertEqual(self.pedir("/dados?setor=tinturaria&desde=ontem")[0], 400)
 
+    def test_dados_incrementais_somam_o_mesmo_que_a_carga_completa(self):
+        # fase 2: carga completa (X-Ultimo-Id) + so os novos (apos=) == carga completa de novo
+        b = servidor.banco
+        import setores
+        if not b.obter_setor("estamparia"):
+            setores.criar(b, {"nome": "Estamparia"})
+        b.gravar_ciclo_remoto("estamparia", "EST000-ESTAMPA1", 1, 1, 1, "?", "?", 60.0, "", "2026-10-10 08:00:00")
+        for desde in ("", "&desde=2026-10-10"):
+            with self.subTest(desde=desde):
+                st, base, cab = self.pedir(f"/dados?setor=estamparia{desde}")
+                ultimo = int(cab["X-Ultimo-Id"])
+                self.assertGreater(ultimo, 0)
+                # nada novo: so o cabecalho, o id nao muda
+                st, novos, cab2 = self.pedir(f"/dados?setor=estamparia{desde}&apos={ultimo}")
+                self.assertEqual((st, len(novos.decode().splitlines()), int(cab2["X-Ultimo-Id"])), (200, 1, ultimo))
+                # chegam 2 ciclos novos e 1 antigo atrasado (fora da janela de "desde")
+                n = 10 if not desde else 20
+                b.gravar_ciclo_remoto("estamparia", "EST000-ESTAMPA1", n, 2, n, "?", "?", 60.0, "", "2026-10-11 09:00:00")
+                b.gravar_ciclo_remoto("estamparia", "EST000-ESTAMPA1", n + 1, 1, n + 1, "?", "?", 60.0, "", "2026-10-01 09:00:00")
+                b.gravar_ciclo_remoto("estamparia", "EST000-ESTAMPA1", n + 2, 3, n + 2, "?", "?", 60.0, "", "2026-10-11 10:00:00")
+                st, novos, cab3 = self.pedir(f"/dados?setor=estamparia{desde}&apos={ultimo}")
+                linhas = novos.decode().splitlines()[1:]
+                self.assertEqual(len(linhas), 3 if not desde else 2)
+                self.assertGreater(int(cab3["X-Ultimo-Id"]), ultimo)  # avanca tambem sobre o atrasado
+                acumulado = base.decode().rstrip("\n").split("\n") + linhas
+                st, completo, cab4 = self.pedir(f"/dados?setor=estamparia{desde}")
+                self.assertEqual(completo.decode().rstrip("\n").split("\n"), acumulado)
+                self.assertEqual(cab4["X-Ultimo-Id"], cab3["X-Ultimo-Id"])
+        self.assertEqual(self.pedir("/dados?setor=estamparia&apos=x")[0], 400)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7174,6 +7174,15 @@
   // redesenhado quando muda.
   let etagDados = null;
   let buscandoDados = false;
+  // 2.0 (fase 2): atualizacao INCREMENTAL. Depois de uma carga completa, o
+  // painel pede so os ciclos com id maior que o ultimo recebido (cabecalho
+  // X-Ultimo-Id do /dados) e acrescenta ao que ja tem. A cada 10 min faz uma
+  // carga completa de novo (cobre o raro ciclo antigo que ganha a hora real
+  // depois - isso nao aparece como ciclo novo). Servidor antigo (sem o
+  // cabecalho): so cargas completas, como antes.
+  const CARGA_COMPLETA_MS = 10 * 60000;
+  let ultimoIdDados = null;
+  let ultimaCargaCompleta = 0;
 
   function horaAgora() {
     const d = new Date();
@@ -7181,25 +7190,48 @@
   }
 
   // forcar (2.0): troca de setor - busca mesmo com a consulta anterior (do
-  // setor antigo) em andamento; a resposta dela e descartada ao chegar.
+  // setor antigo) em andamento; a resposta dela e descartada ao chegar. A
+  // busca forcada e sempre completa.
   async function autoAtualizarDados(forcar) {
     if (buscandoDados && !forcar) return; // consulta anterior ainda em andamento
     buscandoDados = true;
     const setorPedido = setorAtual.id;
     const janelaPedida = janelaDesde;
     const mudou = () => setorPedido !== setorAtual.id || janelaPedida !== janelaDesde;
+    const incremental = !forcar && ultimoIdDados !== null && ultimoTextoAutoRefresh !== null
+      && Date.now() - ultimaCargaCompleta < CARGA_COMPLETA_MS;
     try {
       const desde = janelaPedida !== null ? "&desde=" + diaIsoDe(janelaPedida) : "";
-      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorPedido) + desde, {
+      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorPedido) + desde
+        + (incremental ? "&apos=" + ultimoIdDados : ""), {
         cache: "no-store",
-        headers: etagDados && ultimoTextoAutoRefresh !== null ? { "If-None-Match": etagDados } : {},
+        headers: !incremental && etagDados && ultimoTextoAutoRefresh !== null ? { "If-None-Match": etagDados } : {},
       });
       if (mudou()) return; // trocou de setor (ou a janela cresceu) no meio: resposta velha
-      if (res.status === 304) { TELA_CARREGANDO.dados(true); return; }
+      const idTxt = res.headers.get("X-Ultimo-Id");
+      const idServidor = idTxt !== null && /^\d+$/.test(idTxt) ? Number(idTxt) : null;
+      if (res.status === 304) { // carga completa sem mudanca: vale como completa
+        if (idServidor !== null) { ultimoIdDados = idServidor; ultimaCargaCompleta = Date.now(); }
+        TELA_CARREGANDO.dados(true);
+        return;
+      }
       if (!res.ok) { TELA_CARREGANDO.dados(false); return; }
       const texto = await res.text();
       if (mudou()) return;
+      if (incremental) {
+        if (idServidor === null) { ultimoIdDados = null; return; } // servidor antigo: volta as cargas completas
+        ultimoIdDados = idServidor;
+        const novas = texto.split("\n").slice(1).filter((l) => l.trim()); // sem o cabecalho
+        if (!novas.length) { TELA_CARREGANDO.dados(true); return; } // nada novo
+        ultimoTextoAutoRefresh = ultimoTextoAutoRefresh.replace(/\n*$/, "\n") + novas.join("\n") + "\n";
+        etagDados = null; // o texto acumulado nao corresponde mais a ETag da ultima carga completa
+        loadFromText(ultimoTextoAutoRefresh, "Monitoramento em tempo real", true);
+        TELA_CARREGANDO.dados(true);
+        return;
+      }
       etagDados = res.headers.get("ETag");
+      ultimoIdDados = idServidor;
+      ultimaCargaCompleta = Date.now();
       if (texto === ultimoTextoAutoRefresh) return; // sem mudanca, evita redesenho a toa
       ultimoTextoAutoRefresh = texto;
       loadFromText(texto, "Monitoramento em tempo real", true);

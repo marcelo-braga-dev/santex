@@ -1,5 +1,53 @@
 # Histórico de versões
 
+## 2.0.0-alfa.2 — fase 2 em andamento: atualização incremental e cadastro de dispositivos (app 2.0.0-alfa.2 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
+
+Não liberada (produção na 1.7.5). A alfa.1 não chegou a ser instalada: o
+próximo deploy de teste já leva esta.
+
+- **Painel baixa só os ciclos novos**: o `/dados` informa o maior id
+  entregue (cabeçalho `X-Ultimo-Id`) e aceita `apos=<id>` (só os ciclos
+  depois dele, pelo índice `setor+id`). Depois da primeira carga, o painel
+  pede só os novos e acrescenta; a cada 10 min (ou ao voltar à aba) faz uma
+  carga completa, que cobre o raro ciclo antigo que ganha a hora real
+  depois. Vale para todos os setores; servidor antigo (sem o cabeçalho) =
+  cargas completas, como antes.
+- Teste de volume (1,8 milhão de ciclos): só os novos em 0,001 s (1,9 KB),
+  contra ~1 s e 2,9 MB da janela de 16 dias a cada ciclo novo.
+- **Cadastro de dispositivos** (tabelas `dispositivos` e
+  `dispositivo_atribuicoes`, só aditivas; regras em
+  `ferramentas/dispositivos.py`): aparelho novo aparece no primeiro contato;
+  adotar (setor + máquina, uma máquina = um aparelho ativo), trocar o
+  queimado pelo reserva, liberar, bloquear/desbloquear, apelido; histórico de
+  atribuições. Rotas `GET /dispositivos` (com "sem sinal" calculado) e
+  `POST /dispositivos` (só no computador da fábrica; adotar numa máquina
+  nova a cadastra no setor pela configuração, que sincroniza com a VPS).
+- O **ESP32 multi das Enfestadeiras** entra sozinho no cadastro (ativo, no
+  setor dele) a cada contato — na leitura pelo Wi-Fi e no envio direto à
+  VPS —, reconhecido pela série (a parte do MAC já mudou entre versões).
+  Protegido para nunca parar a leitura.
+- Setor com aparelho (atual ou no histórico) só pode ser desativado.
+- **`POST /api/v2/coletor`** (só no servidor local; a VPS responde 404):
+  o recebimento por push dos coletores de 1 por máquina. Assinatura
+  HMAC-SHA256 com chave **por aparelho** (derivada da `COLETOR_CHAVE_MESTRA`),
+  anti-replay de ±120 s (a recusa por relógio devolve a hora certa),
+  bloqueado = recusado, não adotado = nada gravado (`ack_ate: 0`, os ciclos
+  ficam no ESP32), adotado = grava com o setor e a máquina do cadastro e
+  confirma (`ack_ate`) só depois de gravar. Reenvio não duplica. Código em
+  `ferramentas/receptor_push.py`.
+- **Simulador de coletores** (`ferramentas/simulador_coletores.py`): N
+  ESP32 virtuais com o protocolo real, banco temporário, com queda de metade
+  da rede, reinícios e relógio errado. 50 aparelhos por 3 min: nenhum ciclo
+  perdido nem duplicado, resposta mediana de 5,6 ms (p95 34 ms); 200
+  aparelhos também sem perda. Versão curta entra nos testes.
+- **Alertas de comunicação** em `GET /dispositivos`: repetidor fora (todos
+  os aparelhos de um AP sem sinal juntos, um alerta só), sem sinal, sinal
+  fraco, memória do coletor enchendo, relógio inválido, reinícios demais e
+  aparelho novo esperando adoção. A tela é da fase 4.
+- `gerar_segredos.py` cria a `COLETOR_CHAVE_MESTRA` quando ela falta no
+  `.env` e a põe só no `app/segredos_app.json` (nunca no firmware nem na
+  VPS).
+
 ## 2.0.0-alfa.1 — fase 1 da 2.0: vários setores (app 2.0.0-alfa.1 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 
 Plano em `docs/plano-2.0.md`, andamento em `docs/progresso-2.0.md`. **Não

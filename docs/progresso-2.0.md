@@ -14,9 +14,10 @@
   - uma correção urgente na 1.7.x sai da tag:
     `git checkout -b correcao-1.7 v1.7.5` → corrige → tag `v1.7.6` → deploy
     a partir dessa tag. Depois, leve a correção para a `main`.
-- O `APP_VERSAO` da `main` é **`"2.0.0-alfa.1"`** (desde 27/11/2026, fase
-  1 fechada). O deploy de teste dessa versão **ainda não foi feito**: só
-  com o OK do usuário, VPS primeiro (`vps/CLAUDE_VPS.md`).
+- O `APP_VERSAO` da `main` é **`"2.0.0-alfa.2"`** (alfa.1 = fase 1
+  fechada, nunca instalada; alfa.2 = + atualização incremental). Nenhum
+  deploy de teste foi feito ainda: só com o OK do usuário, VPS primeiro
+  (`vps/CLAUDE_VPS.md`). Cada entrega nova sobe o número da alfa.
 - As regras do `CLAUDE.md` continuam valendo: banco de produção nunca
   apagado, testes só em pasta temporária, nunca ler o ESP32 real.
 
@@ -26,7 +27,7 @@
 |---|---|
 | 0. Rede e hardware | Decisões tomadas (plano §2 e §5); instalação e prova de alcance **pendentes** (com o usuário) |
 | **1. Fundação multi-setor** | **Código pronto** (1.1 a 1.5, versão `2.0.0-alfa.1`). Falta o **deploy de teste** (VPS primeiro, depois o `.exe`), que depende do OK do usuário |
-| 2. Protocolo e servidor (push dos ESP32) | Não iniciada |
+| 2. Protocolo e servidor (push dos ESP32) | **Quase pronta**: 2.1, 2.2, 2.3, 2.5 (simulador: 50 aparelhos sem perda) e 2.6 (alertas) feitas; 2.4 (fila) adiada com base nas medições; falta a rodada de 24 h do simulador |
 | 3. Firmware 4.0 | Não iniciada |
 | 4. Painel 50 máquinas | Não iniciada |
 | 5. Piloto | Não iniciada |
@@ -217,11 +218,161 @@ feito:
   `PainelProducaoSantex-2.0.0-alfa.1.exe` e instalar no notebook,
   (4) conferir as Enfestadeiras idênticas e criar um setor de teste.
 
-### ⏭ Próximo: fase 2 (protocolo e servidor dos coletores)
-Começa pelo que a 1.4 mostrou ser necessário antes das 50 máquinas:
-**atualização incremental** do `/dados` (só os ciclos novos). Depois:
-`/api/v2/coletor` (push com HMAC por aparelho), cadastro de dispositivos e
-adoção, fila com gravador único, simulador de 50 coletores, alertas.
+## Fase 2 — etapas
+
+### ✅ 2.1 Atualização incremental do `/dados` (versão `2.0.0-alfa.2`)
+- `banco.csv_e_ultimo_id(setor, desde, apos)`: CSV + maior id coberto. Com
+  `apos`, só `id > apos` pelo índice `(setor, id)`; o `desde` é aplicado
+  depois, para o id avançar também sobre um ciclo antigo que chegou
+  atrasado (fora da janela). `csv_do_setor` continua igual (usa o novo).
+- `/dados` manda `X-Ultimo-Id` (também no 304) e aceita `apos=`; com `apos`
+  não há cache nem ETag (a consulta é instantânea). `X-Ultimo-Id` entra no
+  `Access-Control-Expose-Headers`.
+- Painel (`autoAtualizarDados`): depois de uma carga completa, pede
+  `&apos=<último id>` e acrescenta as linhas novas ao texto que já tem
+  (`loadFromText` do texto acumulado — o reprocessamento no navegador
+  continua; trocar por um acréscimo de verdade é da fase 4). Carga completa
+  a cada 10 min (`CARGA_COMPLETA_MS`), na troca de setor e quando a janela
+  cresce. Servidor sem o cabeçalho: só cargas completas.
+- **Limite conhecido**: um ciclo que já existe e muda (o caso 1.7.1: ganha
+  a hora real) não é "novo" — aparece na próxima carga completa (até
+  10 min). Acontece quase só na VPS, quando o notebook completa a hora.
+- Teste: `test_dados_incrementais_somam_o_mesmo_que_a_carga_completa`
+  (carga completa + incrementais == carga completa nova, com e sem
+  `desde`, inclusive com ciclo atrasado). No navegador, com um ciclo novo a
+  cada 4 s: os pedidos passam a `apos=6557`, `6558`, `6559`…
+- Volume (1,8 milhão de ciclos): só os novos em **0,001 s** (50 ciclos,
+  1,9 KB), contra ~1 s e 2,9 MB da janela de 16 dias.
+
+### ✅ 2.2 Cadastro de dispositivos (versão `2.0.0-alfa.2`)
+- Tabelas `dispositivos` e `dispositivo_atribuicoes` (plano §10; mais
+  `criado_em` e o índice `idx_atribuicoes_disp`). Métodos de banco em
+  `banco_dados.py` (`obter/listar/salvar_dispositivo`,
+  `dispositivo_da_maquina`, `abrir/fechar_atribuicao`, `atribuicoes`).
+- Regras em **`ferramentas/dispositivos.py`**:
+  - ids: unitário `esp-<MAC 12 hex>`; multi (firmware 3.x)
+    `<MAC 12 hex>-<série 8 hex>`. Outro formato = ignorado;
+  - `registrar_contato` (cria "novo" no 1º contato — **só chamar depois
+    de conferir a assinatura**, na 2.3; até 200 novos de uma vez);
+  - `adotar` (unitário novo/reserva → máquina livre de um setor), `trocar`
+    (o reserva assume a máquina do antigo), `liberar`, `bloquear` (libera a
+    máquina), `desbloquear`, `renomear`; `executar` para a rota;
+  - `registrar_multi`: o ESP32 das Enfestadeiras entra **ativo** no setor
+    dele (era assim antes da 2.0), reconhecido pela **série** — o mesmo
+    controlador já apareceu com 3 MACs diferentes. Nunca levanta exceção.
+- Ganchos no caminho de produção (protegidos por `registrar_multi_seguro`,
+  em `monitor_wifi.py`, que engole até erro de importação): leitura pelo
+  Wi-Fi no notebook (`_baixar_ciclos`) e envio direto do ESP32 à VPS
+  (`nuvem.receber_do_esp`).
+- Rotas: `GET /dispositivos` (lista + `semSinal`, sem contato há mais de
+  30 s; na VPS também, atrás do login) e `POST /dispositivos`
+  `{acao, ...}` (só no computador da fábrica: na VPS, 403). Adotar numa
+  máquina que o setor ainda não tem cadastra a máquina via
+  `nuvem.aplicar_config` (com o apelido do aparelho como nome) — entra na
+  auditoria e sincroniza com a VPS.
+- `setor_tem_dados` conta aparelhos e atribuições: setor que já teve
+  aparelho só pode ser desativado.
+- Ainda **sem tela no painel** (Configurações → Sistema → Dispositivos é da
+  fase 4) e o cadastro **não sobe para a VPS** (plano §11: só leitura,
+  depois). `config_rev` do aparelho fica para a 2.3 (configuração enviada
+  na resposta do coletor).
+- `testes/test_dispositivos.py` (10 testes).
+
+### ✅ 2.3 `/api/v2/coletor` (versão `2.0.0-alfa.2`)
+- **Chave-mestra** `COLETOR_CHAVE_MESTRA`: o `gerar_segredos.py` cria uma
+  aleatória no `.env` quando falta (como já fazia com `API_CHAVE` e
+  `NUVEM_CHAVE`) e a põe **só** no `app/segredos_app.json` (nunca no
+  `segredos.h` do firmware, nunca na VPS). `.env.exemplo` documenta. O
+  `.env` real **ainda não foi tocado**: a chave é criada na próxima vez que
+  o `gerar_segredos.py` rodar (antes de gerar o `.exe`). Sem a mestra, a
+  rota responde 503 ("coletores desligados").
+- **`ferramentas/receptor_push.py`**:
+  - `chave_do_aparelho(mestra, id)` = HMAC-SHA256 em hex — é essa string
+    (texto hex) que o provisionamento grava no aparelho e que o firmware usa
+    como chave do HMAC;
+  - `autenticar`: corpo ≤ 64 KB, `v: 2`, id válido, `X-Assinatura` =
+    HMAC(chave do aparelho, `X-Ts` + "." + corpo) comparada em tempo
+    constante; `X-Ts` fora de ±120 s → 401 `"relogio"` **com a hora do
+    servidor** (um aparelho com o RTC errado consegue se acertar e tentar de
+    novo; a hora não é segredo);
+  - `processar`: registra o contato; bloqueado → 403; não adotado →
+    `adotado: false, ack_ate: 0` (nada gravado); adotado → cada ciclo
+    gravado com **setor e máquina do cadastro** (o canal só vale no perfil
+    multi), `gravado_em` = fim do ciclo (com `SEM_HORA`: sem hora real, fica
+    fora do resumo), estado ao vivo, e `ack_ate` = maior id do lote ou o
+    maior já guardado (batimento sem ciclos também libera a flash). Ciclo
+    inválido é confirmado assim mesmo (nunca ficaria válido e travaria a
+    flash). No máximo 200 ciclos por pedido. Vírgula no `obs` vira `;` (CSV).
+- Rota no `servidor.py`, **antes** do login/PIN (a assinatura é a
+  autenticação); na VPS → 404. Assinatura errada conta por IP
+  (`limite_coletor`, 10 em 10 min → 429). Resposta só depois do COMMIT de
+  cada ciclo.
+- **Não feito (de propósito)**: conferência do `seq` contra reenvio dentro
+  dos 120 s (um reenvio só repete dados idempotentes); comandos
+  (`identificar`, `reiniciar`, `ota`) — `comando` vai sempre `null` até a
+  fase 3; `config.rev` vai o do cadastro (0).
+- `testes/test_coletor.py` (9 testes) + a VPS recusando a rota (404).
+
+### ✅ 2.5 Simulador de coletores (feito antes da 2.4, para medir primeiro)
+- **`ferramentas/simulador_coletores.py`**: N ESP32 virtuais com o
+  protocolo real contra o servidor num banco **temporário** (sem `main()`:
+  sem leitura do ESP32 nem envio à VPS). Cada um liga/desliga a máquina,
+  guarda os ciclos numa "flash" e só apaga até o `ack_ate`, batimento a cada
+  `--intervalo` s, envio na mudança (atraso 0–2 s), espera dobrando na
+  falha. Caos: reinícios (reenvio imediato), **metade cai junta** (repetidor
+  fora) entre 40 % e 60 % do tempo, aparelho nº 1 com o **relógio 10 min
+  errado** (o servidor recusa e devolve a hora). No fim confere cada ciclo
+  no banco (`banco.ciclos_por_origem`). Mais de 50 aparelhos: um setor a
+  cada 50 (limite de 64 máquinas por setor).
+- Resultados (3 min, com a queda e o relógio errado):
+
+  | Aparelhos | Pedidos/s | Ciclos | Perdidos / duplicados | Resposta mediana / p95 / máx |
+  |---|---|---|---|---|
+  | **50** (o previsto) | 7,2 | 544 | **0 / 0** | 5,6 / 34 / 537 ms |
+  | 200 (4×) | 28,3 | 2.163 | **0 / 0** | 11 / 613 / 2.065 ms |
+
+  (Com 200, parte da demora é o próprio simulador: 200 threads Python no
+  mesmo processo do servidor.)
+- Versão curta na suíte (`test_simulador_curto_sem_perda_nem_duplicacao`:
+  6 aparelhos, 12 s, com a queda e o relógio errado).
+- **Falta**: a rodada de 24 h do critério da fase 2 (`--minutos 1440`),
+  de preferência no mini-PC.
+
+### ⏸ 2.4 Fila com gravador único — adiada (com base na 2.5)
+Com 50 aparelhos a gravação direta responde em 34 ms (p95) sem perder nada,
+então a fila não é necessária agora. O que mais escreve no disco é o
+**estado ao vivo** (um UPSERT por batimento). Gravar só na mudança não
+serve: o painel calcula "sem sinal" pelo `atualizado_em`
+(`obter_estado_ao_vivo`). O certo é manter o estado ao vivo em memória e
+juntá-lo na leitura (plano §9.3). Fazer quando: o piloto mostrar demora,
+ou antes de passar de ~100 aparelhos.
+
+### ✅ 2.6 Alertas de comunicação
+- `dispositivos.alertas(banco)` (plano §9.4), devolvido em
+  `GET /dispositivos` → `"alertas"`: `[{tipo, nivel, dispositivo?, setor?,
+  maquina?, texto}]`. Só aparelhos **ativos** contam para comunicação.
+  - `repetidor` (crítico): todos os ativos de um mesmo AP (`bssid`, 2 ou
+    mais) sem sinal juntos → **um** alerta, no lugar dos "sem sinal" deles;
+  - `sem_sinal`: sem contato há mais de 30 s;
+  - `sinal_fraco`: último RSSI < −75 dBm (o plano pede a **média de 10
+    min**: falta guardar histórico de saúde);
+  - `flash`: `flash_uso_pct` > 50 %;
+  - `relogio`: `hora_valida: false` (o receptor passou a guardar esse campo
+    na saúde);
+  - `reinicios`: `resets_1h` > 3 — **o firmware 4.0 precisa mandar esse
+    campo** na saúde (anotar no protocolo da fase 3);
+  - `novo`: aparelhos esperando adoção.
+- Ainda **sem tela** (fase 4: cartão cinza "sem sinal", lista de
+  Dispositivos) e sem aviso no rodapé do painel.
+- Teste `test_alertas_de_comunicacao`.
+
+### Fase 2 — o que falta
+- **Rodada de 24 h** do simulador (critério da fase 2), de preferência no
+  mini-PC: `python ferramentas/simulador_coletores.py --minutos 1440`.
+- 2.4 (estado ao vivo em memória), se o piloto pedir.
+- Média de RSSI de 10 min (histórico de saúde).
+- Depois: **fase 3 (firmware 4.0)** — o protocolo do servidor já está
+  pronto e testado pelo simulador.
 
 ## Pontos de atenção para quem continuar
 - `SETOR_PADRAO` (`ferramentas/monitor_serial.py`) ainda existe e é usado
@@ -253,7 +404,8 @@ adoção, fila com gravador único, simulador de 50 coletores, alertas.
 
 ## Como testar
 ```
-python -m unittest discover -s testes -v     # 74 testes (45 da 1.7.5 + 29 da 2.0), pasta temporária
+python -m unittest discover -s testes -v     # 96 testes (45 da 1.7.5 + 51 da 2.0), pasta temporária
+python ferramentas/simulador_coletores.py    # 50 coletores virtuais por 5 min, banco temporário (--aparelhos, --minutos)
 python ferramentas/teste_volume.py           # volume: 1 ano de 50 máquinas, banco temporário (~5 min)
 ```
 Testes da 2.0: `testes/test_setores.py` (regras, banco, rotas, sincronização
@@ -276,3 +428,4 @@ Painel no navegador sem tocar em nada real: um script que aponta
 | 26/11/2026 | Revisão das etapas 1.1/1.2 (tabela acima): convergência do cadastro, GET mais leve, geradores corrigidos, testes de compatibilidade com a VPS 1.7.5 e dos geradores. Etapa 1.3 (seletor de setor e cartão Setores, `painel/js/setores.js`), conferida no navegador. 63 testes passando |
 | 26/11/2026 | Etapa 1.4: `resumo_dia`, índice por `gravado_em`, `/api/v2/ciclos`, `/api/v2/resumo`, `/dados?desde=`, janela de dados no painel (só setores novos), ETag sem `COUNT(*)`, teste de volume (tabela na 1.4). 72 testes passando |
 | 27/11/2026 | Etapa 1.5: versão `2.0.0-alfa.1` (ping só com números + `versaoCompleta`; `.exe` com sufixo), testes da convivência com a 1.7.5 nos dois sentidos e da volta para a 1.7.5 (corrigido: resumo recalculado ao abrir se não bater), docs do deploy de teste. 74 testes passando. Deploy de teste pendente (OK do usuário) |
+| 27/11/2026 | Fase 2, etapa 2.1: atualização incremental do `/dados` (`X-Ultimo-Id`, `apos=`), conferida no navegador e no volume. Etapa 2.2: cadastro de dispositivos (adoção, troca, ESP32 multi registrado pela série). Etapa 2.3: `/api/v2/coletor` (HMAC por aparelho, chave-mestra gerada pelo `gerar_segredos.py`). Etapa 2.5: simulador (50 e 200 aparelhos por 3 min, com queda de rede e relógio errado: nenhum ciclo perdido nem duplicado); 2.4 adiada. Etapa 2.6: alertas de comunicação. Versão `2.0.0-alfa.2`. 96 testes passando |

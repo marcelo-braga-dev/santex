@@ -64,7 +64,7 @@ from urllib.error import HTTPError
 import setores as cadastro_setores
 from banco_dados import normalizar_extras, normalizar_turnos
 from monitor_serial import SETOR_PADRAO
-from monitor_wifi import ARQUIVO_CHAVE_APP, _gravar_json, gravar_linhas_ciclos
+from monitor_wifi import ARQUIVO_CHAVE_APP, _gravar_json, gravar_linhas_ciclos, registrar_multi_seguro
 
 ARQUIVO_STATUS_NUVEM = "nuvem_status.json"
 ARQUIVO_CHAVE_SESSAO = "sessao.key"  # VPS: assina os cookies de sessao (gerado uma vez)
@@ -456,6 +456,7 @@ def receber_do_esp(banco, dir_dados, setor, corpo, ip=""):
     if len(linhas) > MAX_CICLOS_POR_ENVIO:
         raise ValueError("lote grande demais")
     novos = gravar_linhas_ciclos(banco, setor, dispositivo, linhas, log=lambda *_: None)
+    registrar_multi_seguro(banco, dispositivo, setor, corpo.get("firmware"), ip)  # 2.0: cadastro de dispositivos
 
     agora = datetime.now()
     for m in corpo.get("maquinas") or []:
