@@ -39,6 +39,7 @@ import os
 import re
 import sqlite3
 import threading
+from datetime import datetime, timedelta
 
 NOME_ARQUIVO = "painel.db"
 
@@ -247,11 +248,72 @@ CREATE TABLE IF NOT EXISTS setores (
     ativo INTEGER NOT NULL DEFAULT 1,
     criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- 2.0: resumo por dia (derivado de ciclos - pode ser recalculado a qualquer
+-- momento, ver recalcular_resumo). "dia" = dia do calendario (AAAA-MM-DD); o
+-- tempo ligado de um ciclo que passa da meia-noite e dividido entre os dias,
+-- e o ciclo conta no dia em que terminou.
+CREATE TABLE IF NOT EXISTS resumo_dia (
+    setor TEXT NOT NULL,
+    maquina INTEGER NOT NULL,
+    dia TEXT NOT NULL,
+    ciclos INTEGER NOT NULL DEFAULT 0,
+    segundos_ligada REAL NOT NULL DEFAULT 0,
+    atualizado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    PRIMARY KEY (setor, maquina, dia)
+);
+-- consultas por periodo: gravado_em e a hora real do FIM do ciclo
+-- (inicio_ms/fim_ms sao texto e muitas vezes nao tem hora real)
+CREATE INDEX IF NOT EXISTS idx_ciclos_setor_gravado ON ciclos(setor, gravado_em);
 """
 
 # Setor que ja existia antes da 2.0 (todos os dados da 1.x sao dele): entra
 # sozinho no cadastro de setores na primeira abertura da 2.0.
 SETOR_INICIAL = ("enfestadeiras", "Enfestadeiras", "multi")
+
+# Versao do calculo do resumo_dia: mudou a regra -> recalcula sozinho na
+# proxima abertura (guardada em segredos, como os outros estados internos).
+VERSAO_RESUMO = "1"
+_SEGREDO_VERSAO_RESUMO = "resumo_dia_versao"
+_MAX_DURACAO_RESUMO_S = 31 * 86400  # protecao contra duracao absurda (nunca vista)
+
+
+def _sem_hora_real(dispositivo, obs):
+    """Ciclo baixado do ESP32 sem relogio: o gravado_em dele e so a hora do
+    download (mesma regra do csv_do_setor). Os da Serial enviados pelo
+    notebook ("NOTEBOOK-SERIAL") tem a hora de chegada real."""
+    return dispositivo is not None and not str(dispositivo).startswith("NOTEBOOK-SERIAL") and "SEM_HORA" in (obs or "")
+
+
+def conta_no_resumo(dispositivo, obs):
+    """Entra no resumo_dia: tem hora real e nao e ciclo simulado (o painel
+    tambem descarta os simulados)."""
+    return not _sem_hora_real(dispositivo, obs) and "SIMULADO" not in (obs or "").upper()
+
+
+def partes_por_dia(gravado_em, duracao_s):
+    """[(dia, ciclos, segundos)] de um ciclo que terminou em gravado_em
+    ("AAAA-MM-DD HH:MM:SS"): o tempo ligado dividido pelos dias que ele
+    cobre; o ciclo conta (1) no dia do fim. Data invalida -> []."""
+    try:
+        fim = datetime.fromisoformat(str(gravado_em).strip().replace("T", " ")[:19])
+        dur = max(0.0, min(float(duracao_s or 0), _MAX_DURACAO_RESUMO_S))
+    except (TypeError, ValueError):
+        return []
+    partes, ate = [], fim
+    resta = dur
+    while True:
+        meia_noite = ate.replace(hour=0, minute=0, second=0, microsecond=0)
+        if meia_noite == ate and partes:  # ja na meia-noite (dia contado): passa ao dia anterior
+            meia_noite -= timedelta(days=1)
+        no_dia = min(resta, (ate - meia_noite).total_seconds())
+        partes.append([meia_noite.strftime("%Y-%m-%d"), 0, no_dia])
+        resta -= no_dia
+        if resta <= 1e-6:
+            break
+        ate = meia_noite  # continua no dia anterior, a partir da meia-noite
+    partes[0][1] = 1
+    return [tuple(p) for p in partes]
 
 
 def _padrao_serie(dispositivo):
@@ -275,16 +337,101 @@ class BancoDados:
         self._migrar_colunas_origem()
         self._migrar_csv_antigo_se_existir()
         self._semear_setores()
+        self._garantir_resumo()
 
     # -- ciclos ---------------------------------------------------------
 
     def gravar_ciclo(self, setor, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs):
         with self._lock, self._conn:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 "INSERT INTO ciclos (setor, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (setor, maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs),
             )
+            self._resumo_somar_id(cursor.lastrowid, +1)
+
+    # -- resumo por dia (2.0) - sempre dentro da transacao que grava o ciclo --
+
+    def _resumo_somar(self, setor, maquina, gravado_em, duracao_s, dispositivo, obs, sinal):
+        if not conta_no_resumo(dispositivo, obs):
+            return
+        partes = partes_por_dia(gravado_em, duracao_s)
+        if partes:
+            self._conn.executemany(
+                "INSERT INTO resumo_dia (setor, maquina, dia, ciclos, segundos_ligada, atualizado_em) "
+                "VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime')) "
+                "ON CONFLICT(setor, maquina, dia) DO UPDATE SET ciclos = ciclos + excluded.ciclos, "
+                "segundos_ligada = segundos_ligada + excluded.segundos_ligada, atualizado_em = excluded.atualizado_em",
+                [(setor, maquina, dia, sinal * n, sinal * seg) for dia, n, seg in partes],
+            )
+
+    def _resumo_somar_id(self, ciclo_id, sinal):
+        linha = self._conn.execute(
+            "SELECT setor, maquina, gravado_em, duracao_s, dispositivo, obs FROM ciclos WHERE id = ?", (ciclo_id,)
+        ).fetchone()
+        if linha:
+            self._resumo_somar(linha["setor"], linha["maquina"], linha["gravado_em"], linha["duracao_s"],
+                               linha["dispositivo"], linha["obs"], sinal)
+
+    def recalcular_resumo(self, setor=None):
+        """Refaz o resumo_dia a partir dos ciclos (todos os setores ou um).
+        So o resumo (dado derivado) e reescrito - os ciclos nunca mudam."""
+        # Mesmas regras de conta_no_resumo/partes_por_dia, mas em SQL: o ciclo
+        # que nao passa da meia-noite (quase todos) e somado direto no banco;
+        # so os que passam vem para o Python (1,8 milhao de ciclos: de ~160 s
+        # no laco em Python para segundos).
+        conta = ("NOT (dispositivo IS NOT NULL AND substr(dispositivo, 1, 15) != 'NOTEBOOK-SERIAL' "
+                 "AND instr(obs, 'SEM_HORA') > 0) AND instr(upper(obs), 'SIMULADO') = 0 "
+                 "AND julianday(substr(gravado_em, 1, 19)) IS NOT NULL")
+        dur = f"max(0, min(duracao_s, {_MAX_DURACAO_RESUMO_S}))"
+        no_dia = "(julianday(substr(gravado_em, 1, 19)) - julianday(substr(gravado_em, 1, 10))) * 86400.0"
+        so_setor, args = (" AND setor = ?", (setor,)) if setor else ("", ())
+        acumulado = {}
+        with self._lock:
+            for l in self._conn.execute(
+                f"SELECT setor, maquina, substr(gravado_em, 1, 10) AS dia, COUNT(*) AS n, SUM({dur}) AS seg "
+                f"FROM ciclos WHERE {conta} AND {dur} <= {no_dia} + 1e-6{so_setor} GROUP BY setor, maquina, dia", args):
+                acumulado[(l["setor"], l["maquina"], l["dia"])] = [l["n"], l["seg"]]
+            for l in self._conn.execute(
+                f"SELECT setor, maquina, gravado_em, duracao_s FROM ciclos WHERE {conta} AND {dur} > {no_dia} + 1e-6{so_setor}",
+                args):
+                for dia, n, seg in partes_por_dia(l["gravado_em"], l["duracao_s"]):
+                    item = acumulado.setdefault((l["setor"], l["maquina"], dia), [0, 0.0])
+                    item[0] += n
+                    item[1] += seg
+            with self._conn:
+                self._conn.execute("DELETE FROM resumo_dia" + (" WHERE setor = ?" if setor else ""),
+                                   (setor,) if setor else ())
+                self._conn.executemany(
+                    "INSERT INTO resumo_dia (setor, maquina, dia, ciclos, segundos_ligada) VALUES (?, ?, ?, ?, ?)",
+                    [(s, m, d, v[0], v[1]) for (s, m, d), v in acumulado.items()],
+                )
+        return len(acumulado)
+
+    def _garantir_resumo(self):
+        """Banco vindo da 1.x (ou regra do resumo mudou): calcula o resumo_dia
+        uma vez a partir dos ciclos existentes."""
+        if self.obter_segredo(_SEGREDO_VERSAO_RESUMO) == VERSAO_RESUMO:
+            return
+        self.recalcular_resumo()
+        self.salvar_segredo(_SEGREDO_VERSAO_RESUMO, VERSAO_RESUMO)
+
+    def resumo(self, setor, de, ate, agrupar="dia", maquinas=None):
+        """Linhas do resumo_dia entre os dias de e ate (inclusive, AAAA-MM-DD),
+        somadas por "dia", "maquina" ou "dia_maquina"."""
+        campos = {"dia": "dia", "maquina": "maquina", "dia_maquina": "dia, maquina"}[agrupar]
+        filtro, args = "setor = ? AND dia >= ? AND dia <= ?", [setor, de, ate]
+        if maquinas:
+            filtro += f" AND maquina IN ({','.join('?' * len(maquinas))})"
+            args += list(maquinas)
+        with self._lock:
+            linhas = self._conn.execute(
+                f"SELECT {campos}, SUM(ciclos) AS ciclos, SUM(segundos_ligada) AS segundos FROM resumo_dia "
+                f"WHERE {filtro} GROUP BY {campos} ORDER BY {campos}", args,
+            ).fetchall()
+        return [{**({"dia": l["dia"]} if "dia" in campos else {}),
+                 **({"maquina": l["maquina"]} if "maquina" in campos else {}),
+                 "ciclos": l["ciclos"], "segundosLigada": round(l["segundos"], 1)} for l in linhas]
 
     def gravar_ciclo_remoto(self, setor, dispositivo, origem_id, maquina, ciclo, inicio, fim, duracao_s, obs, gravado_em=None):
         """Grava um ciclo buscado do ESP32 pelo Wi-Fi. gravado_em e o fim do
@@ -303,6 +450,7 @@ class BancoDados:
                  origem_id, dispositivo, _padrao_serie(dispositivo)),
             )
             if cursor.rowcount == 1:
+                self._resumo_somar_id(cursor.lastrowid, +1)
                 return True
             # 1.7.1: o ciclo ja existe, mas foi gravado SEM hora (o ESP32
             # enviou para a VPS 1 s antes de o PC acertar o relogio, e o
@@ -311,15 +459,19 @@ class BancoDados:
             # duracao - nada mais muda e um ciclo com hora nunca e alterado.
             if gravado_em is None or "SEM_HORA" in (obs or ""):
                 return False
-            cursor = self._conn.execute(
-                "UPDATE ciclos SET inicio_ms = ?, fim_ms = ?, obs = ?, gravado_em = ? "
+            ids = [l["id"] for l in self._conn.execute(
+                "SELECT id FROM ciclos "
                 "WHERE origem_id = ? AND (dispositivo = ? OR dispositivo LIKE ?) "
                 "AND maquina = ? AND ciclo = ? AND abs(duracao_s - ?) < 1 "
                 "AND obs LIKE '%SEM_HORA%' AND (fim_ms IS NULL OR fim_ms NOT LIKE '____-__-__T__:__:__')",
-                (inicio, fim, obs, gravado_em, origem_id, dispositivo, _padrao_serie(dispositivo),
-                 maquina, ciclo, duracao_s),
-            )
-        return cursor.rowcount > 0
+                (origem_id, dispositivo, _padrao_serie(dispositivo), maquina, ciclo, duracao_s),
+            )]
+            for ciclo_id in ids:  # 2.0: o resumo troca a versao sem hora pela com hora
+                self._resumo_somar_id(ciclo_id, -1)
+                self._conn.execute("UPDATE ciclos SET inicio_ms = ?, fim_ms = ?, obs = ?, gravado_em = ? WHERE id = ?",
+                                   (inicio, fim, obs, gravado_em, ciclo_id))
+                self._resumo_somar_id(ciclo_id, +1)
+        return bool(ids)
 
     def ultimo_id_origem(self, dispositivo):
         """Maior id de ciclo deste ESP32 ja gravado aqui (0 = nenhum) -
@@ -351,12 +503,18 @@ class BancoDados:
     def versao_ciclos(self, setor):
         """Identifica o conteudo atual dos ciclos do setor (muda a cada ciclo
         gravado) - usado pelo servidor para responder "nada mudou" (304) sem
-        montar o CSV inteiro."""
+        montar o CSV inteiro.
+
+        2.0: sem COUNT(*) (1,7 s com 1,8 milhao de ciclos, a cada consulta de
+        cada aparelho): o maior id (indice setor+id) muda a cada ciclo novo, e
+        as somas do resumo_dia mudam quando um ciclo ganha a hora real."""
         with self._lock:
-            linha = self._conn.execute(
-                "SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS ultimo FROM ciclos WHERE setor = ?", (setor,)
-            ).fetchone()
-        return f"{linha['n']}-{linha['ultimo']}"
+            ultimo = self._conn.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM ciclos WHERE setor = ?", (setor,)).fetchone()[0]
+            soma = self._conn.execute(
+                "SELECT COALESCE(SUM(ciclos), 0), COALESCE(SUM(segundos_ligada), 0) FROM resumo_dia WHERE setor = ?",
+                (setor,)).fetchone()
+        return f"{ultimo}-{soma[0]}-{round(soma[1])}"
 
     def fazer_backup(self, destino):
         """Copia consistente do banco inteiro para o arquivo destino (API de
@@ -378,7 +536,7 @@ class BancoDados:
             if os.path.exists(temporario):
                 os.remove(temporario)
 
-    def csv_do_setor(self, setor):
+    def csv_do_setor(self, setor, desde=None, ate=None, maquinas=None):
         """Reconstroi o CSV no mesmo formato que o painel web ja sabe ler
         (maquina,ciclo,inicio_ms,fim_ms,duracao_s,obs) - assim o painel nao
         precisa saber que a fonte agora e um banco SQLite, nao um arquivo.
@@ -394,20 +552,35 @@ class BancoDados:
         do download, e usa-la empilhava dias de producao no momento da
         sincronizacao (ja aconteceu: 834 ciclos "as 07h de 10/11"). O painel
         conta esses ciclos a parte ("sem data/hora"). O banco nao muda.
-        Pela Serial o gravado_em e a hora real de chegada, entao vale."""
+        Pela Serial o gravado_em e a hora real de chegada, entao vale.
+
+        2.0: desde/ate (dias AAAA-MM-DD, inclusive) limitam pelo fim do ciclo
+        (gravado_em) e maquinas filtra por numero - sem eles, o historico
+        inteiro, como sempre."""
+        filtro, args = "setor = ?", [setor]
+        if desde:
+            filtro += " AND gravado_em >= ?"
+            args.append(desde)
+        if ate:
+            filtro += " AND gravado_em < ?"
+            args.append((datetime.strptime(ate, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"))
+        if maquinas:
+            filtro += f" AND maquina IN ({','.join('?' * len(maquinas))})"
+            args += list(maquinas)
+        # com periodo, forca o indice por gravado_em: senao o SQLite prefere o
+        # (setor, id) por causa do ORDER BY e varre o setor inteiro
+        indice = " INDEXED BY idx_ciclos_setor_gravado" if (desde or ate) else ""
         with self._lock:
             linhas = self._conn.execute(
                 "SELECT maquina, ciclo, inicio_ms, fim_ms, duracao_s, obs, gravado_em, dispositivo "
-                "FROM ciclos WHERE setor = ? ORDER BY id",
-                (setor,),
+                f"FROM ciclos{indice} WHERE {filtro} ORDER BY id",
+                args,
             ).fetchall()
         saida = ["maquina,ciclo,inicio_ms,fim_ms,duracao_s,obs,registrado_em"]
         for l in linhas:
             # (ciclos da Serial enviados pelo notebook a VPS ficam com dispositivo
             # "NOTEBOOK-SERIAL": a hora de chegada deles e real, como no notebook)
-            sem_hora_real = (l["dispositivo"] is not None and not l["dispositivo"].startswith("NOTEBOOK-SERIAL")
-                             and "SEM_HORA" in (l["obs"] or ""))
-            registrado_em = "" if sem_hora_real else (l["gravado_em"] or "").replace(" ", "T")
+            registrado_em = "" if _sem_hora_real(l["dispositivo"], l["obs"]) else (l["gravado_em"] or "").replace(" ", "T")
             saida.append(
                 f"{l['maquina']},{l['ciclo']},{l['inicio_ms']},{l['fim_ms']},{l['duracao_s']},{l['obs']},{registrado_em}"
             )

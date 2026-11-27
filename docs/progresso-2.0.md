@@ -2,7 +2,7 @@
 
 > Diário de execução do [plano da 2.0](plano-2.0.md). Atualize ao fim de
 > cada sessão: o que ficou pronto, o que falta e onde parou.
-> Última atualização: **26/11/2026** (2ª sessão: revisão + etapa 1.3).
+> Última atualização: **26/11/2026** (2ª sessão: revisão + etapas 1.3 e 1.4).
 
 ## ⚠ Antes de tudo
 
@@ -24,7 +24,7 @@
 | Fase | Situação |
 |---|---|
 | 0. Rede e hardware | Decisões tomadas (plano §2 e §5); instalação e prova de alcance **pendentes** (com o usuário) |
-| **1. Fundação multi-setor** | **Em andamento**: etapas 1.1, 1.2 e 1.3 prontas; faltam 1.4 e 1.5 |
+| **1. Fundação multi-setor** | **Em andamento**: etapas 1.1 a 1.4 prontas; falta a 1.5 (fechamento, com o OK do usuário para o deploy de teste) |
 | 2. Protocolo e servidor (push dos ESP32) | Não iniciada |
 | 3. Firmware 4.0 | Não iniciada |
 | 4. Painel 50 máquinas | Não iniciada |
@@ -127,19 +127,70 @@ feito:
 - **Ainda não dá para remover uma máquina** de um setor (o servidor não tem
   essa operação). Fica para a fase 2/4 (dispositivos e máquinas `ativa`).
 
-### ⏭ 1.4 Histórico por período + resumo diário (PRÓXIMA)
-- Tabela `resumo_dia (setor, maquina, dia, ciclos, segundos_ligada,
-  atualizado_em)`, mantida a cada ciclo gravado e recalculável (plano §10).
-- Índices `ciclos(setor, maquina, inicio_ms)` e
-  `ciclos(dispositivo, origem_id)`. **Atenção**: já existe o índice único
-  `idx_ciclos_origem` em `(dispositivo, origem_id)`, então não duplicar.
-- Rotas `GET /api/v2/ciclos?setor=&de=&ate=&maquinas=` e
-  `GET /api/v2/resumo?setor=&de=&ate=&agrupar=dia|turno|maquina`.
-- Painel passa a pedir por período. O `/dados` antigo continua existindo
-  (compatibilidade com o programa remoto 1.2.0).
-- Teste de volume: 1 ano sintético de 50 máquinas (~2 milhões de ciclos).
+### ✅ 1.4 Histórico por período + resumo diário
+- **`resumo_dia`** (`banco_dados.py`): ciclos e segundos ligada por setor,
+  máquina e dia. Mantido na **mesma transação** de cada ciclo gravado
+  (`gravar_ciclo`, `gravar_ciclo_remoto`, inclusive quando um ciclo sem hora
+  ganha a hora real: tira a versão antiga e soma a nova). Mesmas regras do
+  CSV: fora os simulados e os baixados sem relógio. Ciclo que passa da
+  meia-noite divide o tempo entre os dias e conta no dia do fim
+  (`partes_por_dia`). `recalcular_resumo` refaz tudo em SQL (só os que passam
+  da meia-noite vão para o Python). Banco da 1.x: calculado na primeira
+  abertura (`_garantir_resumo`, marca `resumo_dia_versao` em `segredos`).
+- **Índice `ciclos(setor, gravado_em)`**, e não `(setor, maquina,
+  inicio_ms)` como estava no plano: `inicio_ms` é texto e muitas vezes não
+  tem hora real (plano §10 corrigido). O índice único `(dispositivo,
+  origem_id)` já existia.
+- **Rotas** (`servidor.py`, na VPS também, atrás do login):
+  - `GET /api/v2/ciclos?setor=&de=&ate=&maquinas=&formato=csv|json`: CSV no
+    formato do `/dados`, pelo fim do ciclo; até 400 dias por pedido;
+  - `GET /api/v2/resumo?setor=&de=&ate=&agrupar=dia|maquina|dia_maquina&maquinas=`:
+    até ~10 anos. **Por turno ainda não**: as regras de turno (pausas,
+    calendário, turno que passa da meia-noite, horário por dia) estão só no
+    painel; levar para o servidor é trabalho da fase 4;
+  - `/dados?desde=AAAA-MM-DD` (ETag própria, cache por setor + janela).
+- **Versão dos ciclos sem `COUNT(*)`** (maior id + somas do resumo).
+- **Painel, setores novos** (`index.html`): janela de dados
+  (`janelaDesde`, 14 dias + 2 de folga). `garantirJanela` amplia e rebaixa
+  quando algo pede um período mais antigo; o gancho fica em
+  `aplicarFiltroPeriodo` (cobre barra de período, `comPeriodo`, séries do
+  Desempenho e histórico de paradas). Relatórios esperam a janela (período
+  e o anterior) antes de gerar; períodos "sem produção" pedem desde o
+  início deles (até ~13 meses). Respostas de uma janela antiga são
+  descartadas. **As Enfestadeiras continuam com o histórico inteiro**
+  (`janelaDesde = null`), sem mudança de comportamento.
+- Conferido no navegador: Enfestadeiras pedem `/dados?setor=enfestadeiras`;
+  Costura abre com `desde=` de 14 dias e, na visão de mês e no mês anterior,
+  a janela cresceu sozinha com os números certos.
+- **Teste de volume** (`ferramentas/teste_volume.py`, 1.825.000 ciclos =
+  50 máquinas × 365 dias × 100; duas rodadas, a 2ª com o PC mais carregado):
 
-### 1.5 Fechamento da fase 1
+  | Medição | Tempo |
+  |---|---|
+  | Calcular o `resumo_dia` do ano inteiro (uma vez) | 19–39 s (antes, em Python: 162 s) |
+  | Gravar um ciclo (com o resumo junto) | 1,4–2,5 ms |
+  | Resumo do ano por dia / por máquina | 0,02–0,16 s |
+  | CSV de 1 dia (`/api/v2/ciclos`) | 0,07–0,4 s (179 KB) |
+  | CSV da janela de 16 dias (`/dados?desde=`) | ~5 s (2,9 MB) |
+  | CSV da janela de 35 dias | 2,2–7 s (6,2 MB) |
+  | Versão dos ciclos (ETag) | 0,01–0,02 s (antes: 1,7 s) |
+  | CSV do histórico inteiro (`/dados` antigo) | 18–60 s (64 MB) — inviável |
+  | Tamanho do banco | 334 MB |
+
+- **Conclusões para as próximas fases** (não bloqueiam o alfa, mas sim o
+  piloto com 50 máquinas):
+  1. **Atualização incremental**: com 50 máquinas chega ciclo a cada poucos
+     segundos, e cada ciclo novo muda a versão e obriga a remontar (segundos
+     de CPU) e rebaixar (MB) a janela inteira, em cada aparelho. Fazer
+     `/dados?desde=&apos_id=` (só os ciclos novos) e o painel acrescentar
+     sem reprocessar tudo. **Fase 2** (junto com o recebimento por push).
+  2. **Séries e períodos longos pelo resumo**: a série do Desempenho busca
+     6 meses (visão mês) ou 4 anos (visão ano) de ciclos brutos. Na fase 4,
+     calcular essas séries e os relatórios longos com `/api/v2/resumo`.
+  3. O backup do painel (CSV) de um setor grande baixa o histórico inteiro:
+     na fase 4, trocar por exportação por período.
+
+### ⏭ 1.5 Fechamento da fase 1 (PRÓXIMA)
 - `APP_VERSAO = "2.0.0-alfa.1"`, CHANGELOG, `vps/CLAUDE_VPS.md` (bloco do
   deploy da 2.0: VPS primeiro), `docs/nuvem-vps.md`, `docs/painel.md`.
 - Deploy de teste na VPS **só com o OK do usuário**; depois, o `.exe`.
@@ -164,15 +215,26 @@ feito:
   os extras padrão (comportamento de sempre do painel). Isso não conta como
   "dados": o setor continua podendo ser apagado.
 
+- O `resumo_dia` é **dado derivado**: `recalcular_resumo` apaga e refaz só
+  ele (os ciclos nunca mudam). Mudou a regra do resumo → suba
+  `VERSAO_RESUMO` (`banco_dados.py`) e ele se recalcula sozinho na próxima
+  abertura (com 1,8 milhão de ciclos leva ~20 s, uma vez).
+- A "versão dos ciclos" (ETag do `/dados`) usa o maior id do setor e as
+  somas do `resumo_dia`. Apagar ciclos direto no SQLite (só em teste) não
+  muda a versão: em produção nunca se apaga ciclo.
+
 ## Como testar
 ```
-python -m unittest discover -s testes -v     # 63 testes (45 da 1.7.5 + 18 da 2.0), pasta temporária
+python -m unittest discover -s testes -v     # 72 testes (45 da 1.7.5 + 27 da 2.0), pasta temporária
+python ferramentas/teste_volume.py           # volume: 1 ano de 50 máquinas, banco temporário (~5 min)
 ```
 Testes da 2.0: `testes/test_setores.py` (regras, banco, rotas, sincronização
 de configuração e convergência do cadastro, histórico/ao vivo contra uma VPS
 de teste em processo separado, notebook 2.0 contra a VPS 1.7.5 da tag e
-conferência dos geradores). O teste da VPS 1.7.5 é pulado se o `git` ou a
-tag não estiverem disponíveis.
+conferência dos geradores) e `testes/test_resumo.py` (divisão por dia,
+quem entra no resumo, incremental = recálculo, hora completada depois,
+banco da 1.x, agrupamentos e as rotas `/api/v2/*` e `/dados?desde=`). O
+teste da VPS 1.7.5 é pulado se o `git` ou a tag não estiverem disponíveis.
 
 Painel no navegador sem tocar em nada real: um script que aponta
 `caminhos.dir_dados_usuario` para uma pasta temporária (como o
@@ -184,3 +246,4 @@ Painel no navegador sem tocar em nada real: um script que aponta
 |---|---|
 | 26/11/2026 | Tag `v1.7.5` (fim da série 1.x). Plano da 2.0 (`docs/plano-2.0.md`) com as decisões do usuário. Fase 1: etapas 1.1 (cadastro de setores) e 1.2 (sincronização por setor), 59 testes passando |
 | 26/11/2026 | Revisão das etapas 1.1/1.2 (tabela acima): convergência do cadastro, GET mais leve, geradores corrigidos, testes de compatibilidade com a VPS 1.7.5 e dos geradores. Etapa 1.3 (seletor de setor e cartão Setores, `painel/js/setores.js`), conferida no navegador. 63 testes passando |
+| 26/11/2026 | Etapa 1.4: `resumo_dia`, índice por `gravado_em`, `/api/v2/ciclos`, `/api/v2/resumo`, `/dados?desde=`, janela de dados no painel (só setores novos), ETag sem `COUNT(*)`, teste de volume (tabela na 1.4). 72 testes passando |

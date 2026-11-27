@@ -394,9 +394,16 @@ ALTER TABLE maquinas ADD COLUMN ordem INTEGER;
 ALTER TABLE maquinas ADD COLUMN ativa INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE estado_ao_vivo ADD COLUMN dispositivo TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_ciclos_disp_origem ON ciclos(dispositivo, origem_id);
-CREATE INDEX IF NOT EXISTS idx_ciclos_setor_maq_inicio ON ciclos(setor, maquina, inicio_ms);
+-- (o indice unico idx_ciclos_origem em (dispositivo, origem_id) ja existe desde a 1.x)
+CREATE INDEX IF NOT EXISTS idx_ciclos_setor_gravado ON ciclos(setor, gravado_em);
 ```
+
+> **Corrigido na etapa 1.4**: o índice previsto era `(setor, maquina,
+> inicio_ms)`, mas `inicio_ms`/`fim_ms` são texto e muitas vezes não têm hora
+> real. A hora real de cada ciclo é o `gravado_em` (fim do ciclo, pelo RTC),
+> então o índice e as consultas por período usam `(setor, gravado_em)`. O
+> `resumo_dia` divide o tempo ligado de um ciclo que passa da meia-noite
+> entre os dois dias, e o ciclo conta no dia em que terminou.
 
 - Migração ao abrir a 2.0: cria `setores` com `enfestadeiras`
   (Enfestadeiras, tipo `multi`) e registra o ESP32 atual em `dispositivos`
@@ -491,7 +498,7 @@ nem do hardware e pode começar já.
 | Ruído elétrico nas entradas | Ciclos falsos | Optoacoplador, debounce, flag de ciclo curto; validar no piloto |
 | Mini-PC desligado | Painel parado (sem perda) | Energia protegida, início automático, BIOS Power On; alerta na VPS "servidor local sem contato" |
 | Aparelho trocado sem registro | Ciclos na máquina errada | Adoção obrigatória; aparelho não adotado não grava |
-| Histórico grande deixa o painel lento | Painel inutilizável | API por período + `resumo_dia` na fase 1, antes das 50 máquinas |
+| Histórico grande deixa o painel lento | Painel inutilizável | API por período + `resumo_dia` na fase 1 (feito). Setor novo carrega só uma janela de dias. **Falta na fase 4**: séries do Desempenho (6 meses / 4 anos para trás) e relatórios longos sobre o `resumo_dia`, e atualização incremental (só os ciclos novos) em vez de rebaixar a janela a cada ciclo |
 | Configuração v3 quebra a VPS 1.7.x | Sincronização parada | VPS primeiro; v2 aceito; teste em cópia (`TesteCompatibilidadeVps175` roda o notebook 2.0 contra a VPS da tag `v1.7.5`) |
 | Setores criados ao mesmo tempo no notebook e na VPS | O cadastro sincroniza como lista inteira: o setor **sem dados** do lado que perdeu some | Raro (janela de 15 s). Setor com dados nunca some e a lista converge sozinha. Se incomodar: um item por setor com exclusão explícita (ver `docs/progresso-2.0.md`, revisão da fase 1) |
 | Arquivo novo fora dos geradores | `.exe` ou VPS sem o módulo: não abre | `TesteGeradoresLevamOsModulos` confere `gerar/exe_fabrica.py` e `gerar/pacote_vps.ps1` |

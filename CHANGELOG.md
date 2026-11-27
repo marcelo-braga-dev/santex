@@ -26,6 +26,24 @@ não liberada: produção continua na 1.7.5.
   `painel/js/setores.js`.
 - Servidor: só `/dados`, `/ao-vivo` e `/config` consultam o cadastro de
   setores; `GET /setores` informa máquinas e se há dados por setor.
+- **Resumo por dia** (tabela `resumo_dia`, só aditiva): ciclos e tempo
+  ligado por setor, máquina e dia, mantido na mesma transação de cada ciclo
+  gravado (inclusive quando um ciclo sem hora ganha a hora real) e
+  recalculável (`recalcular_resumo`). Calculado sozinho na primeira abertura
+  de um banco da 1.x. Índice novo `ciclos(setor, gravado_em)`.
+- **Consultas por período**: `GET /api/v2/ciclos?setor=&de=&ate=&maquinas=`
+  (CSV no formato do `/dados`, ou `formato=json`; até 400 dias) e
+  `GET /api/v2/resumo?setor=&de=&ate=&agrupar=dia|maquina|dia_maquina`
+  (até ~10 anos). `/dados` aceita `desde=AAAA-MM-DD` (ETag própria).
+- **Painel, setores novos**: carrega só uma janela de dias (14, mais 2 de
+  folga), que cresce sozinha quando um período mais antigo é pedido (barra
+  de período, séries do Desempenho, histórico de paradas, relatórios — que
+  esperam os dados antes de gerar —, períodos sem produção). As
+  Enfestadeiras continuam com o histórico inteiro, como na 1.x.
+- **Versão dos ciclos (ETag do `/dados`) sem `COUNT(*)`**: de 1,7 s para
+  0,01 s com 1,8 milhão de ciclos.
+- `ferramentas/teste_volume.py`: 1 ano sintético de 50 máquinas num banco
+  temporário, com os tempos de carga, gravação e consultas.
 - Geradores: o `.exe` da fábrica e o pacote da VPS levam `setores.py` e
   `painel/js/` (sem isso, a 2.0 não abriria). Teste novo confere os
   geradores, e outro roda o notebook 2.0 contra a VPS 1.7.5 da tag.

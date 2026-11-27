@@ -3324,6 +3324,39 @@
 
   let setorAtual = SETORES[0];
 
+  // 2.0 (etapa 1.4): JANELA DE DADOS nos setores novos. O painel pede so os
+  // ciclos que terminaram de "janelaDesde" em diante (/dados?desde=) e a
+  // janela cresce sozinha quando algum calculo pede um periodo mais antigo
+  // (tudo passa por aplicarFiltroPeriodo - inclusive comPeriodo, series do
+  // Desempenho e relatorios). null = historico inteiro: o setor legado
+  // continua exatamente como na 1.x. "var": usado antes desta parte rodar.
+  var JANELA_PADRAO_DIAS = 14;
+  var janelaDesde = null;
+  var promessaJanela = null;
+  function inicioDoDiaMs(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function diaIsoDe(ms) { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+  function janelaInicialDoSetor() {
+    return setorAtual.id === SETOR_LEGADO ? null : inicioDoDiaMs(Date.now() - JANELA_PADRAO_DIAS * 86400000);
+  }
+  // Garante os dados a partir de iniMs (com 2 dias de folga: o dia de
+  // producao de um turno que passa da meia-noite). Devolve uma promessa que
+  // resolve quando os dados chegaram (true se precisou buscar).
+  function garantirJanela(iniMs) {
+    if (janelaDesde === null || !isFinite(iniMs)) return promessaJanela || Promise.resolve(false);
+    const alvo = inicioDoDiaMs(iniMs - 2 * 86400000);
+    if (alvo >= janelaDesde) return promessaJanela || Promise.resolve(false);
+    janelaDesde = alvo;
+    etagDados = null;
+    ultimoTextoAutoRefresh = null;
+    const p = autoAtualizarDados(true).then(() => true, () => false);
+    promessaJanela = p;
+    p.then(() => {
+      if (promessaJanela === p) promessaJanela = null;
+      if (typeof hpAberto === "function" && hpAberto()) renderHistParadas(); // popup aberto: redesenha com os dados novos
+    });
+    return p;
+  }
+
   // ---------------------------------------------------------------------
   // Máquinas monitoradas do setor atual — ordem fixa, cor fixa por
   // identidade (nunca por ranking), consistente entre cards, comparativo,
@@ -3452,6 +3485,8 @@
 
     estadoAoVivo = null;
     etagDados = null;
+    janelaDesde = janelaInicialDoSetor(); // 2.0: setor novo = janela de dias; legado = tudo
+    promessaJanela = null;
 
     atualizarTituloSetor();
     popularSeletorSetores();
@@ -4308,6 +4343,7 @@
       registrosPeriodo = todosRegistros;
     } else {
       const [ini, fim] = limitesPeriodo(periodoSelecionado, dataReferencia);
+      garantirJanela(+ini); // 2.0: periodo antes da janela carregada -> busca (setor novo; legado: nada)
       registrosPeriodo = todosRegistros.filter((r) => {
         if (r.tsIni === null) return false;
         const ref = r.diaProducao !== null ? r.diaProducao : r.tsIni;
@@ -7150,16 +7186,19 @@
     if (buscandoDados && !forcar) return; // consulta anterior ainda em andamento
     buscandoDados = true;
     const setorPedido = setorAtual.id;
+    const janelaPedida = janelaDesde;
+    const mudou = () => setorPedido !== setorAtual.id || janelaPedida !== janelaDesde;
     try {
-      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorPedido), {
+      const desde = janelaPedida !== null ? "&desde=" + diaIsoDe(janelaPedida) : "";
+      const res = await fetch(CONTROLE_URL + "/dados?setor=" + encodeURIComponent(setorPedido) + desde, {
         cache: "no-store",
         headers: etagDados && ultimoTextoAutoRefresh !== null ? { "If-None-Match": etagDados } : {},
       });
-      if (setorPedido !== setorAtual.id) return; // trocou de setor no meio: resposta de outro setor
+      if (mudou()) return; // trocou de setor (ou a janela cresceu) no meio: resposta velha
       if (res.status === 304) { TELA_CARREGANDO.dados(true); return; }
       if (!res.ok) { TELA_CARREGANDO.dados(false); return; }
       const texto = await res.text();
-      if (setorPedido !== setorAtual.id) return;
+      if (mudou()) return;
       etagDados = res.headers.get("ETag");
       if (texto === ultimoTextoAutoRefresh) return; // sem mudanca, evita redesenho a toa
       ultimoTextoAutoRefresh = texto;
@@ -7168,7 +7207,7 @@
     } catch (e) {
       // servidor local fora do ar - consultarStatusLeitura() ja sinaliza isso no chip
     } finally {
-      if (setorPedido === setorAtual.id) buscandoDados = false;
+      if (!mudou()) buscandoDados = false;
     }
   }
 
@@ -9648,7 +9687,15 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (d && !isNaN(d)) { relf.ref = d > new Date() ? new Date() : d; renderFiltroRelatorio(); }
   });
   $("#relf-turno").addEventListener("change", (ev) => { relf.turno = ev.target.value === "all" ? "all" : Number(ev.target.value); renderFiltroRelatorio(); });
-  document.querySelectorAll("[data-relf-acao]").forEach((b) => b.addEventListener("click", () => confirmarFiltroRelatorio(b.dataset.relfAcao, b)));
+  document.querySelectorAll("[data-relf-acao]").forEach((b) => b.addEventListener("click", async () => {
+    // 2.0: setor novo (janela de dados) - garante o periodo do relatorio e o
+    // anterior (comparacao) ANTES de gerar; no legado nao espera nada
+    if (janelaDesde !== null) {
+      b.disabled = true;
+      try { await garantirJanela(+limitesPeriodo(relf.per, deslocarPeriodo(relf.per, relf.ref, -1))[0]); } finally { b.disabled = false; }
+    }
+    confirmarFiltroRelatorio(b.dataset.relfAcao, b);
+  }));
   $("#relf-cancelar").addEventListener("click", fecharFiltroRelatorio);
   $("#relf-fechar").addEventListener("click", fecharFiltroRelatorio);
   $("#relf-overlay").addEventListener("click", (ev) => { if (ev.target.id === "relf-overlay") fecharFiltroRelatorio(); });
@@ -9833,6 +9880,11 @@ No ritmo atual, o período fecha com cerca de ${Math.round(projecao)}% da meta c
     if (cacheSP.chave !== chave) cacheSP = { chave, porMaq: {} };
     if (cacheSP.porMaq[id]) return cacheSP.porMaq[id];
     const agora = Date.now();
+    // 2.0: a volta automatica olha os ciclos desde o inicio do periodo - setor
+    // novo (janela de dados) busca esse trecho (no maximo ~13 meses)
+    if (janelaDesde !== null) ((extras.semProducao && extras.semProducao.periodos) || []).forEach((x) => {
+      if (x.maquina === id && isFinite(x.inicio)) garantirJanela(Math.max(x.inicio, agora - 400 * 86400000));
+    });
     const lista = ((extras.semProducao && extras.semProducao.periodos) || []).filter((x) => x.maquina === id && x.inicio <= agora).map((x) => {
       const limite = x.fim || agora;
       const auto = x.tipo === "parada" ? null : retornoAutomatico(id, x.inicio, limite); // parada registrada: o fim e o informado

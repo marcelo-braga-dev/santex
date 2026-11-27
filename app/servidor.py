@@ -31,11 +31,13 @@ import hmac
 import json
 import mimetypes
 import os
+import re
 import socket
 import sys
 import threading
 import logging
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, quote, unquote, urlparse
@@ -206,15 +208,56 @@ def _resposta_setores():
             "tiposColeta": list(cadastro_setores.TIPOS_COLETA)}
 
 
-def _csv_atual(setor):
+def _csv_atual(setor, desde=None):
+    """desde (2.0): so os ciclos que terminaram desse dia em diante - a
+    janela que o painel pede nos setores novos (ver js do painel)."""
     versao = banco.versao_ciclos(setor)
+    chave = (setor, desde or "")
     with _trava_cache:
-        atual = _cache_csv.get(setor)
+        atual = _cache_csv.get(chave)
         if atual is None or atual["versao"] != versao:
-            bruto = banco.csv_do_setor(setor).encode("utf-8")
+            bruto = banco.csv_do_setor(setor, desde=desde).encode("utf-8")
             atual = {"versao": versao, "bruto": bruto, "gzip": gzip.compress(bruto, 6)}
-            _cache_csv[setor] = atual
+            if len(_cache_csv) >= 16:  # varias janelas (aparelhos em dias diferentes): nao cresce sem fim
+                _cache_csv.clear()
+            _cache_csv[chave] = atual
         return dict(atual)
+
+
+ROTAS_POR_SETOR = ("/dados", "/ao-vivo", "/config", "/api/v2/ciclos", "/api/v2/resumo")
+_RE_DIA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MAX_DIAS_CICLOS = 400  # /api/v2/ciclos: no maximo ~1 ano e pouco por pedido
+MAX_DIAS_RESUMO = 3700  # /api/v2/resumo: ~10 anos (sao poucas linhas por dia)
+
+
+def _dia_valido(texto):
+    if not _RE_DIA.match(str(texto or "")):
+        return None
+    try:
+        return datetime.strptime(texto, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _periodo_da_consulta(consulta, max_dias):
+    """(de, ate, maquinas, erro) de ?de=AAAA-MM-DD&ate=AAAA-MM-DD&maquinas=1,2.
+    Sem "ate" = hoje; sem "de" = o mesmo dia de "ate"."""
+    ate_txt = consulta.get("ate", [""])[0] or datetime.now().strftime("%Y-%m-%d")
+    de_txt = consulta.get("de", [""])[0] or ate_txt
+    de, ate = _dia_valido(de_txt), _dia_valido(ate_txt)
+    if de is None or ate is None:
+        return None, None, None, "Use de/ate no formato AAAA-MM-DD."
+    if de > ate:
+        return None, None, None, "O início (de) é depois do fim (ate)."
+    if (ate - de).days + 1 > max_dias:
+        return None, None, None, f"Período longo demais (máximo de {max_dias} dias por pedido)."
+    maquinas = []
+    for parte in consulta.get("maquinas", [""])[0].split(","):
+        if parte.strip():
+            if not parte.strip().isdigit() or not 1 <= int(parte) <= 64:
+                return None, None, None, "Máquinas: números de 1 a 64, separados por vírgula."
+            maquinas.append(int(parte))
+    return de_txt, ate_txt, maquinas, None
 
 
 # ---------------------------------------------------------------------
@@ -512,7 +555,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         consulta = parse_qs(url.query)
         setor = None
-        if url.path in ("/dados", "/ao-vivo", "/config"):  # so as rotas por setor consultam o cadastro
+        if url.path in ROTAS_POR_SETOR:  # so as rotas por setor consultam o cadastro
             setor = cadastro_setores.resolver(banco, consulta.get("setor", [""])[0])
             if setor is None:
                 self._responder_json({"ok": False, "erro": "setor_desconhecido",
@@ -538,7 +581,15 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/sincronizacao":
             self._responder_json(status_sincronizacao())
         elif url.path == "/dados":
-            self._responder_csv(setor)
+            desde = consulta.get("desde", [""])[0]
+            if desde and _dia_valido(desde) is None:
+                self._responder_json({"ok": False, "erro": "desde: use AAAA-MM-DD."}, status=400)
+                return
+            self._responder_csv(setor, desde or None)
+        elif url.path == "/api/v2/ciclos":
+            self._responder_ciclos_periodo(setor, consulta)
+        elif url.path == "/api/v2/resumo":
+            self._responder_resumo(setor, consulta)
         elif url.path == "/setores":
             self._responder_json(_resposta_setores())
         elif url.path == "/ao-vivo":
@@ -629,13 +680,62 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 self.wfile.write(bloco)
 
-    def _responder_csv(self, setor):
+    def _responder_ciclos_periodo(self, setor, consulta):
+        """2.0: GET /api/v2/ciclos?setor=&de=&ate=&maquinas=&formato=csv|json -
+        os ciclos que terminaram entre os dias de e ate (inclusive). CSV no
+        mesmo formato do /dados (o painel ja sabe ler)."""
+        de, ate, maquinas, erro = _periodo_da_consulta(consulta, MAX_DIAS_CICLOS)
+        if erro:
+            self._responder_json({"ok": False, "erro": erro}, status=400)
+            return
+        texto = banco.csv_do_setor(setor, desde=de, ate=ate, maquinas=maquinas)
+        if consulta.get("formato", ["csv"])[0] == "json":
+            linhas = texto.splitlines()[1:]
+            ciclos = []
+            for linha in linhas:
+                p = linha.split(",")
+                ciclos.append({"maquina": int(p[0]), "ciclo": int(p[1]), "duracaoS": float(p[4]),
+                               "obs": ",".join(p[5:-1]), "fim": p[-1].replace("T", " ") or None})
+            self._responder_json({"setor": setor, "de": de, "ate": ate, "ciclos": ciclos})
+            return
+        dados = texto.encode("utf-8")
+        usar_gzip = "gzip" in self.headers.get("Accept-Encoding", "") and len(dados) > 1024
+        if usar_gzip:
+            dados = gzip.compress(dados, 6)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        if usar_gzip:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(dados)))
+        self.end_headers()
+        self.wfile.write(dados)
+
+    def _responder_resumo(self, setor, consulta):
+        """2.0: GET /api/v2/resumo?setor=&de=&ate=&agrupar=dia|maquina|dia_maquina
+        &maquinas= - ciclos e tempo ligado somados do resumo_dia (rapido mesmo
+        com anos de historico). Por turno ainda nao: as regras de turno
+        (pausas, calendario, turno que passa da meia-noite) ficam no painel."""
+        de, ate, maquinas, erro = _periodo_da_consulta(consulta, MAX_DIAS_RESUMO)
+        agrupar = consulta.get("agrupar", ["dia"])[0]
+        if not erro and agrupar not in ("dia", "maquina", "dia_maquina"):
+            erro = ("Agrupar por turno ainda não está disponível no servidor." if agrupar == "turno"
+                    else "agrupar: dia, maquina ou dia_maquina.")
+        if erro:
+            self._responder_json({"ok": False, "erro": erro}, status=400)
+            return
+        linhas = banco.resumo(setor, de, ate, agrupar, maquinas)
+        self._responder_json({"setor": setor, "de": de, "ate": ate, "agrupar": agrupar, "linhas": linhas,
+                              "totais": {"ciclos": sum(l["ciclos"] for l in linhas),
+                                         "segundosLigada": round(sum(l["segundosLigada"] for l in linhas), 1)}})
+
+    def _responder_csv(self, setor, desde=None):
         """Historico completo em CSV. Com If-None-Match igual a versao atual
         responde 304 (sem corpo) - o painel consulta a cada 5 s, mas o
         historico so muda quando chega um ciclo novo. Comprimido com gzip
         quando o navegador aceita (CSV encolhe ~6x)."""
-        atual = _csv_atual(setor)
-        etag = f'"{setor}-{atual["versao"]}"'
+        atual = _csv_atual(setor, desde)
+        etag = f'"{setor}-{desde or "tudo"}-{atual["versao"]}"'
         if self.headers.get("If-None-Match", "") == etag:
             self.send_response(304)
             self.send_header("ETag", etag)
