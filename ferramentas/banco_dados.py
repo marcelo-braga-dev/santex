@@ -276,6 +276,10 @@ SETOR_INICIAL = ("enfestadeiras", "Enfestadeiras", "multi")
 VERSAO_RESUMO = "1"
 _SEGREDO_VERSAO_RESUMO = "resumo_dia_versao"
 _MAX_DURACAO_RESUMO_S = 31 * 86400  # protecao contra duracao absurda (nunca vista)
+# conta_no_resumo() em SQL (mais: data valida), para o recalculo e a conferencia
+_SQL_CONTA_NO_RESUMO = ("NOT (dispositivo IS NOT NULL AND substr(dispositivo, 1, 15) != 'NOTEBOOK-SERIAL' "
+                        "AND instr(obs, 'SEM_HORA') > 0) AND instr(upper(obs), 'SIMULADO') = 0 "
+                        "AND julianday(substr(gravado_em, 1, 19)) IS NOT NULL")
 
 
 def _sem_hora_real(dispositivo, obs):
@@ -380,9 +384,7 @@ class BancoDados:
         # que nao passa da meia-noite (quase todos) e somado direto no banco;
         # so os que passam vem para o Python (1,8 milhao de ciclos: de ~160 s
         # no laco em Python para segundos).
-        conta = ("NOT (dispositivo IS NOT NULL AND substr(dispositivo, 1, 15) != 'NOTEBOOK-SERIAL' "
-                 "AND instr(obs, 'SEM_HORA') > 0) AND instr(upper(obs), 'SIMULADO') = 0 "
-                 "AND julianday(substr(gravado_em, 1, 19)) IS NOT NULL")
+        conta = _SQL_CONTA_NO_RESUMO
         dur = f"max(0, min(duracao_s, {_MAX_DURACAO_RESUMO_S}))"
         no_dia = "(julianday(substr(gravado_em, 1, 19)) - julianday(substr(gravado_em, 1, 10))) * 86400.0"
         so_setor, args = (" AND setor = ?", (setor,)) if setor else ("", ())
@@ -410,11 +412,20 @@ class BancoDados:
 
     def _garantir_resumo(self):
         """Banco vindo da 1.x (ou regra do resumo mudou): calcula o resumo_dia
-        uma vez a partir dos ciclos existentes."""
-        if self.obter_segredo(_SEGREDO_VERSAO_RESUMO) == VERSAO_RESUMO:
+        uma vez a partir dos ciclos existentes. Tambem confere, ao abrir, se o
+        resumo conta os mesmos ciclos que a tabela: se alguem voltou para a
+        1.7.x (que grava ciclos sem manter o resumo) e depois subiu a 2.0 de
+        novo, recalcula."""
+        if self.obter_segredo(_SEGREDO_VERSAO_RESUMO) == VERSAO_RESUMO and self._resumo_confere():
             return
         self.recalcular_resumo()
         self.salvar_segredo(_SEGREDO_VERSAO_RESUMO, VERSAO_RESUMO)
+
+    def _resumo_confere(self):
+        with self._lock:
+            n_ciclos = self._conn.execute(f"SELECT COUNT(*) FROM ciclos WHERE {_SQL_CONTA_NO_RESUMO}").fetchone()[0]
+            n_resumo = self._conn.execute("SELECT COALESCE(SUM(ciclos), 0) FROM resumo_dia").fetchone()[0]
+        return n_ciclos == n_resumo
 
     def resumo(self, setor, de, ate, agrupar="dia", maquinas=None):
         """Linhas do resumo_dia entre os dias de e ate (inclusive, AAAA-MM-DD),

@@ -44,7 +44,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from caminhos import dir_backup, dir_base_bundle, dir_dados_usuario
 
-APP_VERSAO = "1.7.5"
+APP_VERSAO = "2.0.0-alfa.1"
 MODO_NUVEM = os.environ.get("PAINEL_MODO", "").strip().lower() == "nuvem"
 # porta padrao da web: http://painel.local (sem ":porta"); na VPS fica atras do Caddy
 PORTA_SERVIDOR = int(os.environ.get("PAINEL_PORTA") or (8080 if MODO_NUVEM else 80))
@@ -222,6 +222,12 @@ def _csv_atual(setor, desde=None):
                 _cache_csv.clear()
             _cache_csv[chave] = atual
         return dict(atual)
+
+
+def versao_numerica(versao):
+    """"2.0.0-alfa.1" -> "2.0.0" (so a parte numerica)."""
+    achou = re.match(r"\d+(?:\.\d+)*", str(versao or ""))
+    return achou.group(0) if achou else ""
 
 
 ROTAS_POR_SETOR = ("/dados", "/ao-vivo", "/config", "/api/v2/ciclos", "/api/v2/resumo")
@@ -938,7 +944,10 @@ class Handler(BaseHTTPRequestHandler):
             self._responder_json({"ok": False, "erro": "chave invalida"}, status=403)
             return
         if rota == "/api/nuvem/ping":  # so confere a chave (teste da instalacao), nao grava nada
-            self._responder_json({"ok": True, "versao": APP_VERSAO})
+            # 2.0: "versao" so com numeros (o notebook 1.7.x faz int() em cada
+            # parte e um "-alfa.1" o faria achar que a VPS e antiga); a
+            # versao inteira vai em "versaoCompleta"
+            self._responder_json({"ok": True, "versao": versao_numerica(APP_VERSAO), "versaoCompleta": APP_VERSAO})
             return
         try:
             corpo = self._corpo_json()

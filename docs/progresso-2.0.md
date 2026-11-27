@@ -2,7 +2,7 @@
 
 > Diário de execução do [plano da 2.0](plano-2.0.md). Atualize ao fim de
 > cada sessão: o que ficou pronto, o que falta e onde parou.
-> Última atualização: **26/11/2026** (2ª sessão: revisão + etapas 1.3 e 1.4).
+> Última atualização: **27/11/2026** (revisão + etapas 1.3, 1.4 e 1.5).
 
 ## ⚠ Antes de tudo
 
@@ -14,8 +14,9 @@
   - uma correção urgente na 1.7.x sai da tag:
     `git checkout -b correcao-1.7 v1.7.5` → corrige → tag `v1.7.6` → deploy
     a partir dessa tag. Depois, leve a correção para a `main`.
-- O `APP_VERSAO` continua `"1.7.5"` de propósito. Ele só muda para
-  `2.0.0-alfa.1` quando a fase 1 terminar (primeiro deploy de teste da 2.0).
+- O `APP_VERSAO` da `main` é **`"2.0.0-alfa.1"`** (desde 27/11/2026, fase
+  1 fechada). O deploy de teste dessa versão **ainda não foi feito**: só
+  com o OK do usuário, VPS primeiro (`vps/CLAUDE_VPS.md`).
 - As regras do `CLAUDE.md` continuam valendo: banco de produção nunca
   apagado, testes só em pasta temporária, nunca ler o ESP32 real.
 
@@ -24,7 +25,7 @@
 | Fase | Situação |
 |---|---|
 | 0. Rede e hardware | Decisões tomadas (plano §2 e §5); instalação e prova de alcance **pendentes** (com o usuário) |
-| **1. Fundação multi-setor** | **Em andamento**: etapas 1.1 a 1.4 prontas; falta a 1.5 (fechamento, com o OK do usuário para o deploy de teste) |
+| **1. Fundação multi-setor** | **Código pronto** (1.1 a 1.5, versão `2.0.0-alfa.1`). Falta o **deploy de teste** (VPS primeiro, depois o `.exe`), que depende do OK do usuário |
 | 2. Protocolo e servidor (push dos ESP32) | Não iniciada |
 | 3. Firmware 4.0 | Não iniciada |
 | 4. Painel 50 máquinas | Não iniciada |
@@ -190,10 +191,37 @@ feito:
   3. O backup do painel (CSV) de um setor grande baixa o histórico inteiro:
      na fase 4, trocar por exportação por período.
 
-### ⏭ 1.5 Fechamento da fase 1 (PRÓXIMA)
-- `APP_VERSAO = "2.0.0-alfa.1"`, CHANGELOG, `vps/CLAUDE_VPS.md` (bloco do
-  deploy da 2.0: VPS primeiro), `docs/nuvem-vps.md`, `docs/painel.md`.
-- Deploy de teste na VPS **só com o OK do usuário**; depois, o `.exe`.
+### ✅ 1.5 Fechamento da fase 1 (falta só o deploy, com o OK do usuário)
+- `APP_VERSAO = "2.0.0-alfa.1"`; CHANGELOG; `vps/CLAUDE_VPS.md` com o bloco
+  do deploy de teste (cópia do banco antes, VPS primeiro, verificações, como
+  voltar); `docs/nuvem-vps.md` (seção 2.0) e `docs/painel.md` (setores,
+  cadastro, janela de dados, limites).
+- **Versão com sufixo**: o `ping` passou a responder `"versao": "2.0.0"` (só
+  números) + `"versaoCompleta"`, porque o notebook 1.7.x lê a versão com
+  `int()` e acharia que a VPS `2.0.0-alfa.1` é antiga (deixaria de
+  reenviar a hora dos ciclos `SEM_HORA`). O notebook 2.0 aceita sufixo. O
+  gerador do `.exe` aceita sufixo no nome.
+- **Convivência testada nos dois sentidos**, com o código da tag `v1.7.5`
+  extraído para a pasta temporária e rodando em processo separado:
+  `TesteCompatibilidadeVps175` (notebook 2.0 × VPS 1.7.5) e
+  `TesteCompatibilidadeNotebook175` (VPS 2.0 × notebook 1.7.5 — o caso
+  real do deploy "VPS primeiro" — e a **volta para a 1.7.5** abrindo um
+  banco que já passou pela 2.0).
+- O teste da volta mostrou um problema e ele foi corrigido: ciclos gravados
+  pela 1.7.5 depois de uma volta não entravam no `resumo_dia` quando a 2.0
+  subia de novo. Agora, ao abrir, o banco confere a contagem
+  (`_resumo_confere`) e recalcula se não bater. Custo: uma contagem ao
+  abrir (≈1–2 s com 1,8 milhão de ciclos; hoje, instantânea).
+- **Deploy de teste: pendente.** Ordem: (1) cópia do banco da VPS, (2) VPS
+  com a `main`, verificações do `vps/CLAUDE_VPS.md`, (3) gerar o `.exe`
+  `PainelProducaoSantex-2.0.0-alfa.1.exe` e instalar no notebook,
+  (4) conferir as Enfestadeiras idênticas e criar um setor de teste.
+
+### ⏭ Próximo: fase 2 (protocolo e servidor dos coletores)
+Começa pelo que a 1.4 mostrou ser necessário antes das 50 máquinas:
+**atualização incremental** do `/dados` (só os ciclos novos). Depois:
+`/api/v2/coletor` (push com HMAC por aparelho), cadastro de dispositivos e
+adoção, fila com gravador único, simulador de 50 coletores, alertas.
 
 ## Pontos de atenção para quem continuar
 - `SETOR_PADRAO` (`ferramentas/monitor_serial.py`) ainda existe e é usado
@@ -225,7 +253,7 @@ feito:
 
 ## Como testar
 ```
-python -m unittest discover -s testes -v     # 72 testes (45 da 1.7.5 + 27 da 2.0), pasta temporária
+python -m unittest discover -s testes -v     # 74 testes (45 da 1.7.5 + 29 da 2.0), pasta temporária
 python ferramentas/teste_volume.py           # volume: 1 ano de 50 máquinas, banco temporário (~5 min)
 ```
 Testes da 2.0: `testes/test_setores.py` (regras, banco, rotas, sincronização
@@ -247,3 +275,4 @@ Painel no navegador sem tocar em nada real: um script que aponta
 | 26/11/2026 | Tag `v1.7.5` (fim da série 1.x). Plano da 2.0 (`docs/plano-2.0.md`) com as decisões do usuário. Fase 1: etapas 1.1 (cadastro de setores) e 1.2 (sincronização por setor), 59 testes passando |
 | 26/11/2026 | Revisão das etapas 1.1/1.2 (tabela acima): convergência do cadastro, GET mais leve, geradores corrigidos, testes de compatibilidade com a VPS 1.7.5 e dos geradores. Etapa 1.3 (seletor de setor e cartão Setores, `painel/js/setores.js`), conferida no navegador. 63 testes passando |
 | 26/11/2026 | Etapa 1.4: `resumo_dia`, índice por `gravado_em`, `/api/v2/ciclos`, `/api/v2/resumo`, `/dados?desde=`, janela de dados no painel (só setores novos), ETag sem `COUNT(*)`, teste de volume (tabela na 1.4). 72 testes passando |
+| 27/11/2026 | Etapa 1.5: versão `2.0.0-alfa.1` (ping só com números + `versaoCompleta`; `.exe` com sufixo), testes da convivência com a 1.7.5 nos dois sentidos e da volta para a 1.7.5 (corrigido: resumo recalculado ao abrir se não bater), docs do deploy de teste. 74 testes passando. Deploy de teste pendente (OK do usuário) |

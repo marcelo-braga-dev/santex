@@ -31,7 +31,7 @@ DIR_BASE = os.path.join(RAIZ_PROJETO, "app")
 # 1.7.2: a versao vai no nome do arquivo (PainelProducaoSantex-1.7.2.exe) -
 # lida do APP_VERSAO de app/servidor.py, a mesma que o painel mostra.
 with open(os.path.join(DIR_BASE, "servidor.py"), "r", encoding="utf-8") as _arq:
-    _achou = re.search(r'^APP_VERSAO = "([0-9][0-9.]*)"', _arq.read(), re.M)
+    _achou = re.search(r'^APP_VERSAO = "([0-9][0-9A-Za-z.\-]*)"', _arq.read(), re.M)  # 2.0: aceita "-alfa.1"
 if not _achou:
     raise SystemExit("ERRO: APP_VERSAO nao encontrado em app/servidor.py")
 VERSAO = _achou.group(1)

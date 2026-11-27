@@ -13,9 +13,11 @@ arquivo vira o `CLAUDE.md` dele). Guia humano equivalente: `docs/nuvem-vps.md`.
 
 > **⚠ 2.0 em desenvolvimento na `main` (desde 26/11/2026).** Produção =
 > tag **`v1.7.5`**. **Não instale a `main`** (`vps/instalar.sh`) até a 2.0
-> ser liberada. Para um deploy de correção da 1.7.x, use a tag dela
-> (`git checkout v1.7.x` e depois `sudo bash vps/instalar.sh`). Detalhes em
-> `docs/progresso-2.0.md`. Na dúvida, pergunte antes ao usuário.
+> ser liberada. Única exceção: o **deploy de teste da `2.0.0-alfa.1`**
+> (bloco abaixo), **só quando o usuário pedir com essas palavras**. Para um
+> deploy de correção da 1.7.x, use a tag dela (`git checkout v1.7.x` e
+> depois `sudo bash vps/instalar.sh`). Detalhes em `docs/progresso-2.0.md`.
+> Na dúvida, pergunte antes ao usuário.
 
 **Pedido mais comum: "faça o deploy" depois de um `git pull`** → vá direto
 para a seção **"Deploy de uma atualização (git pull)"**, logo abaixo das regras.
@@ -107,6 +109,35 @@ arquivo: confira e reponha as regras.** Teste rápido:
 um arquivo em `/www/wwwroot/santex/painel/.well-known/acme-challenge/` precisa
 abrir por `http://` (200). Recarregar: `/usr/local/lsws/bin/lswsctrl restart`
 (suave, não derruba os outros sites).
+
+**2.0.0-alfa.1 — deploy de TESTE, só com o pedido explícito do usuário**
+(seguinte à 1.7.5; a `main` com a fase 1 da 2.0 fechada):
+- **Ordem: VPS primeiro**, depois o `.exe` do notebook. A VPS 2.0 funciona
+  com o notebook 1.7.5 (testado: `TesteCompatibilidadeNotebook175`) e com o
+  ESP32 3.2 enviando direto, como hoje.
+- O banco ganha **sozinho, ao iniciar**, só coisas novas: tabelas
+  `setores` (com "Enfestadeiras", dona de todo o histórico) e `resumo_dia`
+  (calculado dos ciclos existentes na primeira partida — com ~10 mil ciclos,
+  menos de 1 s), e o índice `idx_ciclos_setor_gravado`. Nada é apagado nem
+  reescrito. **Antes do deploy, faça uma cópia do banco** (o backup diário
+  já existe, mas esta é a primeira subida de versão grande):
+  `sudo -u painel sqlite3 /var/lib/painel-nuvem/painel.db ".backup /var/lib/painel-nuvem/backup-antes-2.0.db"`
+  (sem o `sqlite3`: `sudo -u painel python3 -c "import sqlite3; s=sqlite3.connect('/var/lib/painel-nuvem/painel.db'); d=sqlite3.connect('/var/lib/painel-nuvem/backup-antes-2.0.db'); s.backup(d)"`).
+- Arquivos novos: `ferramentas/setores.py` e `painel/js/setores.js` (o
+  `vps/instalar.sh` copia as pastas inteiras).
+- No passo 3, o `ping` responde
+  `{"ok": true, "versao": "2.0.0", "versaoCompleta": "2.0.0-alfa.1"}` (o
+  "versao" só com números, porque o notebook 1.7.x lê assim). Conferir também:
+  ```bash
+  sudo python3 -c "import sqlite3; c=sqlite3.connect('file:/var/lib/painel-nuvem/painel.db?mode=ro', uri=True); print('setores:', c.execute('select setor, nome, ativo from setores').fetchall()); print('resumo_dia:', c.execute('select count(*), coalesce(sum(ciclos),0) from resumo_dia').fetchone(), 'ciclos:', c.execute('select count(*) from ciclos').fetchone()[0])"
+  curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/setores        # 401 (atrás do login)
+  curl -s -o /dev/null -w '%{http_code}\n' https://santex.rexar.com.br/js/setores.js  # 401 (idem)
+  ```
+  A soma de `ciclos` do `resumo_dia` fica um pouco abaixo do total de
+  ciclos: ficam fora os simulados e os que o ESP32 mandou sem hora.
+- **Voltar para a 1.7.5** (se algo der errado): `git checkout v1.7.5` e
+  `sudo bash vps/instalar.sh`. A 1.7.5 abre o banco com as tabelas novas sem
+  problema (ela só as ignora); setores criados na 2.0 ficam guardados.
 
 **1.7.5** (deploy seguinte ao 1.7.4): só o painel (Configurações em abas e
 histórico de notificações enxuto). Deploy comum; o `ping` responde `"versao": "1.7.5"`.

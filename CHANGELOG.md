@@ -1,9 +1,24 @@
 # Histórico de versões
 
-## 2.0.0 — em desenvolvimento (vários setores e um ESP32 por máquina)
+## 2.0.0-alfa.1 — fase 1 da 2.0: vários setores (app 2.0.0-alfa.1 · firmware 3.2 e programa remoto 1.2.0, sem mudança)
 
-Plano em `docs/plano-2.0.md`, andamento em `docs/progresso-2.0.md`. Ainda
-não liberada: produção continua na 1.7.5.
+Plano em `docs/plano-2.0.md`, andamento em `docs/progresso-2.0.md`. **Não
+liberada**: produção continua na 1.7.5. É a versão do primeiro deploy de
+teste (VPS primeiro, só com o OK do usuário; passo a passo em
+`vps/CLAUDE_VPS.md`).
+
+- **Convivência com a 1.7.5 testada nos dois sentidos** (código da tag
+  `v1.7.5` em processo separado): notebook 2.0 × VPS 1.7.5, VPS 2.0 ×
+  notebook 1.7.5 e a volta para a 1.7.5 abrindo um banco que já passou pela
+  2.0.
+- O `ping` da VPS responde `"versao"` só com números (`"2.0.0"`) e a versão
+  inteira em `"versaoCompleta"`: o notebook 1.7.x lê a versão com `int()` e,
+  com o `-alfa.1`, acharia que a VPS é antiga. O notebook 2.0 também passa a
+  aceitar sufixo. O gerador do `.exe` aceita sufixo no nome
+  (`PainelProducaoSantex-2.0.0-alfa.1.exe`).
+- Ao abrir, o banco confere se o `resumo_dia` conta os mesmos ciclos da
+  tabela e recalcula se não (caso de alguém voltar para a 1.7.x, que grava
+  ciclos sem manter o resumo, e subir a 2.0 de novo).
 
 - **Cadastro de setores** no banco (tabela `setores`): criar, renomear,
   ordenar, desativar e apagar (só setor sem dados). As Enfestadeiras entram

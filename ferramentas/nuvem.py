@@ -1039,7 +1039,8 @@ class EnviadorConfig:
                                          headers={"Content-Type": "application/json", "X-Chave-Nuvem": cfg["chave"]})
             with urllib.request.urlopen(req, timeout=self.TIMEOUT_S) as resp:
                 versao = str(json.loads(resp.read().decode("utf-8")).get("versao", ""))
-            return tuple(int(p) for p in versao.split(".")[:3]) >= (1, 7, 1)
+            numeros = re.match(r"\d+(?:\.\d+)*", versao)  # 2.0: aceita sufixo ("2.0.0-alfa.1")
+            return bool(numeros) and tuple(int(p) for p in numeros.group(0).split(".")[:3]) >= (1, 7, 1)
         except (OSError, ValueError, HTTPError):
             return False
 

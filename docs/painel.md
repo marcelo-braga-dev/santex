@@ -540,62 +540,59 @@ tabela** — os gráficos acima sempre mostram a visão completa/comparativa.
 
 ## Múltiplos setores
 
-O painel foi estruturado para atender vários setores da empresa, cada um
-com seu próprio conjunto de máquinas — hoje só o setor **Enfestadeiras**
-(4 máquinas) existe de verdade; os demais setores da empresa ainda não
-foram cadastrados.
+**2.0 (em desenvolvimento, ver `docs/plano-2.0.md`):** os setores são
+**cadastrados no banco** e editados pelo próprio painel — nada fixo no
+código. As **Enfestadeiras** (4 máquinas do ESP32 multi) entram sozinhas no
+cadastro e são donas de todo o histórico da 1.x.
 
-### Como funciona
+### Seletor de setor
 
-No topo da página, à esquerda da logo, fica o seletor **Setor**. Trocar de
-setor:
+No topo, o seletor **Setor** mostra os setores ativos (um setor só: aparece
+só o nome). O setor que abre é, nesta ordem: o do endereço (`?setor=costura`,
+abre até um setor desativado, para ver o histórico), o último escolhido
+neste aparelho, ou o primeiro ativo do cadastro. Trocar de setor:
 
-- troca o conjunto de máquinas mostrado em todos os cards/gráficos/tabela;
-- troca o nome exibido no título do painel e nos relatórios;
-- **limpa os dados carregados na tela** (um CSV de um setor não faz sentido
-  em outro — o usuário precisa carregar/gerar dados de novo para o setor
-  recém-selecionado);
-- troca qual configuração de máquina (nome, taxa) e qual meta diária são
-  lidas/gravadas — cada setor tem as suas, isoladas, no `localStorage` do
-  navegador (chaves com sufixo `__<id-do-setor>`, ex.:
-  `painel_config_maquinas__enfestadeiras`) **e**, quando há um servidor
-  local rodando (`controle_leitura_server.py` ou o aplicativo desktop), no
-  banco de dados persistente (`dados/painel.db` — ver
-  `docs/ferramentas.md`). Configuração de um setor nunca vaza pra outro.
+- troca as máquinas (as cadastradas no setor; nas Enfestadeiras, sempre as
+  4), a configuração (turnos, calendário, metas, motivos…), os dados e o
+  estado ao vivo — nada de um setor vaza para outro;
+- guarda a escolha neste aparelho e põe `?setor=` no endereço (para mandar
+  o link);
+- descarta respostas atrasadas do setor anterior.
 
-### Como adicionar um novo setor
+### Cadastro (⚙ Configurações → Produção → Setores)
 
-No `<script>` do `index.html`, logo no início, existe o
-registro central:
+- **Criar**: nome, tipo de coleta (*um controlador por máquina* ou *vários
+  por controlador*) e, se quiser, quantas máquinas já cadastrar. O
+  identificador interno (slug, ex. `costura`) sai do nome e **nunca muda**,
+  porque é gravado em cada ciclo; renomear muda só o nome exibido.
+- **↑ / ↓** mudam a ordem; **+ Máquina** cadastra a próxima máquina do setor.
+- **Desativar** tira o setor do seletor; o histórico continua nos
+  relatórios. **Apagar** só setor sem máquinas e sem produção. Sempre fica
+  ao menos um setor ativo.
+- Tudo entra na auditoria e sincroniza com a VPS (item `setores`). Sem
+  permissão de edição, o cartão só mostra a lista.
+- Ainda não há como **remover** uma máquina (fases 2/4: dispositivos).
 
-```js
-const SETORES = [
-  { id: "enfestadeiras", nome: "Enfestadeiras", machineIds: [1, 2, 3, 4] }
-];
-```
+### Dados por período nos setores novos
 
-Basta acrescentar um novo item — `id` único (vira parte da chave de
-`localStorage`, então não deve mudar depois de criado), `nome` (exibido na
-UI) e `machineIds` (lista de ids de máquina daquele setor; não precisa ser
-`[1,2,3,4]`, nem ter a mesma quantidade de outro setor). Todo o resto do
-painel (seletor de setor, cards, gráficos, tabela, filtro, exportação
-Excel) lê esse registro e se adapta sozinho — nenhuma outra parte do código
-precisa saber quantos setores existem ou quantas máquinas cada um tem.
+As Enfestadeiras carregam o histórico inteiro (`/dados`), como sempre. Os
+setores novos carregam uma **janela de dias** (`/dados?desde=`, 14 dias +
+2 de folga) que cresce sozinha quando a tela pede um período mais antigo
+(barra de período, Desempenho, histórico de paradas, relatórios — que
+esperam os dados antes de gerar — e períodos sem produção). Para
+consultas maiores, o servidor tem `/api/v2/ciclos` (ciclos de um período) e
+`/api/v2/resumo` (totais por dia/máquina, rápidos mesmo com anos de dados).
 
-Limites atuais dessa estrutura, pra quem for estender:
+### Limites atuais
 
-- **Cores de identidade**: até **6 máquinas por setor** têm cor própria
-  validada contra daltonismo (`--m1` a `--m6` no CSS, atribuída pela
-  *posição* da máquina na lista do setor). Um setor com mais de 6 máquinas
-  precisaria de cores novas, validadas com
-  `scripts/validate_palette.js` da skill `dataviz` antes de entrar.
-- **Firmware/ferramentas**: cada setor provavelmente terá seu próprio
-  ESP32 e seus próprios scripts de leitura (portas COM diferentes, CSVs
-  diferentes) — isso ainda não foi construído para nenhum setor além de
-  Enfestadeiras. O registro `SETORES` é só do lado do painel; a leitura de
-  dados reais de um setor novo exige repetir o processo de
-  `firmware/`/`ferramentas/` descrito em `docs/firmware.md` e
-  `docs/ferramentas.md`.
+- **Cores**: até 6 máquinas têm cor própria validada (`--m1` a `--m6`); com
+  mais, a paleta se repete. A visão para 50 máquinas (cartões compactos,
+  grupos, filtros) é a fase 4.
+- **Séries e períodos longos** (Desempenho na visão mês/ano) ainda calculam
+  com os ciclos brutos — num setor de 50 máquinas, pesado. Fase 4: pelo
+  `/api/v2/resumo`.
+- **Coleta**: o setor novo recebe dados dos coletores de 1 por máquina
+  (firmware 4.0, fases 2 e 3). Hoje só as Enfestadeiras têm controlador.
 
 ## Configurar máquinas (popup — ⚙ Configurações → Máquinas)
 

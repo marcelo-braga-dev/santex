@@ -431,6 +431,122 @@ class TesteCompatibilidadeVps175(unittest.TestCase):
         self.assertEqual(vps.total_ciclos("enfestadeiras"), 1)
 
 
+_NOTEBOOK_175 = r'''
+import json, os, sys
+codigo, local, url, chave = sys.argv[1:5]
+sys.path.insert(0, os.path.join(codigo, "ferramentas"))
+import nuvem
+from banco_dados import BancoDados
+with open(os.path.join(local, "nuvem.json"), "w", encoding="utf-8") as f:
+    json.dump({"url": url, "chave": chave}, f)
+b = BancoDados(os.path.join(local, "painel.db"))
+nuvem.aplicar_config(b, {"setor": "enfestadeiras", "maquinas": {"2": {"nome": "Enf Dois", "metrosPorMin": 3}}},
+                     "enfestadeiras", origem="notebook", autor="notebook")
+for i in range(1, 4):
+    b.gravar_ciclo_remoto("enfestadeiras", "AA0000000000-175175", i, 2, i, "?", "?", 30.0, "", "2026-12-02 08:0%d:00" % i)
+e = nuvem.EnviadorConfig(b, local, "enfestadeiras")
+ok = [e.enviar_agora(), e.enviar_agora()]
+gravados = e.enviar_historico(conferir=False)
+print(json.dumps({"ok": ok, "erro": e.status()["erro"], "pendentes": [p["chave"] for p in b.pendentes()],
+                  "gravados": gravados, "revs": sorted(b.listar_revs()), "completa_hora": e._vps_completa_hora(nuvem.config_nuvem_app(local)),
+                  "maquinas": b.obter_maquinas("enfestadeiras")}))
+'''
+
+
+class TesteCompatibilidadeNotebook175(unittest.TestCase):
+    """O contrario (e o que acontece no deploy, "VPS primeiro"): a VPS 2.0 com
+    um setor novo, e o notebook ainda na 1.7.5 (codigo da tag, processo
+    separado). As Enfestadeiras sincronizam normais e o notebook antigo
+    ignora o que nao conhece (setores e itens de outros setores)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import subprocess
+        import time
+        from test_nuvem import CHAVE, RAIZ, porta_livre
+        cls.codigo = tempfile.mkdtemp(prefix="painel_nb175_", dir=TMP)
+        if not _extrair_tag("v1.7.5", cls.codigo):
+            raise unittest.SkipTest("git ou tag v1.7.5 indisponivel")
+        cls.chave = CHAVE
+        cls.dados_vps = tempfile.mkdtemp(prefix="painel_vps20_dados_", dir=TMP)
+        vps = type(novo_banco())(os.path.join(cls.dados_vps, "painel.db"))  # VPS 2.0 ja com um setor novo
+        nuvem.alterar_setores(vps, "criar", {"nome": "Costura", "tipoColeta": "unitario"}, "nuvem", "edição remota")
+        nuvem.aplicar_config(vps, {"setor": "costura", "maquinas": {"4": {"nome": "Reta 4", "metrosPorMin": 1}}},
+                             "enfestadeiras", origem="nuvem", autor="edição remota")
+        vps._conn.close()
+        porta = porta_livre()
+        env = {**os.environ, "PAINEL_MODO": "nuvem", "PAINEL_DADOS": cls.dados_vps,
+               "PAINEL_PORTA": str(porta), "NUVEM_CHAVE": CHAVE, "PYTHONIOENCODING": "utf-8"}
+        cls.proc = subprocess.Popen([sys.executable, os.path.join(RAIZ, "ferramentas", "controle_leitura_server.py")],
+                                    env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.base = f"http://127.0.0.1:{porta}"
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(cls.base + "/assets/logo.png", timeout=1).close()
+                break
+            except OSError:
+                time.sleep(0.1)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.proc.terminate()
+        cls.proc.wait(timeout=10)
+
+    def test_vps_2_0_com_notebook_1_7_5(self):
+        import subprocess
+        local = tempfile.mkdtemp(dir=TMP)
+        script = os.path.join(local, "notebook175.py")
+        with open(script, "w", encoding="utf-8") as f:
+            f.write(_NOTEBOOK_175)
+        saida = subprocess.run([sys.executable, "-I", script, self.codigo, local, self.base, self.chave],
+                               capture_output=True, text=True, timeout=120, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        self.assertEqual(saida.returncode, 0, saida.stderr[-2000:])
+        r = json.loads(saida.stdout.strip().splitlines()[-1])
+        self.assertEqual(r["ok"], [True, True])
+        self.assertEqual(r["erro"], "")
+        self.assertEqual(r["pendentes"], [])  # tudo das Enfestadeiras confirmado
+        self.assertEqual(r["gravados"], 3)
+        self.assertTrue(r["completa_hora"])  # a VPS 2.0 responde uma versao que a 1.7.5 entende
+        self.assertNotIn("setores", r["revs"])  # o que a 1.7.5 nao conhece fica de fora
+        self.assertFalse(any(c.startswith("costura/") for c in r["revs"]))
+        self.assertEqual(set(r["maquinas"]), {"2"})
+        vps = type(novo_banco())(os.path.join(self.dados_vps, "painel.db"))
+        self.assertEqual(vps.obter_maquinas("enfestadeiras")["2"]["nome"], "Enf Dois")
+        self.assertEqual(vps.total_ciclos("enfestadeiras"), 3)
+        self.assertEqual(vps.obter_maquinas("costura")["4"]["nome"], "Reta 4")  # o setor novo fica intacto na VPS
+        self.assertEqual(vps.resumo("enfestadeiras", "2026-12-02", "2026-12-02")[0]["ciclos"], 3)
+
+    def test_voltar_para_1_7_5_abre_o_banco_da_2_0(self):
+        # rollback: a 1.7.5 abre um banco que ja passou pela 2.0 (setores,
+        # resumo_dia, indice novo, revisoes com setor) e segue funcionando
+        import subprocess
+        local = tempfile.mkdtemp(dir=TMP)
+        b = type(novo_banco())(os.path.join(local, "painel.db"))
+        nuvem.alterar_setores(b, "criar", {"nome": "Costura"}, "notebook", "notebook")
+        nuvem.aplicar_config(b, {"setor": "costura", "maquinas": {"1": {"nome": "Reta", "metrosPorMin": 1}}},
+                             "enfestadeiras", origem="notebook", autor="notebook")
+        b.gravar_ciclo_remoto("enfestadeiras", "AA-S9", 1, 1, 1, "?", "?", 10.0, "", "2026-12-01 08:00:00")
+        b._conn.close()
+        script = (
+            "import os, sys, json\n"
+            "sys.path.insert(0, os.path.join(sys.argv[1], 'ferramentas'))\n"
+            "import nuvem\nfrom banco_dados import BancoDados\n"
+            "b = BancoDados(sys.argv[2])\n"
+            "b.gravar_ciclo_remoto('enfestadeiras', 'AA-S9', 2, 1, 2, '?', '?', 10.0, '', '2026-12-01 09:00:00')\n"
+            "print(json.dumps({'csv': len(b.csv_do_setor('enfestadeiras').splitlines()),"
+            " 'itens': sorted(nuvem.itens_atuais(b, 'enfestadeiras'))}))\n")
+        saida = subprocess.run([sys.executable, "-I", "-c", script, self.codigo, os.path.join(local, "painel.db")],
+                               capture_output=True, text=True, timeout=60, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        self.assertEqual(saida.returncode, 0, saida.stderr[-2000:])
+        r = json.loads(saida.stdout.strip().splitlines()[-1])
+        self.assertEqual(r["csv"], 3)  # cabecalho + o ciclo da 2.0 + o gravado pela 1.7.5
+        self.assertNotIn("setores", r["itens"])
+        # subindo a 2.0 de novo: o ciclo que a 1.7.5 gravou entra no resumo (recalculado ao abrir)
+        b2 = type(novo_banco())(os.path.join(local, "painel.db"))
+        self.assertEqual(b2.total_ciclos("enfestadeiras"), 2)
+        self.assertEqual(b2.resumo("enfestadeiras", "2026-12-01", "2026-12-01")[0]["ciclos"], 2)
+
+
 class TesteGeradoresLevamOsModulos(unittest.TestCase):
     """O .exe da fabrica e o pacote da VPS precisam levar todo modulo de
     ferramentas/ que o servidor importa (a 2.0 criou o setores.py)."""
